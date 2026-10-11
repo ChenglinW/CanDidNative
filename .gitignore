@@ -1,0 +1,8 @@
+backend/data/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.xcuserstate
+xcuserdata/
+.env
