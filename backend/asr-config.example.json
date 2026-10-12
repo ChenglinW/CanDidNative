@@ -1,0 +1,6 @@
+{
+  "model": "qwen-audio-3.0-asr-flash",
+  "api_key": "",
+  "region": "cn-beijing",
+  "workspace_id": ""
+}

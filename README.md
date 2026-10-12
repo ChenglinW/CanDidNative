@@ -73,6 +73,12 @@ App 设置中的令牌是 `backend/data/local-access.txt` 内的**本机访问�
 backend/.venv/bin/python scripts/check-deepseek.py --live
 ```
 
+## AISHELL-4 / Qwen ASR 评测
+
+已新增 `qwen-audio-3.0-asr-flash` 评测适配器，并准备 20 个真实 AISHELL-4 音频片段和 5 个独立业务文本案例。密钥留在本机 `backend/data/asr-config.json`，已完成真实调用；14 段可评分语音 CER 为 4.46%，5 段无标注间隙返回未识别到文字。复盘质量部分通过，详见 [首轮实测报告](AISHELL实测报告.md)。工具支持音频校验、转写 CER、错误报告，以及将单人片段识别结果送入现有 DeepSeek 复盘流程。数据和测试结果与正式用户记忆隔离。
+
+运行命令、模型地域配置及结果解释见 [AISHELL 测试说明](AISHELL测试.md)。本轮只接入评测工具，正式 App 音频自动转写仍未启用。
+
 ## 3 推荐演示闭环
 
 1. 欢迎页阅读保存与保留说明，同意后进入 App。
