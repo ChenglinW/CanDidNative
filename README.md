@@ -2,7 +2,7 @@
 
 这是 SwiftUI 原生 iOS 客户端与 FastAPI 后端工程，不是 HTML 或 WebView 包装。依据《Can Did 动态记忆库 PRD 与技术规格 v0.1》和此前温暖版视觉开发。
 
-**当前开发环境为 macOS，已接入 Xcode 26.6 与 iOS 26.5 模拟器。** soundcore SDK 已完成原生链接构建，并执行音频转换与页面测试；后端在本机运行的 25 项回归测试通过。详细结果与尚未执行的项目见 [验证记录](验证记录.md)。
+**当前开发环境为 macOS，已接入 Xcode 26.6 与 iOS 26.5 模拟器。** soundcore SDK 已完成原生链接构建，并执行音频转换与页面测试；后端已接入 `deepseek-v4-pro`，本人文字复盘可生成带证据的诊断与待确认素材。详细结果与尚未执行的项目见 [验证记录](验证记录.md)。
 
 录音入口已改为 **soundcore 设备**，使用资料包的 iOS v1.3.01 SDK。设备通过按键开始／结束录音，App 预留授权、扫描、连接、暂停／恢复与文件同步接口；设备文件通过 libopus 解码后转换为可播放、可上传的 m4a。当前没有硬件或有效 token，实际鉴权和蓝牙录音链路尚未验证，模拟器不会冒充设备。环境配置与接口约束见 [macOS 开发说明](macOS开发.md)。
 
@@ -53,6 +53,26 @@ python run.py
 
 接口说明在 `http://127.0.0.1:8000/docs`。提供的 `backend/openapi.json` 是离线接口契约。
 
+## DeepSeek 模型配置
+
+当前模型为 `deepseek-v4-pro`，官方接口 `https://api.deepseek.com/chat/completions`。实现位于 `backend/llm.py`，系统提示词为 `PROMPT`。参考 [DeepSeek 官方接口](https://api-docs.deepseek.com/api/create-chat-completion/)。
+
+本机已保存私有配置 `backend/data/llm-config.json`，文件权限为 `0600`，`backend/data/` 已被 Git 忽略。更改 `model` 或 `api_key` 后重启后端。新环境可复制 `backend/llm-config.example.json` 到该路径，再填写自己的密钥；也可设置 `DEEPSEEK_MODEL` 和 `DEEPSEEK_API_KEY` 环境变量，它们优先于文件。指定 `CANDID_DATA_DIR` 时从该目录读取 `llm-config.json`。
+
+App 设置中的令牌是 `backend/data/local-access.txt` 内的**本机访问令牌**，不要在 App 中填写 DeepSeek Key。连接后，设置 → 文本分析模型显示后端模型与配置状态。Key 不返回客户端、不进入导出记忆或日志。
+
+调用链：本人原文 → 明确选择 DeepSeek 分析 → 后台任务 → 结构化诊断和逐字引文校验 → 待确认素材。API `POST /v1/sessions/{id}/transcript` 的 `analyze` 默认为 `false`；设为 `true` 表示同意分析。已保存的原文可通过 `POST /v1/sessions/{id}/analyze` 显式选择分析。重复提交不会重复入队；`/retry` 用于明确重新执行。
+
+仅发送该场次 `speaker=self` 的文本和场景，不发送音频、对方原话或历史记忆。单次上限 20,000 字、100 段，输出上限 4,096 tokens；使用非思考模式。模型生成的诊断须引用实际原文；素材为原文摘录，仍需用户确认。手工输入的时间范围是证据定位占位，不用于估算语速。暂不将真实诊断加入示例短板与基线聚合。
+
+鉴权失败、余额不足、引用不匹配会显示具体错误；超时、限流或暂时不可用最多自动尝试三次。模型调用期间不占用数据库锁，删除记忆或重新提交会使旧任务结果失效。本地 SQLite 仅支持一个后端进程；重启会恢复未完成任务，极端中断可能造成供应商重复计费。
+
+显式运行真实模型验证（使用合成文本，会产生少量 API 用量，不写入实际记忆）：
+
+```sh
+backend/.venv/bin/python scripts/check-deepseek.py --live
+```
+
 ## 3 推荐演示闭环
 
 1. 欢迎页阅读保存与保留说明，同意后进入 App。
@@ -60,10 +80,10 @@ python run.py
 3. 到场合中打开准备上下文，确认后的素材才会标为 FACT。草稿不会被混作已确认事实。
 4. 连接后端：新建四种场景中的任一场合 → 运行预处理示例闭环 → 场次列表下拉刷新 → 查看示例诊断及素材草稿 → 确认 → 再查看准备上下文。
 5. soundcore 真机待验收流程：场合 → 练习或记录 → 本人练习／已告知的真实沟通 → 连接与授权 → 在设备上按键录音并结束 → 刷新设备录音 → 选择文件 → 同步并保存。服务模式上传校验成功后删除本机 m4a 副本；后端保留回放副本。设备中的原始文件不会自动删除。
-6. 无法取得对方同意时选择口述复盘，文字复述以用户原文证据存储；不采集对方声音。
+6. 选择口述复盘，输入本人文字复述。连接后端后可勾选“同意将本次本人复述发送给 DeepSeek 分析”，点击“保存并分析本人复述”，到场次详情查看自动刷新的诊断与待确认素材；不勾选则只保存原文。
 7. 场次详情播放音频；设置调整保留期、导出 JSON；单场次删除 App 音频后保留本人转写及既有诊断。soundcore 设备原文件的删除由设备另行管理。
 
-**真实录音目前没有自动转写或 AI 诊断。** 后端返回明确的 `ASR_NOT_CONFIGURED`／等待模型状态。示例管线的 producer 为 `fixture@1`，不会把示例结果套到真实音频上。本人练习是真实录音流程，不是已接入的模拟听众语音 Agent。
+**DeepSeek 文本诊断已接入；真实录音目前没有自动转写。** 只有音频时返回 `ASR_NOT_CONFIGURED`；提交本人文字并选择分析后才调用模型。示例管线的 producer 为 `fixture@1`，不会把示例结果套到真实音频上。本人练习是真实录音流程，不是已接入的模拟听众语音 Agent。
 
 ## 4 已实现的记忆后端
 
@@ -82,7 +102,7 @@ SQLite 是**本地原型存储**，不是生产 Supabase。`backend/supabase/sch
 
 ## 5 未接入及验证边界
 
-- 没有 ASR、LLM、TTS、联网背调、Supabase 实际项目或云端部署。soundcore SDK 已链接，尚无硬件、token 或 license，真机接口未执行；云端 token 签发请求格式待供应商完整文档补充。
+- 没有 ASR、TTS、联网背调、Supabase 实际项目或云端部署。DeepSeek 当前用于本人文本诊断和原文素材摘录，未生成完整准备包或实时语音对话。soundcore SDK 已链接，尚无硬件、token 或 license，真机接口未执行；云端 token 签发请求格式待供应商完整文档补充。
 - 本次接入 BLE 离线录音同步。边录边传、设备标记导入、WiFi/MFi、OTA 等功能未接入；资料包 MFi 协议文本与截图不一致，当前未开启该通道。
 - 未完整实现四类准备包生成、讲稿 AI 版本生成、CV 解析、五场跨场景表达基线算法、模型版本全量重算、旧 stories 数据迁移、模型调用性能与成本监测。
 - 表结构预留这些记录；当前示例基线只是同场景字符数指标，不能当成完整 PRD 表达评分。短板状态机可验证，示例数据不能证明真实用户短板。
@@ -111,7 +131,10 @@ ios/CanDidTests/             裸 Opus 转换与模拟器设备边界测试
 ios/CanDidUITests/           欢迎页、记忆确认与 soundcore 录音入口测试
 ios/Vendor/                 本地 SDK 与 libopus（忽略版本控制，可用脚本重建）
 backend/app.py               FastAPI 路由、用户鉴权、签名文件访问
-backend/memory.py            持久化、数据库守卫、上下文、状态机与示例任务
+backend/memory.py            持久化、数据库守卫、上下文、状态机、模型与示例任务
+backend/llm.py               DeepSeek 适配、结构化结果与逐字证据校验
+backend/llm-config.example.json  无密钥配置模板
+scripts/check-deepseek.py    隔离数据库的真实模型闭环验证（显式 --live）
 backend/config.json          保留期、预算、评分版本和阈值
 backend/tests/               后端业务与接口回归测试
 backend/supabase/            Postgres/Supabase 参考结构

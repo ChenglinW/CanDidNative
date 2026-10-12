@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException
 from memory import Memory, Fault, CONFIG, TABLES, L1, L2, L3, encode, now, ident
+from llm import DeepSeek
 
 ROOT=Path(os.environ.get('CANDID_DATA_DIR',str(Path(__file__).parent/'data')))
 ROOT.mkdir(parents=True,exist_ok=True)
@@ -30,7 +31,7 @@ if MODE=='local':
 else:LOCAL_TOKEN=''
 LOCAL_OWNER='11111111-1111-4111-8111-111111111111'
 SIGN_KEY=secrets.token_bytes(32)
-store=Memory(ROOT/'memory.sqlite3',ROOT/'storage')
+store=Memory(ROOT/'memory.sqlite3',ROOT/'storage',llm=DeepSeek.from_config(ROOT))
 JWKS=None
 if MODE=='supabase':
     URL=os.environ['SUPABASE_URL'].rstrip('/')
@@ -126,7 +127,9 @@ class SegmentIn(Input):
     start_ms:int=Field(ge=0)
     end_ms:int=Field(gt=0)
     text:str=Field(min_length=1,max_length=20000)
-class TranscriptIn(Input):segments:list[SegmentIn]=Field(min_length=1,max_length=1000)
+class TranscriptIn(Input):
+    segments:list[SegmentIn]=Field(min_length=1,max_length=1000)
+    analyze:bool=False  # Explicit consent to send this session's self text to DeepSeek.
 class MediaIn(Input):
     storage_path:str
     sha256:str=Field(pattern=r'^[0-9a-f]{64}$')
@@ -201,6 +204,10 @@ def outcome(id:str,body:OutcomeIn,uid=Depends(owner)):
 
 @app.post('/v1/sessions')
 def create_session(body:SessionIn,uid=Depends(owner)):return store.create_session(uid,data(body))
+@app.get('/v1/capabilities')
+def capabilities(uid=Depends(owner)):
+    return {'llm_configured':store.llm.configured,'llm_provider':'DeepSeek',
+            'llm_model':store.llm.model,'asr_configured':False}
 @app.get('/v1/sessions')
 def sessions(cursor:str|None=None,limit:int=50,uid=Depends(owner)):return list_page(store.rows('sessions',uid),cursor,limit)
 @app.get('/v1/sessions/{id}')
@@ -231,14 +238,46 @@ def transcript(id:str,body:TranscriptIn,uid=Depends(owner)):
     s=store.get('sessions',uid,id)
     if s['kind']=='live' and s['consent']=='no':raise Fault('CONSENT_REQUIRED','请使用口述复盘',403)
     with store.transaction(uid):
+        added=False
         for x in body.segments:
             if x.end_ms<=x.start_ms:raise Fault('BAD_REQUEST','原文时间范围无效')
             if s['consent']!='yes' and x.speaker!='self':raise Fault('CONSENT_REQUIRED','无法确认同意时只保存本人片段',403)
             prior=store.rows('transcript_segments',uid,session_id=id,start_ms=x.start_ms,end_ms=x.end_ms,speaker=x.speaker)
             if prior:
                 if prior[0]['text']!=x.text:raise Fault('L1_IMMUTABLE','相同证据范围的原文不可覆盖',409)
-            else:store.put('transcript_segments',uid,{**data(x),'session_id':id,'asr_producer':'manual_user@1'},source='user')
-        return store.update('sessions',uid,id,{'pipeline_status':'awaiting_model','duration_ms':max(x.end_ms for x in body.segments)})
+            else:
+                store.put('transcript_segments',uid,{**data(x),'session_id':id,'asr_producer':'manual_user@1'},source='user')
+                added=True
+        if added:
+            # Invalidate an in-flight result when its evidence snapshot changes.
+            store.db.execute('DELETE FROM jobs WHERE owner_id=? AND session_id=?',(uid,id))
+            for table in ['qa_units','metrics','diagnoses','assets']:
+                for row in store.rows(table,uid):
+                    if row['trust']==L2 and (row.get('session_id')==id or row.get('source_session_id')==id):
+                        store.remove(table,uid,row['id'])
+            s=store.update('sessions',uid,id,{'pipeline_status':'awaiting_model','llm_consent_at':None,
+                'pipeline_error':None,'pipeline_error_message':None,
+                'duration_ms':max(s['duration_ms'],max(x.end_ms for x in body.segments))})
+        if body.analyze:return queue_analysis(uid,id)
+        return s
+
+def queue_analysis(uid,id):
+    # Caller owns the transaction. Repeated submits do not cause duplicate billable work.
+    s=store.get('sessions',uid,id)
+    if s.get('fixture'):raise Fault('BAD_REQUEST','示例场次不会发送至模型')
+    if not store.rows('transcript_segments',uid,session_id=id,speaker='self'):
+        raise Fault('EVIDENCE_MISSING','请先保存本人原文',422)
+    if s['pipeline_status']=='done' or (s.get('llm_consent_at') and store.db.execute("SELECT 1 FROM jobs WHERE owner_id=? AND session_id=? AND status IN ('queued','running')",(uid,id)).fetchone()):
+        return s
+    store.db.execute('DELETE FROM jobs WHERE owner_id=? AND session_id=?',(uid,id))
+    store.db.execute('INSERT INTO jobs(id,owner_id,session_id,stage,available_at) VALUES(?,?,?,?,?)',(ident(),uid,id,'diagnosing',now()))
+    return store.update('sessions',uid,id,{'pipeline_status':'queued','llm_consent_at':now(),
+                       'pipeline_error':None,'pipeline_error_message':None})
+
+@app.post('/v1/sessions/{id}/analyze')
+def analyze(id:str,uid=Depends(owner)):
+    """Explicitly agree to send this session's self transcript to DeepSeek for analysis."""
+    with store.transaction(uid):return queue_analysis(uid,id)
 @app.post('/v1/sessions/{id}/retry')
 def retry(id:str,body:RetryIn,uid=Depends(owner)):return store.retry(uid,id,body.stage)
 

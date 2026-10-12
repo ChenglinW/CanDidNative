@@ -378,6 +378,22 @@
         }
       }
     },
+    "/v1/capabilities": {
+      "get": {
+        "summary": "Capabilities",
+        "operationId": "capabilities_v1_capabilities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{id}": {
       "get": {
         "summary": "Session",
@@ -524,6 +540,44 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}/analyze": {
+      "post": {
+        "summary": "Analyze",
+        "description": "Explicitly agree to send this session's self transcript to DeepSeek for analysis.",
+        "operationId": "analyze_v1_sessions__id__analyze_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2379,6 +2433,11 @@
             "maxItems": 1000,
             "minItems": 1,
             "title": "Segments"
+          },
+          "analyze": {
+            "type": "boolean",
+            "title": "Analyze",
+            "default": false
           }
         },
         "additionalProperties": false,

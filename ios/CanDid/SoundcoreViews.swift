@@ -62,6 +62,7 @@ struct SoundcoreRecordView: View {
     @State private var pending: URL?
     @State private var milliseconds = 0
     @State private var working = false
+    @State private var analyze = false
     private var allowed: Bool { kind != "live" || agreed }
     var body: some View {
         NavigationStack {
@@ -79,9 +80,15 @@ struct SoundcoreRecordView: View {
                 }
                 if kind == "oral_debrief" {
                     TextEditor(text: $text).frame(minHeight: 180).accessibilityLabel("本人复述")
-                    Button("保存本人复述") { Task { await store.perform {
-                        let value = try await store.beginSession(occasion: occasion, kind: kind, agreed: agreed)
-                        try await store.submitOral(value, text: text); dismiss()
+                    if store.remote && store.capabilities?.llm_configured == true {
+                        Toggle("同意将本次本人复述发送给 DeepSeek 分析", isOn: $analyze)
+                        Text("模型：\(store.capabilities?.llm_model ?? "")。生成的诊断与素材需由你核对确认。").font(.caption)
+                    } else { Text("连接已配置 DeepSeek 的后端后，可分析本人复述。").font(.caption) }
+                    Button(analyze ? "保存并分析本人复述" : "保存本人复述") { Task { await store.perform {
+                        let value: Session
+                        if let session { value = session }
+                        else { value = try await store.beginSession(occasion: occasion, kind: kind, agreed: agreed); session = value }
+                        try await store.submitOral(value, text: text, analyze: analyze); dismiss()
                     } } }.buttonStyle(PrimaryButton()).disabled(store.busy || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 } else {
                     WarmCard(color: Warm.sage) {
@@ -119,7 +126,7 @@ struct SoundcoreRecordView: View {
                             .buttonStyle(PrimaryButton()).disabled(!allowed || selected == nil || device.connected == nil || device.recordStatus != 0 || working || store.busy)
                     }
                 }
-                Text("真实转写与诊断服务尚未配置，保存录音不会生成示例分析。").font(.caption).foregroundStyle(.secondary)
+                Text("录音自动转写尚未配置。本人文字复述可通过后端交给 DeepSeek 分析。").font(.caption).foregroundStyle(.secondary)
             }.padding(24) }.background(Warm.paper.ignoresSafeArea()).navigationTitle("记录这一场")
                 .toolbar { Button("关闭") { dismiss() }.disabled(working || store.busy) }
                 .interactiveDismissDisabled(working || store.busy)

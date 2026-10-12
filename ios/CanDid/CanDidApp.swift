@@ -78,7 +78,7 @@ struct WelcomeView: View {
             Text("下一次开口，\n从上次的终点开始。").font(.largeTitle.bold()).multilineTextAlignment(.center)
             Text("资料、场合、每次沟通，\n慢慢变成用得上的记忆。").foregroundStyle(.secondary).multilineTextAlignment(.center)
             WarmCard { Text("你来决定，哪些成为事实。").font(.headline); Text("AI 只能提出草稿。确认后的素材才会作为事实用于下一次准备；原始证据保持不变。").font(.subheadline) }
-            WarmCard(color: Warm.sage) { Text("原音频默认保留 90 天").font(.headline); Text("用于同一机会周期内回听。可改为处理后删除、7／30／90／180 天，也可以随时删除。此原型不会发送到第三方 AI 服务。").font(.subheadline) }
+            WarmCard(color: Warm.sage) { Text("原音频默认保留 90 天").font(.headline); Text("用于同一机会周期内回听。可改为处理后删除、7／30／90／180 天，也可以随时删除。选择 DeepSeek 分析时，本次本人原文会由后端发送给 DeepSeek。").font(.subheadline) }
             Toggle("同意本机保存我主动提供的资料与录音", isOn: $consent).font(.subheadline)
             Button("进入原生 App 示例") { store.onboarding = true; store.persist() }.buttonStyle(PrimaryButton()).disabled(!consent)
             Text("原生 SwiftUI · 示例与真实记录分别标识\n后端连接在右上角设置中配置").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -102,7 +102,7 @@ struct CompanionView: View {
                     WarmCard { Text(occasion.title).font(.headline); Text(Scenario(rawValue: occasion.scenario)?.title ?? occasion.scenario).font(.caption).foregroundStyle(.secondary); Label("打开准备与记录", systemImage: "arrow.right").foregroundStyle(Warm.purple) }
                 }.buttonStyle(.plain)
             }
-            WarmCard { Text("关于真实 AI 能力").font(.headline); Text("转写与诊断服务尚未配置。真实录音可保存、上传、回放和删除；演示分析只来自明确标识的预处理示例。").font(.subheadline).foregroundStyle(.secondary) }
+            WarmCard { Text("关于真实 AI 能力").font(.headline); Text("已接入 DeepSeek 本人文本复盘，连接后端后在口述复盘中选择分析。录音自动转写尚未配置；离线示例保持独立。").font(.subheadline).foregroundStyle(.secondary) }
         }.padding(20) }.background(Warm.paper.ignoresSafeArea()).navigationTitle("Candid")
     }
 }
@@ -224,8 +224,13 @@ struct SessionDetailView: View {
             Text(review.session.fixture == true ? "预处理示例 · 非真实模型输出" : "你的实际场次").font(.caption).foregroundStyle(Warm.purple)
             WarmCard { Text(review.session.pipeline_status).font(.headline); Text(review.session.rubric_version).font(.caption); HStack { Button("播放原音频", systemImage: "play") { Task { await store.perform { try await store.play(review.session) } } }; Spacer(); Button("暂停回放") { store.stopPlayback() } }; if let note = review.audio_note { Text(note).font(.caption) } }
             if review.session.pipeline_status.hasPrefix("failed:") || review.session.pipeline_status == "awaiting_model" {
-                Text("真实转写／诊断服务尚未接入。原音频或本人原文已保存，当前没有分析结果。").font(.subheadline)
-                if store.remote { Button("重试处理") { Task { await store.perform { _ = try await store.api.raw("/v1/sessions/"+session.id+"/retry", method: "POST", body: ["stage": "transcribing"]); self.review = try await store.detail(session) } } } }
+                Text(review.session.pipeline_error_message ?? "本人原文已保存，可选择发送给 DeepSeek 分析。仅有音频时仍需等待语音转写接入。").font(.subheadline)
+                if store.remote && store.capabilities?.llm_configured == true && review.session.transcript_segments?.contains(where: { $0.speaker == "self" }) == true {
+                    Button("同意发送本人原文给 DeepSeek 并分析") { Task { await store.perform {
+                        _ = try await store.api.raw("/v1/sessions/"+session.id+"/analyze", method: "POST")
+                        self.review = try await store.detail(session)
+                    } } }
+                }
             }
             Picker("内容", selection: $tab) { Text("复盘").tag("复盘"); Text("原文").tag("原文") }.pickerStyle(.segmented)
             if tab == "复盘" {
@@ -240,14 +245,26 @@ struct SessionDetailView: View {
                 }
                 }
                 ForEach(review.draft_assets) { asset in NavigationLink { AssetDetailView(asset: asset) } label: { WarmCard { Text("待确认素材").font(.caption); Text(asset.title).font(.headline); Text("查看、修改与确认 →").foregroundStyle(Warm.purple) } }.buttonStyle(.plain) }
-                if review.diagnoses.isEmpty { ContentUnavailableView("暂时没有诊断", systemImage: "sparkles", description: Text("示例管线可以演示完整闭环；真实内容需要接入模型后处理。")) }
+                if review.diagnoses.isEmpty { ContentUnavailableView("暂时没有诊断", systemImage: "sparkles", description: Text("分析中会自动刷新；也可下拉刷新。只有本人原文才能生成有证据的诊断。")) }
             } else {
                 ForEach(review.session.transcript_segments ?? []) { segment in WarmCard { Text("\(segment.speaker == "self" ? "本人" : "本场对方") · \(segment.start_ms/1000)–\(segment.end_ms/1000) 秒").font(.caption); Text(segment.text).textSelection(.enabled) } }
             }
             Button("立即删除本场原音频", role: .destructive) { deleteAudio = true }.disabled(review.session.audio_purged_at != nil)
         } else { ProgressView("读取这场记忆…") }
     }.padding(20) }.background(Warm.paper.ignoresSafeArea()).navigationTitle("场次复盘")
-        .task { await store.perform { review = try await store.detail(session) } }
+        .task {
+            await store.perform { review = try await store.detail(session) }
+            while store.remote && !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(2))
+                    guard let status = review?.session.pipeline_status,
+                          ["queued", "diagnosing", "segmenting", "aggregating", "transcribing"].contains(status) else { continue }
+                    review = try await store.detail(session)
+                    if review?.session.pipeline_status == "done" { try await store.reload() }
+                } catch is CancellationError { break }
+                catch { store.error = error.localizedDescription; break }
+            }
+        }
         .refreshable { await store.perform { review = try await store.detail(session); try await store.reload() } }
         .onDisappear { store.stopPlayback() }
         .confirmationDialog("删除后不能回听，原文与复盘保留", isPresented: $deleteAudio) { Button("删除原音频", role: .destructive) { Task { await store.perform { try await store.purge(session); review = try await store.detail(session) } } } }
@@ -265,6 +282,13 @@ struct SettingsView: View {
             Text("模拟器连接 http://127.0.0.1:8000。真机填写电脑局域网地址。默认本机令牌由后端生成，不包含服务端密钥。跨境云端部署需要另行同意流程。").font(.footnote)
             Button("连接并读取真实后端数据") { Task { await store.perform { try await store.connect(token: token); dismiss() } } }.disabled(token.isEmpty || !allowBackend)
         }
+        Section("文本分析模型") {
+            if store.remote, let capability = store.capabilities {
+                LabeledContent("服务", value: capability.llm_provider)
+                LabeledContent("模型", value: capability.llm_model)
+                Text(capability.llm_configured ? "后端已配置密钥。选择分析时仅发送本次本人原文。" : "后端尚未配置 DeepSeek 密钥。")
+            } else { Text("连接后端后显示模型信息；密钥仅保存在后端。") }
+        }
         Section("原音频保留") {
             Picker("默认保留", selection: $store.retention) { ForEach([0,7,30,90,180], id: \.self) { Text($0 == 0 ? "处理完即删" : "\($0) 天").tag($0) } }
             Button("应用保留设置") { Task { await store.perform { try await store.setRetention(store.retention); store.message = "保留设置已更新" } } }
@@ -277,7 +301,7 @@ struct SettingsView: View {
             Text("删除后会停止读取与处理，清理当前后端用户的全部记忆。离线示例数据独立保存。").font(.footnote)
         }
         Section("录音设备") { NavigationLink("soundcore 连接与授权") { SoundcoreDeviceView(device: store.soundcore) } }
-        Section("原型范围") { Text("原生 SwiftUI，soundcore 设备录音同步与音频回放。设备录音由硬件按键开始和结束；SDK 授权及蓝牙连接需要真机验证。后端使用 SQLite，ASR、模型网关与 Supabase 云端尚未配置。").font(.footnote) }
+        Section("原型范围") { Text("原生 SwiftUI，soundcore 设备录音同步与音频回放。设备录音由硬件按键开始和结束；SDK 授权及蓝牙连接需要真机验证。后端使用 SQLite，已接入 DeepSeek 文本诊断。ASR 与 Supabase 云端尚未配置。").font(.footnote) }
     }.navigationTitle("设置与隐私").toolbar { Button("完成") { dismiss() } }
         .confirmationDialog("永久删除当前模式的全部记忆？", isPresented: $deleting) { Button("删除全部记忆", role: .destructive) { Task { await store.perform { try await store.deleteMemory(); dismiss() } } } }
     } }

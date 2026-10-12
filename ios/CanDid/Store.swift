@@ -9,6 +9,7 @@ import AVFoundation
     @Published var diagnoses: [Diagnosis] = []
     @Published var onboarding = false
     @Published var remote = false
+    @Published var capabilities: Capabilities?
     @Published var busy = false
     @Published var error: String?
     @Published var message: String?
@@ -42,7 +43,7 @@ import AVFoundation
         persist()
     }
     func loadDemo() {
-        remote = false
+        remote = false; capabilities = nil
         if let data = try? Data(contentsOf: demoURL), let snapshot = try? JSONDecoder().decode(LocalSnapshot.self, from: data) {
             assets = snapshot.assets; occasions = snapshot.occasions; sessions = snapshot.sessions; diagnoses = snapshot.diagnoses; onboarding = snapshot.onboarding
         } else { seed() }
@@ -81,6 +82,7 @@ import AVFoundation
     }
     func reload() async throws {
         guard remote else { return }
+        capabilities = try await api.call("/v1/capabilities")
         let a: [Asset] = try await api.all("/v1/assets")
         let o: [Occasion] = try await api.all("/v1/occasions")
         let s: [Session] = try await api.all("/v1/sessions")
@@ -131,19 +133,19 @@ import AVFoundation
             try await api.upload(url, session: session.id, durationMS: milliseconds)
             try FileManager.default.removeItem(at: url)
             localFiles.removeValue(forKey: session.id); UserDefaults.standard.set(localFiles, forKey: "local-recordings")
-            try await reload(); message = "音频已校验入库，本机副本已删除。真实 ASR/模型未配置，暂不生成分析。"
+            try await reload(); message = "音频已校验入库，本机副本已删除。语音转写尚未配置；可通过口述复盘提交文字给 DeepSeek 分析。"
         }
         else { message = "真实录音已保存在本机。未配置语音转写与模型，不生成虚构复盘。" }
     }
-    func submitOral(_ session: Session, text: String) async throws {
-        if remote { _ = try await api.raw("/v1/sessions/"+session.id+"/transcript", method: "POST", body: ["segments": [["speaker": "self", "start_ms": 0, "end_ms": 1000, "text": text]]]); try await reload() }
+    func submitOral(_ session: Session, text: String, analyze: Bool = false) async throws {
+        if remote { _ = try await api.raw("/v1/sessions/"+session.id+"/transcript", method: "POST", body: ["analyze": analyze, "segments": [["speaker": "self", "start_ms": 0, "end_ms": 1000, "text": text]]]); try await reload() }
         else {
             if let i = sessions.firstIndex(where: { $0.id == session.id }) {
                 sessions[i].transcript_segments = [Segment(id: UUID().uuidString, session_id: session.id, speaker: "self", start_ms: 0, end_ms: 1000, text: text)]
                 sessions[i].pipeline_status = "awaiting_model"; persist()
             }
         }
-        message = "本人复述已保存为证据。诊断模型尚未接入。"
+        message = remote && analyze ? "本人复述已保存，DeepSeek 正在分析。可到场次详情查看进度和结果。" : "本人复述已保存为证据，未发送给 DeepSeek。"
     }
     func addMark(_ session: Session, milliseconds: Int) async throws {
         if remote { _ = try await api.raw("/v1/sessions/"+session.id+"/marks", method: "POST", body: ["marks": [["t_ms": milliseconds, "user_label": "unlabeled"]]]) }

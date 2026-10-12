@@ -30,7 +30,9 @@ struct Session: Codable, Identifiable {
     var fixture: Bool?; var rubric_version: String; var transcript_segments: [Segment]?
     var local_audio: String?; var pipeline_error: String?
     var recording_source: String?; var device_file_id: Int?
+    var pipeline_error_message: String?; var llm_model: String?
 }
+struct Capabilities: Decodable { var llm_configured: Bool; var llm_provider: String; var llm_model: String; var asr_configured: Bool }
 struct Diagnosis: Codable, Identifiable {
     var id: String; var session_id: String; var dimension: String; var finding: String
     var suggestion: String; var evidence_refs: [Evidence]; var rubric_version: String; var producer: String

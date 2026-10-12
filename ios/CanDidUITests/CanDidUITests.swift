@@ -36,4 +36,17 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 10)); confirm.tap()
         XCTAssertTrue(app.staticTexts["已确认事实"].waitForExistence(timeout: 10))
     }
+    func testOralDebriefCanSaveWithoutCloudAnalysis() {
+        let app = enterApp()
+        app.tabBars.buttons["场合"].tap()
+        app.buttons.containing(.staticText, identifier: "华味餐饮 · 采购沟通").firstMatch.tap()
+        app.buttons["练习或记录这一场"].tap()
+        app.buttons["口述复盘"].tap()
+        let editor = app.textViews["本人复述"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        editor.tap(); editor.typeText("I clarified the scope before proposing a pilot.")
+        app.swipeUp()
+        app.buttons["保存本人复述"].tap()
+        XCTAssertTrue(app.alerts.staticTexts["本人复述已保存为证据，未发送给 DeepSeek。"].waitForExistence(timeout: 10))
+    }
 }

@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
+from llm import DeepSeek, ModelError
 
 CONFIG = json.loads(Path(__file__).with_name('config.json').read_text('utf8'))
 TABLES = ('profiles documents experiences assets asset_revisions question_bank baselines weaknesses '
@@ -30,7 +31,8 @@ class Fault(Exception):
         self.code, self.message, self.status, self.details = code, message, status, details or {}
 
 class Memory:
-    def __init__(self, path, storage):
+    def __init__(self, path, storage, llm=None):
+        self.llm = llm or DeepSeek()
         self.root = Path(storage); self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock(); self.actor = None
         self.db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
@@ -79,6 +81,8 @@ class Memory:
           deleted_at TEXT, reason TEXT);
         CREATE TABLE IF NOT EXISTS blocked_owners(owner_id TEXT PRIMARY KEY);
         ''')
+        # One local worker per database; recover interrupted model requests on restart.
+        self.db.execute("UPDATE jobs SET status='queued' WHERE status='running'")
 
     @contextmanager
     def transaction(self, actor=None):
@@ -344,10 +348,13 @@ class Memory:
             self.db.execute('INSERT INTO jobs(id,owner_id,session_id,stage,available_at) VALUES(?,?,?,?,?)',(ident(),owner,s['id'],'segmenting',now()))
         return s
 
-    def run_stage(self,owner,sid,stage):
+    def run_stage(self,owner,sid,stage,result=None):
         s=self.get('sessions',owner,sid)
         self.check_owner(owner)
-        if not s.get('fixture'):raise Fault('ASR_NOT_CONFIGURED','真实转写与模型尚未配置；音频已保存，未生成诊断',503)
+        if not s.get('fixture'):
+            if result is None:raise Fault('ASR_NOT_CONFIGURED','语音转写尚未配置；可提交本人文字复述供 DeepSeek 分析',503)
+            self.save_analysis(owner,s,result)
+            return
         version=s['rubric_version'];trace={'producer':'fixture@1','rubric_version':version}
         segments=self.rows('transcript_segments',owner,session_id=sid,speaker='self')
         if not segments:raise Fault('EVIDENCE_MISSING','缺少用户原文',422)
@@ -367,13 +374,42 @@ class Memory:
                     'evidence_refs':[ref],**trace},L2,'ai')
         self.update('sessions',owner,sid,{'pipeline_status':{'segmenting':'diagnosing','diagnosing':'aggregating','aggregating':'done'}[stage]})
 
+    def save_analysis(self,owner,s,result):
+        sid=s['id']
+        trace={'producer':'deepseek/'+self.llm.model+'@candid-v1','rubric_version':s['rubric_version']}
+        segments={x['id']:x for x in self.rows('transcript_segments',owner,session_id=sid,speaker='self')}
+        def refs(citations):
+            found=[]
+            for c in citations:
+                seg=segments.get(c['segment_id'])
+                if not seg or c['quote'] not in seg['text']:raise Fault('EVIDENCE_INVALID','原文证据已不可用',422)
+                ref={'session_id':sid,'start_ms':seg['start_ms'],'end_ms':seg['end_ms']}
+                if ref not in found:found.append(ref)
+            return found
+        # Atomic replacement of inferences only; confirmed material is never overwritten.
+        for table in ['qa_units','metrics','diagnoses','assets']:
+            for row in self.rows(table,owner):
+                if row['trust']==L2 and (row.get('session_id')==sid or row.get('source_session_id')==sid):
+                    self.remove(table,owner,row['id'])
+        for d in result['diagnoses']:
+            self.put('diagnoses',owner,{'session_id':sid,'dimension':d['dimension'],
+                'finding':d['finding'],'suggestion':d['suggestion'],'score':None,
+                'evidence_refs':refs(d['citations']),'citations':d['citations'],**trace},L2,'ai')
+        if not self.rows('assets',owner,source_session_id=sid,trust=L3):
+            c=result['asset_citation']
+            self.put('assets',owner,{'kind':'story','scenario':s['scenario'],'title':result['asset_title'],
+                'body':{'text':c['quote']},'tags':[],'competencies':[],'status':'draft','version':1,
+                'source_session_id':sid,'evidence_refs':refs([c]),**trace},L2,'ai')
+        self.update('sessions',owner,sid,{'pipeline_status':'done','pipeline_error':None,
+                    'pipeline_error_message':None,'llm_model':self.llm.model})
+
     def rebuild_aggregates(self,owner,scenario,version):
         existing_weaknesses={w['dimension']:w for w in self.rows('weaknesses',owner,scenario=scenario) if w.get('rubric_version')==version}
         for table in ['question_bank','baselines','weaknesses']:
             prior=self.rows(table,owner,scenario= scenario) if table!='baselines' else self.rows(table,owner)
             for row in prior:
                 if row.get('rubric_version')==version:self.remove(table,owner,row['id'])
-        sessions=[s for s in self.rows('sessions',owner,scenario=scenario) if s['rubric_version']==version]
+        sessions=[s for s in self.rows('sessions',owner,scenario=scenario) if s['rubric_version']==version and s.get('fixture')]
         trace={'producer':'fixture_aggregate@1','rubric_version':version}
         units=[u for u in self.rows('qa_units',owner) if u['rubric_version']==version and any(s['id']==u['session_id'] for s in sessions)]
         groups={}
@@ -401,6 +437,13 @@ class Memory:
         if stage not in stages:raise Fault('BAD_REQUEST','阶段无效')
         with self.transaction(owner):
             s=self.get('sessions',owner,sid)
+            if not s.get('fixture'):
+                if self.rows('transcript_segments',owner,session_id=sid,speaker='self'):
+                    if not s.get('llm_consent_at'):raise Fault('LLM_CONSENT_REQUIRED','请先同意将本人原文发送给 DeepSeek',403)
+                    stage='diagnosing'
+                self.db.execute('DELETE FROM jobs WHERE owner_id=? AND session_id=?',(owner,sid))
+                self.db.execute('INSERT INTO jobs(id,owner_id,session_id,stage,available_at) VALUES(?,?,?,?,?)',(ident(),owner,sid,stage,now()))
+                return self.update('sessions',owner,sid,{'pipeline_status':'queued','pipeline_error':None,'pipeline_error_message':None})
             if stage=='transcribing' and self.rows('transcript_segments',owner,session_id=sid):
                 stage='segmenting'  # L1 is never rewritten.
             index=stages.index(stage)
@@ -422,12 +465,32 @@ class Memory:
                     current=self.db.execute("SELECT stage,status FROM jobs WHERE id=?",(j['id'],)).fetchone()
                     if not current or current['status']!='queued' or current['stage']!=j['stage']:continue
                     self.db.execute("UPDATE jobs SET status='running' WHERE id=?",(j['id'],))
-                    self.run_stage(owner,sid,j['stage'])
-                    nextstage={'segmenting':'diagnosing','diagnosing':'aggregating'}.get(j['stage'])
+                    self.check_owner(owner)
+                    session=self.get('sessions',owner,sid)
+                    segments=self.rows('transcript_segments',owner,session_id=sid,speaker='self')
+                    self.update('sessions',owner,sid,{'pipeline_status':j['stage']})
+                # Network IO must not hold the database lock (reads/deletion stay responsive).
+                result=None
+                if not session.get('fixture'):
+                    if not segments:raise Fault('ASR_NOT_CONFIGURED','语音转写尚未配置；请使用本人文字复述',503)
+                    if not session.get('llm_consent_at'):raise Fault('LLM_CONSENT_REQUIRED','尚未同意将本人原文发送给 DeepSeek',403)
+                    try:result=self.llm.analyze(session,segments)
+                    except ModelError as e:raise Fault(e.code,e.message,503) from None
+                with self.transaction():
+                    current=self.db.execute("SELECT stage,status FROM jobs WHERE id=?",(j['id'],)).fetchone()
+                    if not current or current['status']!='running' or current['stage']!=j['stage']:continue
+                    self.check_owner(owner)
+                    self.run_stage(owner,sid,j['stage'],result)
+                    nextstage={'segmenting':'diagnosing','diagnosing':'aggregating'}.get(j['stage']) if session.get('fixture') else None
                     if nextstage:self.db.execute("UPDATE jobs SET stage=?,status='queued',attempts=0 WHERE id=?",(nextstage,j['id']))
                     else:self.db.execute("DELETE FROM jobs WHERE id=?",(j['id'],))
-            except Fault as e:
-                with self.lock:
+            except Exception as error:
+                e=error if isinstance(error,Fault) else Fault('PIPELINE_FAILED','处理失败，请稍后重试',500)
+                with self.transaction():
+                    current=self.db.execute("SELECT status FROM jobs WHERE id=?",(j['id'],)).fetchone()
+                    if not current or current['status']!='running':continue
                     count=j['attempts']+1
-                    self.db.execute("UPDATE jobs SET status=?,attempts=?,available_at=? WHERE id=?",('failed' if count>=3 else 'queued',count,(datetime.now(timezone.utc)+timedelta(seconds=2**count)).isoformat(),j['id']))
-                    if self.rows('sessions',owner,id=sid):self.update('sessions',owner,sid,{'pipeline_status':'failed:'+j['stage'],'pipeline_error':e.code})
+                    transient=e.code in {'LLM_TIMEOUT','LLM_UNAVAILABLE','LLM_RATE_LIMITED'}
+                    again=transient and count<3
+                    self.db.execute("UPDATE jobs SET status=?,attempts=?,available_at=? WHERE id=?",('queued' if again else 'failed',count,(datetime.now(timezone.utc)+timedelta(seconds=2**count)).isoformat(),j['id']))
+                    if self.rows('sessions',owner,id=sid):self.update('sessions',owner,sid,{'pipeline_status':'queued' if again else 'failed:'+j['stage'],'pipeline_error':e.code,'pipeline_error_message':e.message})
