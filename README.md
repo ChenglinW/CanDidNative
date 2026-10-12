@@ -2,25 +2,32 @@
 
 这是 SwiftUI 原生 iOS 客户端与 FastAPI 后端工程，不是 HTML 或 WebView 包装。依据《Can Did 动态记忆库 PRD 与技术规格 v0.1》和此前温暖版视觉开发。
 
-**当前交付是源码工程，尚未在 Xcode 编译、签名或真机安装。** 开发主机为 Windows，无法在此验证 Apple SDK。后端已在本机运行自动化测试；Swift/SQL 已完成语法检查，不能替代 Xcode 编译验证。
+**当前开发环境为 macOS，已接入 Xcode 26.6 与 iOS 26.5 模拟器。** soundcore SDK 已完成原生链接构建，并执行音频转换与页面测试；后端在本机运行的 25 项回归测试通过。详细结果与尚未执行的项目见 [验证记录](验证记录.md)。
+
+录音入口已改为 **soundcore 设备**，使用资料包的 iOS v1.3.01 SDK。设备通过按键开始／结束录音，App 预留授权、扫描、连接、暂停／恢复与文件同步接口；设备文件通过 libopus 解码后转换为可播放、可上传的 m4a。当前没有硬件或有效 token，实际鉴权和蓝牙录音链路尚未验证，模拟器不会冒充设备。环境配置与接口约束见 [macOS 开发说明](macOS开发.md)。
 
 ## 1 打开原生 iOS App
 
-需要 Mac、Xcode 16 或更新版本、iOS 17 或更新的模拟器／iPhone。
+需要 Mac、Xcode 26 或更新版本（资料包 SDK 使用 Xcode 26 构建），iOS 17 或更新的模拟器／iPhone。本机使用 Xcode 26.6。
 
-1. 把整个工程包复制到 Mac，双击 `ios/CanDid.xcodeproj`。
-2. 选择 **CanDid** scheme 与一个 iPhone 模拟器，点击 Run（⌘R）。无需后端即可进入明确标识的离线示例。
+1. 在 Mac 安装并首次打开完整 Xcode，完成组件安装，在 Settings → Components 中安装 iOS 模拟器运行时；随后双击 `ios/CanDid.xcodeproj`。
+2. 在项目根目录运行 `sh scripts/prepare-soundcore.sh` 和 `sh scripts/build-opus.sh` 准备本地依赖，再选择 **CanDid** scheme 与一个 iPhone 模拟器，点击 Run（⌘R）。无需后端即可进入明确标识的离线示例。
 3. 真机：连接 iPhone，在 Xcode 的 Signing & Capabilities 选择你自己的 Team，并将 Bundle Identifier 改成自己的唯一名称。
-4. 选择已连接的 iPhone，启用设备 Developer Mode 后点击 Run。首次录音由 iOS 弹出麦克风权限。
+4. 选择已连接的 iPhone，启用设备 Developer Mode 后点击 Run。soundcore 连接需要蓝牙权限与有效 SDK 授权；App 不再调用 iPhone 麦克风录音。
 
-命令行构建检查（Mac）：
+在项目根目录执行构建检查（Mac）：
 
 ```sh
-cd ios
-xcodebuild -project CanDid.xcodeproj -scheme CanDid -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+sh scripts/check-ios.sh --build
+# 构建、启动可用 iPhone 模拟器、安装并打开 App
+sh scripts/check-ios.sh --run
+# 也可指定模拟器 UDID
+sh scripts/check-ios.sh --run <模拟器UDID>
+# 运行音频处理与页面自动化测试
+sh scripts/check-ios.sh --test
 ```
 
-`scripts/check-ios.sh` 包含同一检查，可在 Mac 上执行。构建错误应以 Xcode/Apple SDK 的结果为准；本次未生成 IPA，也未提交 TestFlight。
+脚本优先使用 `DEVELOPER_DIR`／系统选择的 Xcode；若系统仅选中命令行工具，会尝试 `/Applications/Xcode.app`，不修改系统配置。构建产物位于 `.build/DerivedData`；测试记录位于 `.build/TestResults`。`--run` 完成安装和启动检查，`--test` 执行 XCTest/XCUITest。设备录音仍需真机验收。当前未生成 IPA，也未提交 TestFlight。
 
 ## 2 启动持久化后端
 
@@ -28,11 +35,9 @@ xcodebuild -project CanDid.xcodeproj -scheme CanDid -configuration Debug -sdk ip
 
 ```sh
 cd backend
-python -m venv .venv
-# macOS/Linux
+python3.12 -m venv .venv
 source .venv/bin/activate
-# Windows PowerShell 则使用：.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install --only-binary=:all: -r requirements.txt
 python run.py
 ```
 
@@ -54,9 +59,9 @@ python run.py
 2. 离线示例：场次 → 预处理示例 → 原文与复盘；记忆库 → 待确认 → 修改表达 → 确认。
 3. 到场合中打开准备上下文，确认后的素材才会标为 FACT。草稿不会被混作已确认事实。
 4. 连接后端：新建四种场景中的任一场合 → 运行预处理示例闭环 → 场次列表下拉刷新 → 查看示例诊断及素材草稿 → 确认 → 再查看准备上下文。
-5. 真实录音：场合 → 练习或记录 → 本人练习／已告知的真实沟通 → 请求麦克风 → 暂停、继续、标记 → 结束保存。服务模式上传校验成功后删本机副本，后端保留原音频。
+5. soundcore 真机待验收流程：场合 → 练习或记录 → 本人练习／已告知的真实沟通 → 连接与授权 → 在设备上按键录音并结束 → 刷新设备录音 → 选择文件 → 同步并保存。服务模式上传校验成功后删除本机 m4a 副本；后端保留回放副本。设备中的原始文件不会自动删除。
 6. 无法取得对方同意时选择口述复盘，文字复述以用户原文证据存储；不采集对方声音。
-7. 场次详情播放原音频；设置调整保留期、导出 JSON；单场次删除音频后保留本人转写及既有诊断。
+7. 场次详情播放音频；设置调整保留期、导出 JSON；单场次删除 App 音频后保留本人转写及既有诊断。soundcore 设备原文件的删除由设备另行管理。
 
 **真实录音目前没有自动转写或 AI 诊断。** 后端返回明确的 `ASR_NOT_CONFIGURED`／等待模型状态。示例管线的 producer 为 `fixture@1`，不会把示例结果套到真实音频上。本人练习是真实录音流程，不是已接入的模拟听众语音 Agent。
 
@@ -77,7 +82,8 @@ SQLite 是**本地原型存储**，不是生产 Supabase。`backend/supabase/sch
 
 ## 5 未接入及验证边界
 
-- 没有 ASR、LLM、TTS、联网背调、D3200 SDK、Supabase 实际项目或云端部署。
+- 没有 ASR、LLM、TTS、联网背调、Supabase 实际项目或云端部署。soundcore SDK 已链接，尚无硬件、token 或 license，真机接口未执行；云端 token 签发请求格式待供应商完整文档补充。
+- 本次接入 BLE 离线录音同步。边录边传、设备标记导入、WiFi/MFi、OTA 等功能未接入；资料包 MFi 协议文本与截图不一致，当前未开启该通道。
 - 未完整实现四类准备包生成、讲稿 AI 版本生成、CV 解析、五场跨场景表达基线算法、模型版本全量重算、旧 stories 数据迁移、模型调用性能与成本监测。
 - 表结构预留这些记录；当前示例基线只是同场景字符数指标，不能当成完整 PRD 表达评分。短板状态机可验证，示例数据不能证明真实用户短板。
 - 后端运行时每分钟扫描到期任务；尚未接入 03:00 Asia/Hong_Kong 的 Supabase pg_cron，也未测试生产多进程队列。
@@ -100,13 +106,19 @@ python -m pytest tests -q
 
 ```text
 ios/CanDid.xcodeproj          原生 iOS 工程与共享 scheme
-ios/CanDid/                  SwiftUI、API、Keychain、录音、模型、视觉资源
+ios/CanDid/                  SwiftUI、API、Keychain、soundcore 适配、音频转换、模型、视觉资源
+ios/CanDidTests/             裸 Opus 转换与模拟器设备边界测试
+ios/CanDidUITests/           欢迎页、记忆确认与 soundcore 录音入口测试
+ios/Vendor/                 本地 SDK 与 libopus（忽略版本控制，可用脚本重建）
 backend/app.py               FastAPI 路由、用户鉴权、签名文件访问
 backend/memory.py            持久化、数据库守卫、上下文、状态机与示例任务
 backend/config.json          保留期、预算、评分版本和阈值
 backend/tests/               后端业务与接口回归测试
 backend/supabase/            Postgres/Supabase 参考结构
-scripts/check-ios.sh         Mac/Xcode 构建检查
+scripts/check-ios.sh         Mac/Xcode 构建、模拟器安装启动与自动化测试
+scripts/prepare-soundcore.sh 从本地资料包准备 SDK，不复制凭证
+scripts/build-opus.sh        校验官方源码并构建多架构 libopus
+macOS开发.md                 macOS 配置、soundcore 接入前提和验收步骤
 ```
 
-技术依据：Apple [SwiftUI](https://developer.apple.com/documentation/swiftui)、[麦克风许可](https://developer.apple.com/documentation/avfaudio/avaudioapplication/requestrecordpermission(completionhandler:))、[设备运行](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices)；[FastAPI JWT](https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/)；[Supabase JWT](https://supabase.com/docs/guides/auth/jwts) 与 [数据隔离](https://supabase.com/docs/guides/database/secure-data)。
+技术依据：资料包的 SDK 集成文档、v1.3.01 二进制头文件；[libopus 官方下载与校验值](https://opus-codec.org/downloads/)；Apple [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [设备运行](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices)；[FastAPI JWT](https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/)；[Supabase JWT](https://supabase.com/docs/guides/auth/jwts) 与 [数据隔离](https://supabase.com/docs/guides/database/secure-data)。

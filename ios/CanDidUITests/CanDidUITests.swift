@@ -1,0 +1,39 @@
+import XCTest
+
+final class CanDidUITests: XCTestCase {
+    private func enterApp() -> XCUIApplication {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-candid-ui-testing"]
+        app.launch()
+        let start = app.buttons["进入原生 App 示例"]
+        XCTAssertTrue(start.waitForExistence(timeout: 15))
+        app.scrollViews.firstMatch.swipeUp()
+        app.switches["同意本机保存我主动提供的资料与录音"].tap()
+        start.tap()
+        XCTAssertTrue(app.tabBars.buttons["场合"].waitForExistence(timeout: 10))
+        return app
+    }
+    func testSoundcoreEntryAndSimulatorBoundary() {
+        let app = enterApp()
+        app.tabBars.buttons["场合"].tap()
+        app.buttons.containing(.staticText, identifier: "华味餐饮 · 采购沟通").firstMatch.tap()
+        let record = app.buttons["练习或记录这一场"]
+        XCTAssertTrue(record.waitForExistence(timeout: 10)); record.tap()
+        let note = app.staticTexts["soundcore-simulator-note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["开始真实麦克风录音"].exists)
+        XCTAssertFalse(app.buttons["同步并保存到这一场"].isEnabled)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "soundcore-recording-simulator"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    func testConfirmedMemoryFlow() {
+        let app = enterApp()
+        app.tabBars.buttons["记忆库"].tap()
+        app.buttons["待确认"].tap()
+        app.buttons.containing(.staticText, identifier: "先确认交付范围").firstMatch.tap()
+        let confirm = app.buttons["核对完毕，确认为事实"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10)); confirm.tap()
+        XCTAssertTrue(app.staticTexts["已确认事实"].waitForExistence(timeout: 10))
+    }
+}

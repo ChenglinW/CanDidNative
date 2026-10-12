@@ -124,7 +124,8 @@ def test_signed_upload_and_hash_confirmation(tmp_path,monkeypatch):
     app.store=Memory(tmp_path/'api.sqlite',tmp_path/'storage');app.LOCAL_TOKEN='test-token'
     c=TestClient(app.app);h={'Authorization':'Bearer test-token'}
     c.patch('/v1/profile',json={'product_use_consent':True},headers=h)
-    s=c.post('/v1/sessions',json={'client_request_id':ident(),'kind':'practice','consent':'yes'},headers=h).json()
+    s=c.post('/v1/sessions',json={'client_request_id':ident(),'kind':'practice','consent':'yes','recording_source':'soundcore','device_file_id':1701234567},headers=h).json()
+    assert s['recording_source']=='soundcore' and s['device_file_id']==1701234567
     u=c.post('/v1/sessions/'+s['id']+'/upload-url',headers=h).json()['upload_url']
     r=c.put(u,content=b'abc',headers={'Content-Type':'audio/mp4'}).json()
     r2=c.put(u+'?offset=3',content=b'def',headers={'Content-Type':'audio/mp4'}).json()
@@ -133,6 +134,7 @@ def test_signed_upload_and_hash_confirmation(tmp_path,monkeypatch):
     saved=c.post('/v1/sessions/'+s['id']+'/media',json=r2,headers=h)
     assert saved.status_code==200
     assert c.get('/v1/sessions/'+s['id'],headers=h).json()['duration_ms']==6000
+    assert c.get('/v1/sessions/'+s['id'],headers=h).json()['recording_source']=='soundcore'
     replay=c.post('/v1/sessions/'+s['id']+'/media',json=r2,headers=h)
     assert replay.json()['id']==saved.json()['id']
     a=c.get('/v1/sessions/'+s['id']+'/audio',headers=h).json()

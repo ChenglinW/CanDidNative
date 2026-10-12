@@ -29,8 +29,10 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>连接你指定的局域网动态记忆后端原型。</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>由你主动开始练习或已取得同意的沟通录音，用于保存并回听自己的表达。</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>由你主动连接 soundcore 录音设备并同步录音文件。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>按照 soundcore SDK 要求，在连接录音设备时取得必要的设备连接信息。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

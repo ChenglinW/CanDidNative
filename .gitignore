@@ -6,3 +6,6 @@ __pycache__/
 *.xcuserstate
 xcuserdata/
 .env
+资料包/
+.build/
+ios/Vendor/

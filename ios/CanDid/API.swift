@@ -4,18 +4,21 @@ import CryptoKit
 
 enum TokenVault {
     static let service = "com.candid.prototype"
-    static func read() -> String {
+    static func read(account: String = "api-token") -> String {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-            kSecAttrAccount as String: "api-token", kSecReturnData as String: true]
+            kSecAttrAccount as String: account, kSecReturnData as String: true]
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return "" }
         return String(data: data, encoding: .utf8) ?? ""
     }
-    static func save(_ token: String) throws {
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "api-token"]
-        SecItemDelete(query as CFDictionary)
-        if token.isEmpty { return }
-        var add = query; add[kSecValueData as String] = Data(token.utf8)
+    static func save(_ token: String, account: String = "api-token") throws {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
+        if token.isEmpty { SecItemDelete(query as CFDictionary); return }
+        let data = Data(token.utf8)
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecSuccess { return }
+        guard status == errSecItemNotFound else { throw PrototypeError.message("无法更新访问令牌") }
+        var add = query; add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else { throw PrototypeError.message("无法保存访问令牌") }
     }

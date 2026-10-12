@@ -29,6 +29,7 @@ struct Session: Codable, Identifiable {
     var retention_days: Int; var audio_purged_at: String?; var started_at: String?
     var fixture: Bool?; var rubric_version: String; var transcript_segments: [Segment]?
     var local_audio: String?; var pipeline_error: String?
+    var recording_source: String?; var device_file_id: Int?
 }
 struct Diagnosis: Codable, Identifiable {
     var id: String; var session_id: String; var dimension: String; var finding: String

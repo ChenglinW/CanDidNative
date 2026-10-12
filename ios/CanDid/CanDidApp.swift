@@ -63,7 +63,10 @@ struct RootView: View {
             Button { settings = true } label: { Image(systemName: "gearshape").padding(12).background(Warm.paper, in: Circle()) }.padding(.trailing, 12).accessibilityLabel("设置与后端连接")
         }
         .overlay { if store.busy { ProgressView().padding(22).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
-        .onChange(of: phase) { _, value in if value == .active { store.purgeLocalExpired() } }
+        .onChange(of: phase) { _, value in
+            if value == .active { store.purgeLocalExpired() }
+            else { store.soundcore.stopScan() }
+        }
     }
 }
 struct WelcomeView: View {
@@ -209,56 +212,9 @@ struct SessionsView: View {
     var body: some View { ScrollView { VStack(spacing: 16) {
         if store.sessions.isEmpty { ContentUnavailableView("从一场经验开始", systemImage: "mic", description: Text("到场合中开始练习、录音或口述复盘。")) }
         ForEach(store.sessions) { session in NavigationLink { SessionDetailView(session: session) } label: {
-            WarmCard { HStack { Text(session.fixture == true ? "预处理示例" : session.kind == "oral_debrief" ? "口述复盘" : "真实录音").font(.headline); Spacer(); Image(systemName: "chevron.right") }; Text(store.occasions.first { $0.id == session.occasion_id }?.title ?? "未关联场合").font(.subheadline); Text(session.pipeline_status).font(.caption).foregroundStyle(.secondary); Text("原音频：\(session.audio_purged_at == nil ? "保留 \(session.retention_days) 天" : "已删除")").font(.caption) }
+            WarmCard { HStack { Text(session.fixture == true ? "预处理示例" : session.kind == "oral_debrief" ? "口述复盘" : session.recording_source == "soundcore" ? "soundcore 录音" : "真实录音").font(.headline); Spacer(); Image(systemName: "chevron.right") }; Text(store.occasions.first { $0.id == session.occasion_id }?.title ?? "未关联场合").font(.subheadline); Text(session.pipeline_status).font(.caption).foregroundStyle(.secondary); Text("原音频：\(session.audio_purged_at == nil ? "保留 \(session.retention_days) 天" : "已删除")").font(.caption) }
         }.buttonStyle(.plain) }
     }.padding(20) }.background(Warm.paper.ignoresSafeArea()).navigationTitle("每一次开口").refreshable { await store.perform { try await store.reload() } } }
-}
-struct RecordView: View {
-    @EnvironmentObject var store: Store; @Environment(\.dismiss) var dismiss; @Environment(\.scenePhase) var phase
-    @StateObject var recorder = Recorder()
-    let occasion: Occasion
-    @State var kind = "practice"; @State var agreed = false; @State var session: Session?; @State var text = ""; @State var ending = false
-    @State var pendingURL: URL?; @State var pendingSeconds = 0
-    var body: some View { NavigationStack { ScrollView { VStack(spacing: 18) {
-        Mascot(size: 90)
-        Text("你专心说，\n把经验留给下一次。").font(.title.bold()).multilineTextAlignment(.center)
-        if !recorder.recording && session == nil {
-            Picker("记录方式", selection: $kind) { Text("本人练习").tag("practice"); Text("真实沟通").tag("live"); Text("口述复盘").tag("oral_debrief") }.pickerStyle(.segmented)
-            if kind == "live" { WarmCard(color: Warm.sage) { Toggle("已告知对方并获得录音同意", isOn: $agreed); Text("未取得同意时，请使用口述复盘。不会隐蔽或后台静默开启录音。").font(.caption) } }
-            Picker("原音频保留", selection: $store.retention) { ForEach([0,7,30,90,180], id: \.self) { Text($0 == 0 ? "处理后即删" : "\($0) 天").tag($0) } }
-            if kind == "oral_debrief" { TextEditor(text: $text).frame(minHeight: 180).accessibilityLabel("本人复述"); Text("只记录你本人主动复述的内容，不采集对方声音。").font(.caption) }
-            Button(kind == "oral_debrief" ? "保存本人复述" : "开始真实麦克风录音") {
-                Task { await store.perform {
-                    let s = try await store.beginSession(occasion: occasion, kind: kind, agreed: agreed)
-                    if kind == "oral_debrief" { try await store.submitOral(s, text: text); dismiss() }
-                    else { session = s; try await recorder.start(id: s.id) }
-                } }
-            }.buttonStyle(PrimaryButton()).disabled((kind == "live" && !agreed) || (kind == "oral_debrief" && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
-        }
-        if recorder.recording {
-            Text(String(format: "%02d:%02d", recorder.elapsed/60, recorder.elapsed%60)).font(.system(size: 48, weight: .bold, design: .rounded)).monospacedDigit()
-            Text(recorder.paused ? "已暂停" : "正在使用 iPhone 麦克风").foregroundStyle(.secondary)
-            if recorder.interrupted { Text("录音被系统中断，准备好后可继续。").font(.caption).foregroundStyle(.orange) }
-            HStack { Button(recorder.paused ? "继续" : "暂停") { recorder.pause() }; Spacer(); Button("标记这一刻") { if let session { Task { await store.perform { try await store.addMark(session, milliseconds: recorder.mark()) } } } } }
-            Button("结束并保存") { ending = true }.buttonStyle(PrimaryButton())
-        } else if let session {
-            if let pendingURL {
-                Text("录音已保留在本机，可重试上传。")
-                Button("重试保存与上传") { Task { await store.perform { try await store.finish(session, url: pendingURL, seconds: pendingSeconds); dismiss() } } }
-                Button("稍后再处理，保留本机文件") { dismiss() }
-            } else { Text("场次已建立，但录音尚未开始。"); Button("重新请求麦克风权限") { Task { await store.perform { try await recorder.start(id: session.id) } } } }
-        }
-        Text("真实 ASR/模型未接入，不会把示例转写当作你的录音结果。录音仅在前台开始，退出 App 会暂停。").font(.caption).foregroundStyle(.secondary)
-    }.padding(24) }.background(Warm.paper.ignoresSafeArea()).navigationTitle("记录这一场")
-        .toolbar { if !recorder.recording { Button("关闭") { dismiss() } } }
-        .interactiveDismissDisabled(recorder.recording)
-        .confirmationDialog("结束录音并保留文件？", isPresented: $ending) { Button("结束并保存") {
-            let url = recorder.stop(); let seconds = recorder.elapsed
-            pendingURL = url; pendingSeconds = seconds
-            if let session, let url { Task { await store.perform { try await store.finish(session, url: url, seconds: seconds); dismiss() } } }
-        } }
-        .onChange(of: phase) { _, value in if value != .active { recorder.interrupt() } }
-    } }
 }
 struct SessionDetailView: View {
     @EnvironmentObject var store: Store; let session: Session
@@ -320,7 +276,8 @@ struct SettingsView: View {
             Button("删除全部记忆", role: .destructive) { deleting = true }
             Text("删除后会停止读取与处理，清理当前后端用户的全部记忆。离线示例数据独立保存。").font(.footnote)
         }
-        Section("原型范围") { Text("原生 SwiftUI，真实麦克风与音频回放。后端使用 SQLite 持久化验证业务规则；Supabase 表结构迁移另附，尚未部署。ASR、模型网关、D3200 设备 SDK 均未配置。").font(.footnote) }
+        Section("录音设备") { NavigationLink("soundcore 连接与授权") { SoundcoreDeviceView(device: store.soundcore) } }
+        Section("原型范围") { Text("原生 SwiftUI，soundcore 设备录音同步与音频回放。设备录音由硬件按键开始和结束；SDK 授权及蓝牙连接需要真机验证。后端使用 SQLite，ASR、模型网关与 Supabase 云端尚未配置。").font(.footnote) }
     }.navigationTitle("设置与隐私").toolbar { Button("完成") { dismiss() } }
         .confirmationDialog("永久删除当前模式的全部记忆？", isPresented: $deleting) { Button("删除全部记忆", role: .destructive) { Task { await store.perform { try await store.deleteMemory(); dismiss() } } } }
     } }

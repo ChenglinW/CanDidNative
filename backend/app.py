@@ -87,6 +87,8 @@ class SessionIn(Input):
     kind:Literal['practice','live','oral_debrief']
     consent:Literal['yes','no','unknown']
     consent_ack_text_version:str|None=None
+    recording_source:Literal['iphone','soundcore']|None=None
+    device_file_id:int|None=Field(default=None,ge=0,le=4294967295)
     audience_id:UUID|None=None
     device_id:str|None=None
     retention_days:Literal[0,7,30,90,180]|None=None

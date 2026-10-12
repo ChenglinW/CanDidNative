@@ -2279,6 +2279,34 @@
             ],
             "title": "Consent Ack Text Version"
           },
+          "recording_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "iphone",
+                  "soundcore"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recording Source"
+          },
+          "device_file_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 4294967295.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device File Id"
+          },
           "audience_id": {
             "anyOf": [
               {

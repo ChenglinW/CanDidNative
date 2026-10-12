@@ -16,9 +16,17 @@ import AVFoundation
     @Published var base = UserDefaults.standard.string(forKey: "api-base") ?? "http://127.0.0.1:8000"
     var api: API { API(base: base, token: TokenVault.read()) }
     private var player: AVPlayer?
+    let soundcore = Soundcore()
     private var localFiles: [String: String] = UserDefaults.standard.dictionary(forKey: "local-recordings") as? [String: String] ?? [:]
-    let demoURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("candid-demo.json")
-    init() { retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90; loadDemo(); purgeLocalExpired() }
+    let demoURL: URL
+    init() {
+        if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CanDidUITests/" + UUID().uuidString)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            demoURL = folder.appendingPathComponent("candid-demo.json")
+        } else { demoURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("candid-demo.json") }
+        retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90; loadDemo(); purgeLocalExpired()
+    }
     func purgeLocalExpired() {
         guard !remote else { return }
         for i in sessions.indices {
@@ -103,20 +111,24 @@ import AVFoundation
         if remote { _ = try await api.raw("/v1/assets/"+asset.id+"/archive", method: "POST", body: ["version": asset.version]); try await reload() }
         else { if let i = assets.firstIndex(where: { $0.id == asset.id }) { assets[i].status = "archived"; assets[i].version += 1; persist() } }
     }
-    func beginSession(occasion: Occasion, kind: String, agreed: Bool) async throws -> Session {
+    func beginSession(occasion: Occasion, kind: String, agreed: Bool, recordingSource: String? = nil, deviceFileID: Int32? = nil) async throws -> Session {
         if kind == "live" && !agreed { throw PrototypeError.message("请先确认已告知对方并取得同意，或选择口述复盘。") }
         if remote {
-            let s: Session = try await api.call("/v1/sessions", method: "POST", body: ["client_request_id": UUID().uuidString, "occasion_id": occasion.id, "kind": kind, "consent": kind == "live" ? "yes" : kind == "practice" ? "yes" : "unknown", "consent_ack_text_version": "recording-notice@1", "retention_days": retention])
+            var body: [String: Any] = ["client_request_id": UUID().uuidString, "occasion_id": occasion.id, "kind": kind, "consent": kind == "live" ? "yes" : kind == "practice" ? "yes" : "unknown", "consent_ack_text_version": "recording-notice@1", "retention_days": retention]
+            if let recordingSource { body["recording_source"] = recordingSource }
+            if let deviceFileID { body["device_file_id"] = Int(deviceFileID) }
+            let s: Session = try await api.call("/v1/sessions", method: "POST", body: body)
             sessions.insert(s, at: 0); return s
         }
-        let s = Session(id: UUID().uuidString, occasion_id: occasion.id, scenario: occasion.scenario, kind: kind, consent: kind == "oral_debrief" ? "unknown" : "yes", pipeline_status: "created", duration_ms: 0, retention_days: retention, audio_purged_at: nil, started_at: ISO8601DateFormatter().string(from: Date()), fixture: false, rubric_version: occasion.scenario+"@1.2", transcript_segments: [], local_audio: nil, pipeline_error: nil)
+        let s = Session(id: UUID().uuidString, occasion_id: occasion.id, scenario: occasion.scenario, kind: kind, consent: kind == "oral_debrief" ? "unknown" : "yes", pipeline_status: "created", duration_ms: 0, retention_days: retention, audio_purged_at: nil, started_at: ISO8601DateFormatter().string(from: Date()), fixture: false, rubric_version: occasion.scenario+"@1.2", transcript_segments: [], local_audio: nil, pipeline_error: nil, recording_source: recordingSource, device_file_id: deviceFileID.map(Int.init))
         sessions.insert(s, at: 0); persist(); return s
     }
-    func finish(_ session: Session, url: URL, seconds: Int) async throws {
+    func finish(_ session: Session, url: URL, seconds: Int, durationMS: Int? = nil) async throws {
+        let milliseconds = durationMS ?? seconds * 1000
         if remote { localFiles[session.id] = url.path; UserDefaults.standard.set(localFiles, forKey: "local-recordings") }
-        if let i = sessions.firstIndex(where: { $0.id == session.id }) { sessions[i].local_audio = url.path; sessions[i].duration_ms = seconds * 1000; sessions[i].pipeline_status = "recorded_local"; persist() }
+        if let i = sessions.firstIndex(where: { $0.id == session.id }) { sessions[i].local_audio = url.path; sessions[i].duration_ms = milliseconds; sessions[i].pipeline_status = "recorded_local"; persist() }
         if remote {
-            try await api.upload(url, session: session.id, durationMS: seconds * 1000)
+            try await api.upload(url, session: session.id, durationMS: milliseconds)
             try FileManager.default.removeItem(at: url)
             localFiles.removeValue(forKey: session.id); UserDefaults.standard.set(localFiles, forKey: "local-recordings")
             try await reload(); message = "音频已校验入库，本机副本已删除。真实 ASR/模型未配置，暂不生成分析。"
