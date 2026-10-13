@@ -1,0 +1,38 @@
+{
+  "name": "communication_review",
+  "title": "复盘沟通",
+  "description": "依据本人复述或真实转写，区分原文依据与建议，复盘具体沟通表现。",
+  "version": "1.2.1",
+  "body_sha256": "ab986079694d37fb4a9ebf32b6f305dd2a7860b4a7e1f7437c19ddb827d92258",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "material": {
+        "type": "string",
+        "maxLength": 12000
+      },
+      "session_id": {
+        "type": "string",
+        "maxLength": 80
+      },
+      "focus": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "allowed_tools": [
+    "search_memory",
+    "list_occasions",
+    "list_sessions",
+    "read_session",
+    "read_evidence",
+    "request_input",
+    "search_materials",
+    "read_material_part"
+  ],
+  "required_tools": [],
+  "output": "自然回答；按需给出原文依据、优点、少量改进建议，不对没有原文的内容下结论。"
+}

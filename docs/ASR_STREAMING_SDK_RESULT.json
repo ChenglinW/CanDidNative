@@ -1,0 +1,2097 @@
+{
+  "status": "SUCCEEDED",
+  "client": "Official DashScope Python SDK",
+  "sdk_version": "1.27.7",
+  "model": "qwen-audio-3.1-asr-flash-streaming",
+  "endpoint": "wss://dashscope.aliyuncs.com/api-ws/v1/inference",
+  "parameters": {
+    "format": "pcm",
+    "sample_rate": 16000,
+    "keep_dialect": true
+  },
+  "source_url": "https://dashscope.oss-cn-beijing.aliyuncs.com/samples/audio/sensevoice/rich_text_example_1.wav",
+  "pcm_sha256": "40205373f90ae31eed713d3eedf688e395bf4a6b9965ca86c30695abcd41e383",
+  "audio_duration_seconds": 17.645125,
+  "chunk_ms": 200,
+  "realtime_paced": true,
+  "receiver_concurrent_with_sender": true,
+  "sdk_start_return_seconds": 0.0,
+  "first_text_latency_seconds": 2.212,
+  "text_events_before_stop": 11,
+  "intermediate_text_events": 19,
+  "final_sentence_count": 2,
+  "stop_called_at_seconds": 17.65,
+  "completion_after_stop_seconds": 11.394,
+  "sdk_first_package_delay_ms": 2211.8818359375,
+  "sdk_last_package_delay_ms": 11392.9970703125,
+  "final_transcript": "Senior staff, Principal Doris Jackson, Wakefield faculty, and of course my fellow classmates. I am honored to have been chosen to speak before my classmates as well as the students across America today. ",
+  "usage": {
+    "duration": 17,
+    "input_tokens": 359,
+    "output_tokens": 40,
+    "total_tokens": 399
+  },
+  "error": null,
+  "timeline": [
+    {
+      "received_at_seconds": 1.815,
+      "audio_enqueued_seconds": 2.0,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 0,
+        "end_time": null,
+        "text": "",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "sentence_begin": true,
+        "words": []
+      }
+    },
+    {
+      "received_at_seconds": 2.018,
+      "audio_enqueued_seconds": 2.2,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 0,
+        "end_time": null,
+        "text": "",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": []
+      }
+    },
+    {
+      "received_at_seconds": 2.212,
+      "audio_enqueued_seconds": 2.4,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 0,
+        "end_time": null,
+        "text": "C",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 0,
+            "end_time": 480,
+            "text": "C",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 2.405,
+      "audio_enqueued_seconds": 2.6,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 400,
+        "end_time": null,
+        "text": "See your",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 400,
+            "end_time": 640,
+            "text": "See",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 640,
+            "end_time": 720,
+            "text": " your",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 3.407,
+      "audio_enqueued_seconds": 3.6,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": null,
+        "text": "See yourtaff",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 560,
+            "text": "See",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 560,
+            "end_time": 880,
+            "text": " your",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1040,
+            "text": "ta",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1040,
+            "end_time": 1440,
+            "text": "ff",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 4.011,
+      "audio_enqueued_seconds": 4.2,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": null,
+        "text": "Senior staff, principal",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 880,
+            "text": "Senior",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1320,
+            "text": " staff",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1760,
+            "end_time": 2160,
+            "text": " principal",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 4.214,
+      "audio_enqueued_seconds": 4.4,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": null,
+        "text": "Senior staff, principal Doris Jackson",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 880,
+            "text": "Senior",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1320,
+            "text": " staff",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1800,
+            "end_time": 2080,
+            "text": " principal",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2080,
+            "end_time": 2200,
+            "text": " Dor",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2200,
+            "end_time": 2440,
+            "text": "is",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2440,
+            "end_time": 2880,
+            "text": " Jackson",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 5.607,
+      "audio_enqueued_seconds": 5.8,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": null,
+        "text": "Senior staff, principal Doris Jackson, Wake",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 880,
+            "text": "Senior",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1320,
+            "text": " staff",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1800,
+            "end_time": 2080,
+            "text": " principal",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2080,
+            "end_time": 2200,
+            "text": " Dor",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2200,
+            "end_time": 2440,
+            "text": "is",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2440,
+            "end_time": 3000,
+            "text": " Jackson",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3360,
+            "end_time": 3600,
+            "text": " Wake",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 8.207,
+      "audio_enqueued_seconds": 8.4,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": null,
+        "text": "Senior staff, Principal Doris Jackson, Wakefield Faculty",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 880,
+            "text": "Senior",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1320,
+            "text": " staff",
+            "punctuation": ",",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1800,
+            "end_time": 2080,
+            "text": " Principal",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2080,
+            "end_time": 2200,
+            "text": " Dor",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2200,
+            "end_time": 2440,
+            "text": "is",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2440,
+            "end_time": 3000,
+            "text": " Jackson",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3400,
+            "end_time": 3600,
+            "text": " Wake",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3600,
+            "end_time": 4000,
+            "text": "field",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4000,
+            "end_time": 4320,
+            "text": " Faculty",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 9.206,
+      "audio_enqueued_seconds": 9.4,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": null,
+        "text": "Senior staff, Principal Doris Jackson, Wakefield Faculty, and of",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 880,
+            "text": "Senior",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1320,
+            "text": " staff",
+            "punctuation": ",",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1800,
+            "end_time": 2080,
+            "text": " Principal",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2080,
+            "end_time": 2200,
+            "text": " Dor",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2200,
+            "end_time": 2440,
+            "text": "is",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2440,
+            "end_time": 3000,
+            "text": " Jackson",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3400,
+            "end_time": 3600,
+            "text": " Wake",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3600,
+            "end_time": 4040,
+            "text": "field",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4040,
+            "end_time": 4520,
+            "text": " Faculty",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4760,
+            "end_time": 4920,
+            "text": " and",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4920,
+            "end_time": 5040,
+            "text": " of",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 11.013,
+      "audio_enqueued_seconds": 11.2,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": null,
+        "text": "Senior staff, Principal Doris Jackson, Wakefield Faculty, and of course my",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 880,
+            "text": "Senior",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1320,
+            "text": " staff",
+            "punctuation": ",",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1800,
+            "end_time": 2080,
+            "text": " Principal",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2080,
+            "end_time": 2200,
+            "text": " Dor",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2200,
+            "end_time": 2440,
+            "text": "is",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2440,
+            "end_time": 3000,
+            "text": " Jackson",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3400,
+            "end_time": 3600,
+            "text": " Wake",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3600,
+            "end_time": 4040,
+            "text": "field",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4040,
+            "end_time": 4520,
+            "text": " Faculty",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4800,
+            "end_time": 5000,
+            "text": " and",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5000,
+            "end_time": 5080,
+            "text": " of",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5080,
+            "end_time": 5560,
+            "text": " course",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5560,
+            "end_time": 5760,
+            "text": " my",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 11.215,
+      "audio_enqueued_seconds": 11.4,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": null,
+        "text": "Senior staff, Principal Doris Jackson, Wakefield faculty, and of course my fellow classmates",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 880,
+            "text": "Senior",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1320,
+            "text": " staff",
+            "punctuation": ",",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1800,
+            "end_time": 2080,
+            "text": " Principal",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2080,
+            "end_time": 2200,
+            "text": " Dor",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2200,
+            "end_time": 2440,
+            "text": "is",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2440,
+            "end_time": 3000,
+            "text": " Jackson",
+            "punctuation": ",",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3400,
+            "end_time": 3600,
+            "text": " Wake",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3600,
+            "end_time": 4040,
+            "text": "field",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4040,
+            "end_time": 4520,
+            "text": " faculty",
+            "punctuation": ",",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4800,
+            "end_time": 5000,
+            "text": " and",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5000,
+            "end_time": 5080,
+            "text": " of",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5080,
+            "end_time": 5600,
+            "text": " course",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5600,
+            "end_time": 5880,
+            "text": " my",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5880,
+            "end_time": 6120,
+            "text": " fellow",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 6120,
+            "end_time": 6480,
+            "text": " classmates",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 14.012,
+      "audio_enqueued_seconds": 14.2,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 1,
+        "begin_time": 440,
+        "end_time": 6920,
+        "text": "Senior staff, Principal Doris Jackson, Wakefield faculty, and of course my fellow classmates. ",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": true,
+        "words": [
+          {
+            "begin_time": 440,
+            "end_time": 880,
+            "text": "Senior",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 880,
+            "end_time": 1320,
+            "text": " staff",
+            "punctuation": ",",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 1800,
+            "end_time": 2080,
+            "text": " Principal",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2080,
+            "end_time": 2200,
+            "text": " Dor",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2200,
+            "end_time": 2440,
+            "text": "is",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 2440,
+            "end_time": 3000,
+            "text": " Jackson",
+            "punctuation": ",",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3400,
+            "end_time": 3600,
+            "text": " Wake",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 3600,
+            "end_time": 4040,
+            "text": "field",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4040,
+            "end_time": 4520,
+            "text": " faculty",
+            "punctuation": ",",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 4800,
+            "end_time": 5000,
+            "text": " and",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5000,
+            "end_time": 5080,
+            "text": " of",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5080,
+            "end_time": 5600,
+            "text": " course",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5600,
+            "end_time": 5880,
+            "text": " my",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 5880,
+            "end_time": 6160,
+            "text": " fellow",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 6160,
+            "end_time": 6920,
+            "text": " classmates",
+            "punctuation": ". ",
+            "fixed": true,
+            "speaker_id": null
+          }
+        ],
+        "stash": {
+          "sentence_id": 2,
+          "text": "",
+          "begin_time": 6920,
+          "current_time": 6920,
+          "words": []
+        }
+      }
+    },
+    {
+      "received_at_seconds": 17.61,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": true,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 11870,
+        "end_time": null,
+        "text": "",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "sentence_begin": true,
+        "words": []
+      }
+    },
+    {
+      "received_at_seconds": 17.658,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 11870,
+        "end_time": null,
+        "text": "I",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 11870,
+            "end_time": 12350,
+            "text": "I",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 17.711,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12270,
+        "end_time": null,
+        "text": "Im",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 12270,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12590,
+            "text": "m",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 18.221,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12310,
+        "end_time": null,
+        "text": "Imam honored to have been",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 12310,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12523,
+            "text": "m",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12523,
+            "end_time": 12710,
+            "text": "am",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12710,
+            "end_time": 12870,
+            "text": " honored",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12870,
+            "end_time": 12990,
+            "text": " to",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12990,
+            "end_time": 13150,
+            "text": " have",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13150,
+            "end_time": 13310,
+            "text": " been",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 21.202,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12310,
+        "end_time": null,
+        "text": "I am honored to have been chosen to speak",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 12310,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12710,
+            "text": " am",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12710,
+            "end_time": 12870,
+            "text": " honored",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12870,
+            "end_time": 12990,
+            "text": " to",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12990,
+            "end_time": 13150,
+            "text": " have",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13150,
+            "end_time": 13390,
+            "text": " been",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13390,
+            "end_time": 13670,
+            "text": " chosen",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13670,
+            "end_time": 13830,
+            "text": " to",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13830,
+            "end_time": 14030,
+            "text": " speak",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 22.52,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12310,
+        "end_time": null,
+        "text": "I am honored to have been chosen to speak before my class",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 12310,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12710,
+            "text": " am",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12710,
+            "end_time": 12870,
+            "text": " honored",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12870,
+            "end_time": 12990,
+            "text": " to",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12990,
+            "end_time": 13150,
+            "text": " have",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13150,
+            "end_time": 13390,
+            "text": " been",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13390,
+            "end_time": 13670,
+            "text": " chosen",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13670,
+            "end_time": 13830,
+            "text": " to",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13830,
+            "end_time": 14150,
+            "text": " speak",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14150,
+            "end_time": 14350,
+            "text": " before",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14350,
+            "end_time": 14550,
+            "text": " my",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14550,
+            "end_time": 14750,
+            "text": " class",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 23.249,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12310,
+        "end_time": null,
+        "text": "I am honored to have been chosen to speak before my classmates as",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 12310,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12710,
+            "text": " am",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12710,
+            "end_time": 12870,
+            "text": " honored",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12870,
+            "end_time": 12990,
+            "text": " to",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12990,
+            "end_time": 13150,
+            "text": " have",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13150,
+            "end_time": 13390,
+            "text": " been",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13390,
+            "end_time": 13710,
+            "text": " chosen",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13710,
+            "end_time": 13830,
+            "text": " to",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13830,
+            "end_time": 14150,
+            "text": " speak",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14150,
+            "end_time": 14350,
+            "text": " before",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14350,
+            "end_time": 14590,
+            "text": " my",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14590,
+            "end_time": 14980,
+            "text": " class",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14980,
+            "end_time": 15310,
+            "text": "mates",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15310,
+            "end_time": 15470,
+            "text": " as",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 24.9,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12310,
+        "end_time": null,
+        "text": "I am honored to have been chosen to speak before my classmates as well as the students",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 12310,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12710,
+            "text": " am",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12710,
+            "end_time": 12870,
+            "text": " honored",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12870,
+            "end_time": 12990,
+            "text": " to",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12990,
+            "end_time": 13150,
+            "text": " have",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13150,
+            "end_time": 13390,
+            "text": " been",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13390,
+            "end_time": 13710,
+            "text": " chosen",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13710,
+            "end_time": 13830,
+            "text": " to",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13830,
+            "end_time": 14150,
+            "text": " speak",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14150,
+            "end_time": 14350,
+            "text": " before",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14350,
+            "end_time": 14590,
+            "text": " my",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14590,
+            "end_time": 15350,
+            "text": " classmates",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15350,
+            "end_time": 15470,
+            "text": " as",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15470,
+            "end_time": 15670,
+            "text": " well",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15670,
+            "end_time": 15790,
+            "text": " as",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15790,
+            "end_time": 15910,
+            "text": " the",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15910,
+            "end_time": 16190,
+            "text": " students",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 25.684,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12310,
+        "end_time": null,
+        "text": "I am honored to have been chosen to speak before my classmates as well as the students across America",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 12310,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12710,
+            "text": " am",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12710,
+            "end_time": 12870,
+            "text": " honored",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12870,
+            "end_time": 12990,
+            "text": " to",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12990,
+            "end_time": 13150,
+            "text": " have",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13150,
+            "end_time": 13390,
+            "text": " been",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13390,
+            "end_time": 13710,
+            "text": " chosen",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13710,
+            "end_time": 13830,
+            "text": " to",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13830,
+            "end_time": 14150,
+            "text": " speak",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14150,
+            "end_time": 14350,
+            "text": " before",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14350,
+            "end_time": 14590,
+            "text": " my",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14590,
+            "end_time": 15350,
+            "text": " classmates",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15350,
+            "end_time": 15470,
+            "text": " as",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15470,
+            "end_time": 15670,
+            "text": " well",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15670,
+            "end_time": 15790,
+            "text": " as",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15790,
+            "end_time": 15950,
+            "text": " the",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15950,
+            "end_time": 16310,
+            "text": " students",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 16310,
+            "end_time": 16670,
+            "text": " across",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 16670,
+            "end_time": 16910,
+            "text": " America",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 28.636,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12310,
+        "end_time": null,
+        "text": "I am honored to have been chosen to speak before my classmates as well as the students across America today",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": false,
+        "words": [
+          {
+            "begin_time": 12310,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12710,
+            "text": " am",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12710,
+            "end_time": 12870,
+            "text": " honored",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12870,
+            "end_time": 12990,
+            "text": " to",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12990,
+            "end_time": 13150,
+            "text": " have",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13150,
+            "end_time": 13390,
+            "text": " been",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13390,
+            "end_time": 13710,
+            "text": " chosen",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13710,
+            "end_time": 13830,
+            "text": " to",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13830,
+            "end_time": 14150,
+            "text": " speak",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14150,
+            "end_time": 14350,
+            "text": " before",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14350,
+            "end_time": 14590,
+            "text": " my",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14590,
+            "end_time": 15390,
+            "text": " classmates",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15390,
+            "end_time": 15470,
+            "text": " as",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15470,
+            "end_time": 15710,
+            "text": " well",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15710,
+            "end_time": 15790,
+            "text": " as",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15790,
+            "end_time": 15950,
+            "text": " the",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15950,
+            "end_time": 16310,
+            "text": " students",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 16310,
+            "end_time": 16710,
+            "text": " across",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 16710,
+            "end_time": 17150,
+            "text": " America",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 17150,
+            "end_time": 17630,
+            "text": " today",
+            "punctuation": "",
+            "fixed": false,
+            "speaker_id": null
+          }
+        ]
+      }
+    },
+    {
+      "received_at_seconds": 28.891,
+      "audio_enqueued_seconds": 17.645,
+      "before_stop": false,
+      "sentence": {
+        "sentence_id": 2,
+        "begin_time": 12310,
+        "end_time": 17470,
+        "text": "I am honored to have been chosen to speak before my classmates as well as the students across America today. ",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": true,
+        "words": [
+          {
+            "begin_time": 12310,
+            "end_time": 12430,
+            "text": "I",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12430,
+            "end_time": 12710,
+            "text": " am",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12710,
+            "end_time": 12870,
+            "text": " honored",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12870,
+            "end_time": 12990,
+            "text": " to",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 12990,
+            "end_time": 13150,
+            "text": " have",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13150,
+            "end_time": 13390,
+            "text": " been",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13390,
+            "end_time": 13710,
+            "text": " chosen",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13710,
+            "end_time": 13830,
+            "text": " to",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 13830,
+            "end_time": 14150,
+            "text": " speak",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14150,
+            "end_time": 14350,
+            "text": " before",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14350,
+            "end_time": 14590,
+            "text": " my",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 14590,
+            "end_time": 15390,
+            "text": " classmates",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15390,
+            "end_time": 15470,
+            "text": " as",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15470,
+            "end_time": 15710,
+            "text": " well",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15710,
+            "end_time": 15790,
+            "text": " as",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15790,
+            "end_time": 15950,
+            "text": " the",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 15950,
+            "end_time": 16310,
+            "text": " students",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 16310,
+            "end_time": 16710,
+            "text": " across",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 16710,
+            "end_time": 17150,
+            "text": " America",
+            "punctuation": "",
+            "fixed": true,
+            "speaker_id": null
+          },
+          {
+            "begin_time": 17150,
+            "end_time": 17470,
+            "text": " today",
+            "punctuation": ". ",
+            "fixed": true,
+            "speaker_id": null
+          }
+        ],
+        "stash": {
+          "sentence_id": 3,
+          "text": "",
+          "begin_time": 17470,
+          "current_time": 17470,
+          "words": []
+        }
+      }
+    }
+  ],
+  "timing_note": "Time zero is first send_audio_frame enqueue, as used by SDK metric; SDK may include connection startup. Prior raw client time zero was after task-started. Stop-to-complete timings use each client stop request initiation.",
+  "baseline": {
+    "first_text_latency_seconds": 2.542,
+    "completion_after_finish_seconds": 18.099,
+    "final_sentence_count": 2
+  },
+  "scope": "Public sample, ASR API comparison only; no microphone or application integration."
+}

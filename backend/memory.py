@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import sqlite3
+import shutil
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -16,8 +17,8 @@ from llm import DeepSeek, ModelError
 CONFIG = json.loads(Path(__file__).with_name('config.json').read_text('utf8'))
 TABLES = ('profiles documents experiences assets asset_revisions question_bank baselines weaknesses '
           'occasions occasion_artifacts audiences script_versions outcomes sessions session_media marks '
-          'transcript_segments qa_units metrics diagnoses diagnosis_feedback').split()
-IMMUTABLE = {'documents', 'session_media', 'marks', 'transcript_segments'}
+          'transcript_segments qa_units metrics diagnoses diagnosis_feedback chat_threads chat_messages agent_tasks agent_summaries agent_sources agent_events project_spaces agent_source_scopes business_jobs recording_tags recording_knowledge personal_memories provider_runs speech_outputs device_actions').split()
+IMMUTABLE = {'documents', 'session_media', 'marks', 'transcript_segments', 'agent_sources', 'agent_events'}
 SCENARIOS = set(CONFIG['rubrics'])
 L1, L2, L3 = 'L1_evidence', 'L2_inferred', 'L3_confirmed'
 
@@ -40,6 +41,8 @@ class Memory:
         self.db.create_function('actor', 0, lambda: self.actor or '')
         self.db.execute('PRAGMA journal_mode=WAL')
         for table in TABLES:
+            if table == 'personal_memories':
+                continue
             self.db.executescript(f'''
             CREATE TABLE IF NOT EXISTS {table}(
               id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, created_at TEXT NOT NULL,
@@ -65,8 +68,41 @@ class Memory:
             ''')
             if table in IMMUTABLE:
                 self.db.executescript(f"CREATE TRIGGER IF NOT EXISTS {table}_immutable BEFORE UPDATE ON {table} BEGIN SELECT RAISE(ABORT,'L1_IMMUTABLE'); END;")
+        # Archive automation has its own authority and table; existing human-only L3 guards remain intact.
+        self.db.executescript(f'''
+        CREATE TABLE IF NOT EXISTS personal_memories(
+          id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, created_at TEXT NOT NULL,
+          data TEXT NOT NULL CHECK(json_valid(data)),
+          CHECK(json_extract(data,'$.visibility')='private'),
+          CHECK(json_extract(data,'$.source')='ai'),
+          CHECK(json_extract(data,'$.trust')='{L3}'),
+          CHECK(length(json_extract(data,'$.producer'))>0),
+          CHECK(json_extract(data,'$.confirmation_mode')='archive_auto'),
+          CHECK(length(json_extract(data,'$.archive_workspace_id'))>0),
+          CHECK(json_array_length(json_extract(data,'$.evidence_refs'))>0)
+        );
+        CREATE INDEX IF NOT EXISTS personal_memory_owner ON personal_memories(owner_id,created_at,id);
+        CREATE TRIGGER IF NOT EXISTS personal_memory_authority BEFORE INSERT ON personal_memories
+          WHEN actor()!=('archive:' || json_extract(NEW.data,'$.archive_workspace_id'))
+            OR NOT EXISTS (SELECT 1 FROM project_spaces WHERE owner_id=NEW.owner_id
+              AND id=json_extract(NEW.data,'$.archive_workspace_id')
+              AND json_extract(data,'$.status')='archived'
+              AND json_extract(data,'$.archived_by')=NEW.owner_id
+              AND json_extract(data,'$.archive_confirmation_policy')='auto_confirmed_personal')
+          BEGIN SELECT RAISE(ABORT,'ARCHIVE_AUTHORITY_REQUIRED'); END;
+        CREATE TRIGGER IF NOT EXISTS personal_memory_edit BEFORE UPDATE ON personal_memories
+          WHEN actor()!=NEW.owner_id
+          BEGIN SELECT RAISE(ABORT,'PERSONAL_MEMORY_OWNER_REQUIRED'); END;
+        ''')
         self.db.executescript('''
+        CREATE UNIQUE INDEX IF NOT EXISTS project_space_thread ON project_spaces(owner_id,json_extract(data,'$.default_thread_id'));
+        CREATE UNIQUE INDEX IF NOT EXISTS project_space_request ON project_spaces(owner_id,json_extract(data,'$.client_request_id'));
+        CREATE UNIQUE INDEX IF NOT EXISTS source_scope_identity ON agent_source_scopes(owner_id,json_extract(data,'$.source_id'));
+        CREATE UNIQUE INDEX IF NOT EXISTS agent_event_sequence ON agent_events(owner_id,
+            json_extract(data,'$.task_id'),json_extract(data,'$.seq'));
         CREATE UNIQUE INDEX IF NOT EXISTS profile_one_owner ON profiles(owner_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS agent_task_request ON agent_tasks(
+          owner_id,json_extract(data,'$.thread_id'),json_extract(data,'$.client_request_id'));
         CREATE TRIGGER IF NOT EXISTS diagnosis_evidence BEFORE INSERT ON diagnoses
           WHEN coalesce(json_array_length(json_extract(NEW.data,'$.evidence_refs')),0) < 1
           BEGIN SELECT RAISE(ABORT,'EVIDENCE_MISSING'); END;
@@ -88,12 +124,18 @@ class Memory:
     def transaction(self, actor=None):
         with self.lock:
             previous = self.actor; self.actor = actor
-            self.db.execute('BEGIN IMMEDIATE')
+            savepoint = 'nested_' + uuid4().hex if self.db.in_transaction else None
+            self.db.execute('SAVEPOINT '+savepoint if savepoint else 'BEGIN IMMEDIATE')
             try:
                 yield
-                self.db.execute('COMMIT')
+                self.db.execute('RELEASE SAVEPOINT '+savepoint if savepoint else 'COMMIT')
             except BaseException:
-                self.db.execute('ROLLBACK'); raise
+                if savepoint:
+                    self.db.execute('ROLLBACK TO SAVEPOINT '+savepoint)
+                    self.db.execute('RELEASE SAVEPOINT '+savepoint)
+                else:
+                    self.db.execute('ROLLBACK')
+                raise
             finally: self.actor = previous
 
     def check_owner(self, owner):
@@ -126,7 +168,11 @@ class Memory:
         if table=='diagnoses':
             self.validate_evidence(owner,data.get('evidence_refs',[]))
             if any(r['session_id']!=data.get('session_id') for r in data['evidence_refs']):raise Fault('EVIDENCE_INVALID','诊断证据必须属于本场次',422)
-        if trust==L3:
+        if table=='personal_memories':
+            if trust!=L3 or source!='ai' or actor!='archive:'+str(data.get('archive_workspace_id','')):
+                raise Fault('ARCHIVE_AUTHORITY_REQUIRED','归档自动记忆需要独立授权',403)
+            data.update(confirmed_at=now(),confirmation_mode='archive_auto')
+        elif trust==L3:
             if source!='user' or actor!=owner: raise Fault('L3_NEEDS_HUMAN','仅用户本人可以确认记忆',403)
             data.update(confirmed_by=owner,confirmed_at=now())
         with self.lock:
@@ -231,7 +277,7 @@ class Memory:
                 if x['trust']==L2 and x.get('rubric_version')!=rubric:continue
                 # Only explicit allowlisted content enters context. Counterpart identity never does.
                 text={k:x[k] for k in ['title','body','bullets','text','fields','target_roles','concerns','timeline','finding','suggestion','question_essence','description','value','metric_key','dimension','role_key','label'] if k in x}
-                out.append({'trust':'INFERRED' if x['trust']==L2 else 'FACT','ref':table+':'+x['id'],
+                out.append({'trust':'INFERRED' if x['trust']==L2 else 'FACT' if x['trust']==L3 else 'EVIDENCE','ref':table+':'+x['id'],
                             'text':'<memory_data>'+encode(text)+'</memory_data>',
                             'rubric_version':x.get('rubric_version'),'producer':x.get('producer')})
             return out
@@ -291,6 +337,9 @@ class Memory:
                 self.log_delete(m['id'],'session_media',reason)
             # Pending or acknowledged-but-not-registered uploads also expire.
             for suffix in ['.part','.audio']:(self.root/owner/(id+suffix)).unlink(missing_ok=True)
+            shutil.rmtree(self.root/owner/'asr'/id,ignore_errors=True)
+            for job in self.rows('business_jobs',owner,object_id=id):
+                if job['status'] in {'queued','running','interrupted'}:self.update('business_jobs',owner,job['id'],{'status':'cancelled','error':'原音频已删除'})
             for seg in self.rows('transcript_segments',owner,session_id=id,speaker='other'):
                 self.remove('transcript_segments',owner,seg['id'])
             s=self.update('sessions',owner,id,{'audio_purged_at':now()})
@@ -328,9 +377,7 @@ class Memory:
     def delete_memory(self,owner):
         # Tombstone first so failed disk cleanup cannot permit further reads/jobs.
         with self.lock:self.db.execute('INSERT OR IGNORE INTO blocked_owners VALUES(?)',(owner,))
-        files=list((self.root/owner).glob('*')) if (self.root/owner).exists() else []
-        for f in files:
-            if f.is_file():f.unlink(missing_ok=True)
+        shutil.rmtree(self.root/owner,ignore_errors=False) if (self.root/owner).exists() else None
         with self.transaction(owner):
             for table in TABLES:self.db.execute(f'DELETE FROM {table} WHERE owner_id=?',(owner,))
             self.db.execute('DELETE FROM requests WHERE owner_id=?',(owner,));self.db.execute('DELETE FROM jobs WHERE owner_id=?',(owner,))

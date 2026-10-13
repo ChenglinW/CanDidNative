@@ -67,7 +67,19 @@ fi
 if [ "$MODE" = --run ]; then
     # bootstatus -b boots a shutdown device and waits for it to become ready.
     xcrun simctl bootstatus "$DEVICE" -b
-    SIMULATOR_APP="${DEVELOPER_DIR:-$(xcode-select -p)}/Applications/Simulator.app"
+    DEVELOPER_PATH="${DEVELOPER_DIR:-$(xcode-select -p)}"
+    SIMULATOR_APP=""
+    for APP_PATH in "$DEVELOPER_PATH/Applications/Simulator.app" \
+        "$DEVELOPER_PATH/../Applications/DeviceHub.app"; do
+        if [ -d "$APP_PATH" ]; then
+            SIMULATOR_APP="$APP_PATH"
+            break
+        fi
+    done
+    if [ -z "$SIMULATOR_APP" ]; then
+        echo "未找到 Simulator 或 Device Hub，请检查 Xcode 安装。" >&2
+        exit 1
+    fi
     open -a "$SIMULATOR_APP"
     xcrun simctl install "$DEVICE" "$DERIVED_DATA/Build/Products/Debug-iphonesimulator/CanDid.app"
     xcrun simctl launch "$DEVICE" com.candid.memory.prototype

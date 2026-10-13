@@ -51,6 +51,9 @@ struct SoundcoreFile: Identifiable {
     @Published private(set) var currentFileID: Int32?
     @Published private(set) var progress: Double = 0
     @Published private(set) var transferring = false
+    @Published private(set) var realtimeReady = false
+    var onLiveAudio: ((Data,Int32)->Void)?
+    var onRecordingEnded: (()->Void)?
     private let sdk = SoundcoreSDK.companion.proxy
     private let callbacks = SoundcoreCallbacks()
     private var candidate: SoundcoreDevice?
@@ -125,6 +128,7 @@ struct SoundcoreFile: Identifiable {
         stopScan()
         connectionTimeout?.cancel(); connectionTimeout = nil
         if let device = connected ?? candidate { sdk.disconnect(macAddress: device.mac, uuid: device.uuid) }
+        realtimeReady=false;onLiveAudio=nil;onRecordingEnded?()
         candidate = nil; connected = nil; connecting = false; files = []; recordStatus = 0; currentFileID = nil
         finishTransfer(.failure(PrototypeError.message("设备连接已断开；设备原文件保留，请重新连接后同步。")))
         status = "设备已断开"
@@ -140,13 +144,19 @@ struct SoundcoreFile: Identifiable {
         if recordStatus == 1 { sdk.pauseRecord(macAddress: device.mac, uuid: device.uuid) }
         else if recordStatus == 2 { sdk.resumeRecord(macAddress: device.mac, uuid: device.uuid) }
     }
+    func acquireLiveAudio() throws {
+        guard realtimeReady,recordStatus != 0,let device=connected else { throw PrototypeError.message("等待设备实时传输通知。") }
+        let folder=FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("DeviceLiveAudio")
+        try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+        sdk.acquireRealtimeAudioData(macAddress:device.mac,uuid:device.uuid,savaPath:folder.path)
+    }
     func download(_ file: SoundcoreFile) async throws -> URL {
         guard let device = connected, !transferring else { throw PrototypeError.message("请先连接 soundcore，等待上一份录音同步完成。") }
         guard recordStatus == 0, !sdk.isDataTransferring(macAddress: device.mac, uuid: device.uuid) else {
             throw PrototypeError.message("请先按设备停止键结束录音，并等待设备传输任务完成。")
         }
         guard file.id != currentFileID || recordStatus == 0 else { throw PrototypeError.message("请先按设备停止键结束这份录音，再同步完整文件。") }
-        guard file.info.size > 0, file.info.size <= 25 * 1024 * 1024 else { throw PrototypeError.message("设备文件为空或超过 25MB，请选择其他录音。") }
+        guard file.info.size > 0, file.info.size <= 2_000_000_000 else { throw PrototypeError.message("设备文件为空或超过 2GB，请选择其他录音。") }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("SoundcoreTransfers", isDirectory: true)
         let folder = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -180,6 +190,10 @@ struct SoundcoreFile: Identifiable {
     private func matches(_ mac: String, _ uuid: String) -> Bool { connected?.mac == mac && connected?.uuid == uuid }
     private func handle(_ event: SoundcoreEvent) {
         switch event {
+        case .realtimeReady(let mac,let uuid,let fileID):
+            guard matches(mac,uuid) else { return };realtimeReady=true;currentFileID=fileID
+        case .liveAudio(let mac,let uuid,let fileID,let data,let sequence):
+            guard matches(mac,uuid),fileID==currentFileID else { return };onLiveAudio?(data,sequence)
         case .auth(let success, let code):
             guard initializing else { return }
             authenticationTimeout?.cancel(); authenticationTimeout = nil; initializing = false
@@ -202,12 +216,14 @@ struct SoundcoreFile: Identifiable {
             sdk.getDeviceInfo(macAddress: candidate.mac, uuid: candidate.uuid)
         case .disconnected(let mac):
             guard mac == nil || mac == connected?.mac || mac == candidate?.mac else { return }
+            realtimeReady=false;onLiveAudio=nil;onRecordingEnded?()
             connected = nil; candidate = nil; connecting = false; files = []; recordStatus = 0; currentFileID = nil
             connectionTimeout?.cancel(); connectionTimeout = nil
             status = "设备已断开，请重新连接"
             finishTransfer(.failure(PrototypeError.message("同步期间设备断开，设备原文件保留。")))
         case .connectionError:
             connectionTimeout?.cancel(); connectionTimeout = nil
+            realtimeReady=false;onLiveAudio=nil;onRecordingEnded?()
             connected = nil; candidate = nil; connecting = false; status = "设备连接失败"
             error = "无法连接 soundcore，请检查设备和蓝牙权限后重试。"
             finishTransfer(.failure(PrototypeError.message("设备连接失败，请重新同步。")))
@@ -217,6 +233,7 @@ struct SoundcoreFile: Identifiable {
             refreshFiles()
         case .record(let mac, let uuid, let status, let duration, let fileID):
             guard matches(mac, uuid) else { return }
+            if status==0 { realtimeReady=false;onLiveAudio=nil;onRecordingEnded?() }
             recordStatus = status
             if status == 1 { currentFileID = fileID }
             if status == 0 { durationMS = max(0, Int(duration)); currentFileID = nil; refreshFiles() }
@@ -258,5 +275,6 @@ enum SoundcoreEvent {
     case info(String, String, Int32, Int32)
     case files(String, String, [FileInfoModel]), fileError(String, String, Int32)
     case progress(String, String, Int32, Int32, Int32), completed(String, String, Int32, String)
+    case realtimeReady(String,String,Int32),liveAudio(String,String,Int32,Data,Int32)
     case transferError(String, String, Int32)
 }

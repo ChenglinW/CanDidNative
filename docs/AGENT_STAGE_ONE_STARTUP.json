@@ -1,0 +1,32 @@
+{
+  "scope": "launch-only; no software tests or model calls",
+  "health": "ok",
+  "docs_http_status": 200,
+  "agent_configured": true,
+  "agent_runtime_version": "agent-runtime@1",
+  "agent_tools": [
+    "search_memory",
+    "list_occasions",
+    "list_sessions",
+    "read_session"
+  ],
+  "agent_services": {
+    "dashscope": {
+      "configured": true,
+      "region": "cn-beijing",
+      "realtime_model": "qwen-audio-3.1-asr-flash-streaming",
+      "file_model": "qwen-audio-3.1-asr-flash-filetrans",
+      "pipeline_enabled": false
+    },
+    "memory": {
+      "backend": "sqlite",
+      "contract_version": "candid-memory@1-draft"
+    },
+    "monid": {
+      "configured": false,
+      "integration_enabled": false
+    }
+  },
+  "memory_contract": "draft_pending_both_owners_confirmation",
+  "app_audio_pipeline_enabled": false
+}

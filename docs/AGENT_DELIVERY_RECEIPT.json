@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-14",
+  "scope": "source/config, build and launch only; no software tests or paid business verification",
+  "build_log": "/tmp/candid-completion-build-final.log",
+  "backend_config": ".env.team.local (ignored, 0600)",
+  "confirmed_choices": {
+    "monid": "Search1API, Firecrawl, PDL; delegated platform expansion",
+    "monid_money_cap": null,
+    "tts": "qwen3-tts-flash-realtime / Cherry",
+    "voice": "phone explicit turns; manual send; stop playback on speech",
+    "recording": "device formal; phone temporary development",
+    "unknown_speaker": "summary allowed; personal identity user-selected"
+  },
+  "external_dependencies": [
+    "physical Anker device and matching SDK authorization",
+    "colleague remote memory API",
+    "future AWS/production deployment"
+  ],
+  "checks": {
+    "/health": 200,
+    "/v1/capabilities": 200,
+    "/openapi.json": 200
+  },
+  "capabilities": {
+    "asr_configured": true,
+    "agent_configured": true,
+    "tts_configured": true,
+    "monid_research_configured": true,
+    "project_archive_analysis_configured": true,
+    "recording_knowledge_configured": true,
+    "recording_mode": "development",
+    "agent_runtime_version": "agent-runtime@9-demo"
+  },
+  "build_succeeded": true,
+  "app_pid": 45830,
+  "backend_pid": 45320,
+  "app_launch_only": true,
+  "software_tests_executed": false,
+  "model_business_verification_calls": 0,
+  "staged_credential_scan": "PASS",
+  "git_branch": "feat/candid-agent-demo"
+}

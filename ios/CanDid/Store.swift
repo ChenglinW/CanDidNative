@@ -10,6 +10,25 @@ import AVFoundation
     @Published var onboarding = false
     @Published var remote = false
     @Published var capabilities: Capabilities?
+    @Published var projectSpaces: [ProjectSpace] = []
+    @Published var chatReadPosition: String?
+    @Published var chatThreads: [ChatThread] = []
+    @Published var chatThread: ChatThread?
+    @Published var chatMessages: [ChatMessage] = []
+    @Published var chatBusy = false
+    @Published var chatError: String?
+    @Published var chatActivity: [ChatToolStep] = []
+    @Published var chatTasks: [AgentTask] = []
+    @Published var chatTask: AgentTask?
+    @Published var chatPartial = ""
+    @Published var chatLoading = false
+    @Published var chatReconnecting = false
+    @Published var chatControlBusy = false
+    @Published var chatDraft = ""
+    var chatObserverGeneration = UUID()
+    var chatForeground = true
+    var chatRequest: Task<Void, Never>?
+    var chatPending: (text: String, requestID: String)?
     @Published var busy = false
     @Published var error: String?
     @Published var message: String?
@@ -18,6 +37,7 @@ import AVFoundation
     var api: API { API(base: base, token: TokenVault.read()) }
     private var player: AVPlayer?
     let soundcore = Soundcore()
+    let speech = SpeechController()
     private var localFiles: [String: String] = UserDefaults.standard.dictionary(forKey: "local-recordings") as? [String: String] ?? [:]
     let demoURL: URL
     init() {
@@ -43,7 +63,9 @@ import AVFoundation
         persist()
     }
     func loadDemo() {
+        pauseChatObservation(); projectSpaces = []; chatReadPosition = nil; chatTask = nil; chatTasks = []; chatBusy = false; chatPartial = ""; chatDraft = ""
         remote = false; capabilities = nil
+        chatThread = nil; chatThreads = []; chatMessages = []; chatError = nil
         if let data = try? Data(contentsOf: demoURL), let snapshot = try? JSONDecoder().decode(LocalSnapshot.self, from: data) {
             assets = snapshot.assets; occasions = snapshot.occasions; sessions = snapshot.sessions; diagnoses = snapshot.diagnoses; onboarding = snapshot.onboarding
         } else { seed() }
@@ -70,6 +92,7 @@ import AVFoundation
         do { try await operation() } catch { self.error = error.localizedDescription }
     }
     func connect(token: String) async throws {
+        pauseChatObservation()
         #if !DEBUG
         guard URL(string: base)?.scheme == "https" else { throw PrototypeError.message("发布构建只允许 HTTPS 后端") }
         #endif
@@ -77,7 +100,9 @@ import AVFoundation
         _ = try await api.raw("/v1/profile")
         _ = try await api.raw("/v1/profile", method: "PATCH", body: ["product_use_consent": true])
         remote = true; onboarding = true
+        UserDefaults.standard.set(true, forKey: "remote-enabled")
         try await reload()
+        try await reloadChats(); try await restoreWorkspaceSelection()
         message = "已连接持久化记忆后端"
     }
     func reload() async throws {
@@ -219,7 +244,24 @@ import AVFoundation
             if FileManager.default.fileExists(atPath: folder.path) { try FileManager.default.removeItem(at: folder) }
         }
         if remote { for path in localFiles.values { try? FileManager.default.removeItem(atPath: path) }; localFiles = [:]; UserDefaults.standard.removeObject(forKey: "local-recordings") }
+        clearChatRecovery(); projectSpaces = []; chatReadPosition = nil; chatTask = nil; chatTasks = []; chatBusy = false; chatPartial = ""; chatDraft = ""
         assets = []; occasions = []; sessions = []; diagnoses = []; onboarding = false
+        chatThread = nil; chatMessages = []; chatThreads = []; chatPending = nil
         if !remote { persist() }; message = "记忆已删除"
+    }
+}
+
+
+extension Store {
+    func playRecording(_ id:String,startMS:Int=0,endMS:Int?=nil) async throws {
+        speech.stopPlayback()
+        let link:Link=try await api.call("/v1/sessions/"+id+"/audio?start_ms="+String(startMS))
+        guard let path=link.url else { throw PrototypeError.message("原音频不可用") }
+        let item=AVPlayerItem(url:try api.url(path))
+        if let endMS { item.forwardPlaybackEndTime=CMTime(seconds:Double(endMS)/1000,preferredTimescale:1000) }
+        player=AVPlayer(playerItem:item)
+        try AVAudioSession.sharedInstance().setCategory(.playback,mode:.spokenAudio);try AVAudioSession.sharedInstance().setActive(true)
+        await player?.seek(to:CMTime(seconds:Double(startMS)/1000,preferredTimescale:1000),toleranceBefore:.zero,toleranceAfter:.zero)
+        player?.play()
     }
 }

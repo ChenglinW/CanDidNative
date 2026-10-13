@@ -1,0 +1,9 @@
+{
+  "schema": "candid-team-secrets@1",
+  "cipher": "AES-256-GCM",
+  "kdf": "PBKDF2-HMAC-SHA256",
+  "rounds": 600000,
+  "salt": "Qb1lNWxDrJj3APKLzCjALw==",
+  "nonce": "ViKkMVv/r9nY9iLi",
+  "ciphertext": "288qP/3RY/kI6AcgWbF4/7km8UXbMWKB1u0kdOFAmt5QYBrN7cnyBsuxct6LSYVpROEunLSPq43bQtnhGBldwhs2+RzwsP48UqBUhS/Hlv9WCyQUxYxXJxRkCe5y+qrz6dWQZryzV4ZuMRK6nJ9iB6cWYEZ/Gk+64V1ShmYoLrgsIqoI6K+B0+NjQFkxdIS9qAcXe2fOpt1BdYfCk8XlnQVMLFKvii7L9FTZ3LmOumD+1Kdc0Rx4RHaGlWbCku2xgxy1yZPcZwl2/Mt2dbRS5HS5jRMIziuVkMd/y3dxjh3IhOMFtNa/uDjAV1oLvtuVFlrddmYIhBQicMFC6NP50aiLnyGJXJem7qjV1WpaVbxpy8gSYGfwmVdX49mlosLy9jkv+preosS1J+XUeRNYKtRMQF3d5DDetpE8TNKckc/VOL3co7JaRKoTLzX9IqsN1nZZtSmff51NZZ6+NMEFior/Ocz/QgDHRxGtPzK2hbJ91zcEt/g347/iXWLDK4O9Kd6b62ly9dn7yoMaqJsODzi4d7rqOR5AzgTAYzC8QetLMrvbtB88t/ce2xpthGx/mZA5e9Z63JhhlO5D+uHfGywkg09zx8iDdm+ZekQvm39/24LxcRVjg9Ng5Rk="
+}

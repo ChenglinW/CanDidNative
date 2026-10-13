@@ -1,0 +1,34 @@
+{
+  "name": "memory_draft",
+  "title": "整理表达",
+  "description": "把用户经历或已确认资料整理成带来源、保留不确定项的表达候选。",
+  "version": "1.2.1",
+  "body_sha256": "bf49690f128119ab576daa9f865cb50225213a7e038002e99840dc42a27ccb8b",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "material": {
+        "type": "string",
+        "maxLength": 12000
+      },
+      "goal": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "allowed_tools": [
+    "search_memory",
+    "list_occasions",
+    "list_sessions",
+    "read_session",
+    "read_evidence",
+    "request_input",
+    "search_materials",
+    "read_material_part"
+  ],
+  "required_tools": [],
+  "output": "按需整理候选内容、来源和不确定项；用户点击保留后才写入 L2，单独确认后才成为 L3。"
+}

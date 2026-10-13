@@ -1,0 +1,488 @@
+{
+  "version": "monid-endpoints@1",
+  "checked_at": "2026-10-14",
+  "spending_policy": "demo_unlimited",
+  "endpoints": [
+    {
+      "provider": "search1api",
+      "endpoint": "/search",
+      "input": {
+        "body": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The search query."
+            },
+            "max_results": {
+              "description": "Results to return (1-50, default 5).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "crawl_results": {
+              "description": "Fetch the full page content of this many top results in the same call (0-50, default 0; at most max_results). Each page that comes back adds the per-page price.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "image": {
+              "description": "Also return an `images` array (default false).",
+              "type": "boolean"
+            },
+            "include_sites": {
+              "description": "Only return results from these domains, e.g. ['github.com'].",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "exclude_sites": {
+              "description": "Drop results from these domains.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "language": {
+              "description": "Result language code, e.g. 'en', 'zh-CN', 'fr'. There is no country parameter.",
+              "type": "string",
+              "minLength": 1
+            },
+            "time_range": {
+              "description": "Only results from the last day, week, month, or year.",
+              "type": "string",
+              "enum": [
+                "",
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "search_service": {
+              "description": "Engine to search. Omit to query several engines and fuse their rankings. Web: google, bing, duckduckgo, yahoo, yandex; Chinese: bingcn, baidu, 360, quark, wechat, bilibili; community and reference: reddit, x, github, youtube, arxiv, wikipedia, imdb.",
+              "type": "string",
+              "enum": [
+                "360",
+                "",
+                "google",
+                "bing",
+                "bingcn",
+                "duckduckgo",
+                "yahoo",
+                "yandex",
+                "youtube",
+                "x",
+                "reddit",
+                "github",
+                "arxiv",
+                "wechat",
+                "bilibili",
+                "imdb",
+                "wikipedia",
+                "baidu",
+                "quark"
+              ]
+            },
+            "page": {
+              "description": "Native result page (1-100, default 1). Honoured by bing, bingcn and baidu only; other engines return page 1.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "bodyType": "json"
+      },
+      "price": {
+        "type": "TIERED",
+        "amount": {
+          "value": 0.001,
+          "currency": "USD"
+        },
+        "default": {
+          "type": "PER_CALL",
+          "amount": {
+            "value": 0.001,
+            "currency": "USD"
+          }
+        },
+        "tiers": [
+          {
+            "label": "Crawled page",
+            "selector": {
+              "label": "Crawled page",
+              "key": "crawledPages",
+              "in": "output"
+            },
+            "price": {
+              "type": "PER_CALL",
+              "amount": {
+                "value": 0.001,
+                "currency": "USD"
+              }
+            }
+          }
+        ],
+        "notes": [
+          "$0.001 per search. With crawl_results, each result that comes back with its page content adds $0.001 (reported as crawledPages in the output).",
+          "A search that returns no results is free."
+        ]
+      },
+      "docUrl": "https://s1.dev/docs/basic/search"
+    },
+    {
+      "provider": "firecrawl",
+      "endpoint": "/scrape",
+      "input": {
+        "body": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "The https URL to scrape.",
+              "examples": [
+                "https://example.com/pricing"
+              ]
+            },
+            "formats": {
+              "description": "Output formats (default markdown). LLM extraction is the separate 'json' option.",
+              "minItems": 1,
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "markdown",
+                  "html",
+                  "rawHtml",
+                  "links",
+                  "images",
+                  "summary"
+                ]
+              }
+            },
+            "json": {
+              "description": "Extract structured JSON from the page with an LLM — costs five times a plain scrape (see the price card's JSON tier).",
+              "type": "boolean"
+            },
+            "jsonSchema": {
+              "description": "JSON Schema the extracted object must conform to (with json: true).",
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "jsonPrompt": {
+              "description": "What to extract from the page (with json: true).",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "onlyMainContent": {
+              "description": "Strip headers, navs, and footers (default true).",
+              "type": "boolean"
+            },
+            "includeTags": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "excludeTags": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "maxAge": {
+              "description": "Cache-reuse window in ms — a fresh-enough cached copy returns much faster. 0 forces a live fetch.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 604800000
+            },
+            "waitFor": {
+              "description": "Extra ms to wait after load for JavaScript-heavy pages.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 30000
+            },
+            "mobile": {
+              "type": "boolean"
+            },
+            "blockAds": {
+              "type": "boolean"
+            },
+            "removeBase64Images": {
+              "type": "boolean"
+            },
+            "proxy": {
+              "description": "'auto' (default) retries with enhanced anti-bot proxies when the plain fetch is blocked — no extra charge either way.",
+              "type": "string",
+              "enum": [
+                "basic",
+                "enhanced",
+                "auto"
+              ]
+            },
+            "location": {
+              "type": "object",
+              "properties": {
+                "country": {
+                  "description": "ISO 3166-1 alpha-2 country code to emulate (e.g. 'US').",
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 2
+                },
+                "languages": {
+                  "description": "Preferred languages, best-effort (e.g. ['en']).",
+                  "maxItems": 5,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 10
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "timeout": {
+              "description": "Per-page deadline in ms; time queued for a browser counts too.",
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 120000
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false,
+          "description": "Scrape one URL into clean, LLM-ready content"
+        },
+        "bodyType": "json"
+      },
+      "price": {
+        "type": "TIERED",
+        "amount": {
+          "value": 0.001,
+          "currency": "USD"
+        },
+        "default": {
+          "type": "PER_CALL",
+          "amount": {
+            "value": 0.001,
+            "currency": "USD"
+          }
+        },
+        "tiers": [
+          {
+            "label": "JSON extraction",
+            "when": {
+              "json": true
+            },
+            "price": {
+              "type": "PER_CALL",
+              "amount": {
+                "value": 0.004,
+                "currency": "USD"
+              }
+            }
+          },
+          {
+            "label": "PDF pages beyond the first",
+            "selector": {
+              "label": "PDF pages beyond the first",
+              "key": "data.metadata.numPages",
+              "in": "output",
+              "offset": 1
+            },
+            "price": {
+              "type": "PER_RESULT",
+              "amount": {
+                "value": 0.001,
+                "currency": "USD"
+              }
+            }
+          }
+        ]
+      },
+      "docUrl": "https://docs.firecrawl.dev/api-reference/endpoint/scrape"
+    },
+    {
+      "provider": "pdl",
+      "endpoint": "/v5/company/enrich",
+      "input": {
+        "body": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "pdl_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "ticker": {
+              "type": "string"
+            },
+            "website": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "street_address": {
+              "type": "string"
+            },
+            "locality": {
+              "type": "string"
+            },
+            "region": {
+              "type": "string"
+            },
+            "country": {
+              "type": "string"
+            },
+            "postal_code": {
+              "type": "string"
+            },
+            "min_likelihood": {
+              "default": 2,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "required": {
+              "type": "string"
+            },
+            "data_include": {
+              "type": "string"
+            },
+            "include_if_matched": {
+              "default": false,
+              "type": "boolean"
+            },
+            "titlecase": {
+              "default": false,
+              "type": "boolean"
+            },
+            "pretty": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "bodyType": "json"
+      },
+      "price": {
+        "type": "PER_CALL",
+        "amount": {
+          "value": 0.1,
+          "currency": "USD"
+        }
+      },
+      "docUrl": "https://docs.peopledatalabs.com/docs/reference-company-enrichment-api"
+    },
+    {
+      "provider": "apify",
+      "endpoint": "/starvibe/youtube-video-transcript",
+      "input": {
+        "body": {
+          "title": "YouTube Input: Video or Channel",
+          "description": "Input a valid YouTube video URL (including Shorts) or a channel URL to fetch videos. Provide exactly one of youtube_url or channel_url. Use youtube_url with language for single video transcript. Use channel_url with max_videos, start_date, and end_date for filtering channel videos.",
+          "type": "object",
+          "schemaVersion": 1,
+          "properties": {
+            "youtube_url": {
+              "type": "string",
+              "title": "YouTube Video URL",
+              "description": "Enter a valid YouTube video URL (e.g., https://www.youtube.com/watch?v=video_id, https://youtu.be/video_id, or https://www.youtube.com/shorts/video_id). Use this for fetching a single video, paired with 'language' for transcript. Do not combine with channel filtering fields.",
+              "editor": "textfield",
+              "pattern": "^(https?://)?(www\\.)?(youtube\\.com/(watch\\?v=|embed/|v/|shorts/)|youtu\\.be/)[a-zA-Z0-9_-]{11}(\\?.*)?$",
+              "prefill": "https://www.youtube.com/watch?v=gN07gbipMoY"
+            },
+            "language": {
+              "title": "Transcript language (ISO 639-1)",
+              "type": "string",
+              "description": "Language of the subtitles in ISO 639-1 format, e.g., `en`, `fr`. Applicable to both youtube_url and channel_url. Leave blank for default language.",
+              "editor": "textfield",
+              "pattern": "^[a-z]{2}$"
+            },
+            "channel_url": {
+              "type": "string",
+              "title": "YouTube Channel URL",
+              "description": "Enter a valid YouTube channel URL (e.g., https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxxxxxx or https://www.youtube.com/@channelhandle). Use this to fetch videos from the channel, paired with 'max_videos', 'start_date', and 'end_date' for limiting and filtering results.",
+              "editor": "textfield",
+              "pattern": "^(https?://)?(www\\.)?youtube\\.com/(channel/|c/|@)[a-zA-Z0-9_.-]+(\\?.*)?$",
+              "prefill": "https://www.youtube.com/@taostats"
+            },
+            "max_videos": {
+              "type": "integer",
+              "title": "Max Videos to Fetch",
+              "description": "Maximum number of videos to fetch from the channel (optional, default: 10, range: 1 to 200). Only applicable and used with channel_url; ignored for youtube_url. Combine with start_date/end_date for filtered results.",
+              "editor": "number",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 200
+            },
+            "start_date": {
+              "type": "string",
+              "title": "Start Date",
+              "description": "Start date for filtering videos by upload date (format: YYYY-MM-DD or ISO 8601, optional). Only applicable and used with channel_url; ignored for youtube_url. Videos uploaded on or after this date will be fetched.",
+              "editor": "textfield",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([+-]\\d{2}:\\d{2}|Z)?)?$"
+            },
+            "end_date": {
+              "type": "string",
+              "title": "End Date",
+              "description": "End date for filtering videos by upload date (format: YYYY-MM-DD or ISO 8601, optional). Only applicable and used with channel_url; ignored for youtube_url. Videos uploaded on or before this date will be fetched.",
+              "editor": "textfield",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([+-]\\d{2}:\\d{2}|Z)?)?$"
+            },
+            "include_transcript_text": {
+              "type": "boolean",
+              "title": "Include Transcript (w/o timestamps)",
+              "description": "Include the full transcript as a plain string without timestamps (transcript_text field). Default is off to reduce response size. Enable this if you need the transcript as a single text block.",
+              "editor": "checkbox",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "bodyType": "json"
+      },
+      "price": {
+        "type": "PER_RESULT",
+        "amount": {
+          "value": 0.005,
+          "currency": "USD"
+        },
+        "notes": [
+          "One result is returned per input query. Total results and cost scale with the number of queries provided."
+        ]
+      },
+      "docUrl": "https://apify.com/starvibe/youtube-video-transcript"
+    }
+  ]
+}

@@ -42,8 +42,11 @@ final class SoundcoreCallbacks: NSObject, SoundcoreBusinessCallback, OnAuthResul
     func onGetDeviceInfo(macAddress: String, uuid: String, info: DeviceInfo) { event?(.info(macAddress, uuid, info.recording?.int32Value ?? 0, info.recodingOriginalTime)) }
     func onGetDeviceInfoError(macAddress: String, uuid: String, errorCode: Int32) {  }
     func onOtaError(macAddress: String, uuid: String, errorCode: Int32) {  }
-    func onRealtimeTransferSwitch(macAddress: String, uuid: String, fileID: Int32, filePath: String?) {  }
-    func onReceiveAudioFragment(macAddress: String, uuid: String, fileID: Int32, audioData: KotlinByteArray, isAppendPreAudio: Bool, sequenceNumber: Int32, isMark: Bool) {  }
+    func onRealtimeTransferSwitch(macAddress: String, uuid: String, fileID: Int32, filePath: String?) { event?(.realtimeReady(macAddress,uuid,fileID)) }
+    func onReceiveAudioFragment(macAddress: String, uuid: String, fileID: Int32, audioData: KotlinByteArray, isAppendPreAudio: Bool, sequenceNumber: Int32, isMark: Bool) {
+        let bytes=(0..<audioData.size).map { UInt8(bitPattern:audioData.get(index:$0)) }
+        event?(.liveAudio(macAddress,uuid,fileID,Data(bytes),sequenceNumber))
+    }
     func onReceiveOfflineFile(macAddress: String, uuid: String, offlineFileData: OfflineFileData, isAllAudioFiles: Bool) { event?(.files(macAddress, uuid, offlineFileData.fileInfoList)) }
     func onReceiveOfflineFileError(macAddress: String, uuid: String, errorCode: Int32) { event?(.fileError(macAddress, uuid, errorCode)) }
     func onReceiveWaitingDeviceOpenWIFI(macAddress: String, uuid: String) {  }

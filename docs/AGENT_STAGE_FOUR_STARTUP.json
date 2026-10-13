@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-14",
+  "timezone": "Asia/Hong_Kong",
+  "scope": "source_and_build_and_launch_only",
+  "runtime_version": "agent-runtime@4",
+  "python_syntax": "passed",
+  "skill_body_hashes": "passed",
+  "diff_whitespace": "passed",
+  "ios_build": "BUILD SUCCEEDED",
+  "ios_build_log": "/tmp/candid-stage4-final-build.log",
+  "backend_startup": "complete",
+  "backend_url": "http://127.0.0.1:8000",
+  "read_only_endpoints": {
+    "/health": 200,
+    "/docs": 200,
+    "/v1/capabilities": 200,
+    "runtime": "agent-runtime@4",
+    "/openapi.json": 200,
+    "sse_schema_present": true
+  },
+  "simulator": "iPhone 17",
+  "app_launch_receipt": "com.candid.memory.prototype: 36800",
+  "software_tests_run": false,
+  "agent_messages_submitted": 0,
+  "paid_provider_calls_in_verification": 0,
+  "functional_acceptance": "pending_test_team",
+  "next_stage": "four_A_project_context_and_carousel",
+  "backend_pid": 37236
+}

@@ -1,0 +1,34 @@
+{
+  "name": "communication_prep",
+  "title": "准备沟通",
+  "description": "根据沟通目标、用户资料及相关记忆，准备提纲、关键问题和有依据的表达。",
+  "version": "1.2.1",
+  "body_sha256": "92132f69d5a9c1861f309109f1b13c7802627b4630e8ccfebf953c6e8df7649d",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "goal": {
+        "type": "string",
+        "maxLength": 1000
+      },
+      "material": {
+        "type": "string",
+        "maxLength": 12000
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "allowed_tools": [
+    "search_memory",
+    "list_occasions",
+    "list_sessions",
+    "read_session",
+    "read_evidence",
+    "request_input",
+    "search_materials",
+    "read_material_part"
+  ],
+  "required_tools": [],
+  "output": "自然回答；按需提供目标、提纲、关键问题及表达示例，缺少信息时只追问一两项。"
+}
