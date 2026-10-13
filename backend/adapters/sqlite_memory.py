@@ -105,6 +105,12 @@ class SQLiteMemoryAdapter:
             raise Fault('SOURCE_UNAVAILABLE', '示例场次不作为真实证据', 404)
         return kind, row
 
+    @staticmethod
+    def _version_candidates(row):
+        # Stored evidence references bind raw content; Agent snapshots also bind current scope.
+        content={k:v for k,v in row.items() if k!='context_scope_versions'}
+        return {version(row),version(content)}
+
     def references_status(self, owner, references, workspace_id=None):
         self.store.check_owner(owner)
         result = []
@@ -117,7 +123,7 @@ class SQLiteMemoryAdapter:
                 status = state_of(row)
                 if status == 'current' and (not wanted or not str(wanted).startswith('sha256:')):
                     status = 'unverifiable'
-                elif status == 'current' and wanted != actual:
+                elif status == 'current' and wanted not in self._version_candidates(row):
                     status = 'superseded'
                 result.append({'source_id': sid, 'source_version': wanted,
                                'status': status, 'current_version': actual})
@@ -197,7 +203,7 @@ class SQLiteMemoryAdapter:
                 kind, row = self.resolve(owner, sid, workspace_id)
                 state = state_of(row)
                 wanted = ref.get('source_version')
-                if state != 'current' or (wanted and wanted != version(row)):
+                if state != 'current' or (wanted and wanted not in self._version_candidates(row)):
                     unavailable.append({'source_id': sid, 'status': state if state != 'current' else 'superseded',
                                         'current_version': version(row)})
                     continue

@@ -32,8 +32,8 @@
     "agent_runtime_version": "agent-runtime@9-demo"
   },
   "build_succeeded": true,
-  "app_pid": 45830,
-  "backend_pid": 45320,
+  "app_pid": 46155,
+  "backend_pid": 46099,
   "app_launch_only": true,
   "software_tests_executed": false,
   "model_business_verification_calls": 0,

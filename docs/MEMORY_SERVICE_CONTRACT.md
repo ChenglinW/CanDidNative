@@ -132,3 +132,5 @@ AgentSourceStore 提供后端资料保存和 research:<id> 引用；公开公司
 全局录音标签可关联多个空间；修改每条标签要求expected_revision，人为删除保留抑制记录。空间引用同一session，不复制原音频。原始知识和公司资料不自动提升为个人经历；归档分析把非本人来源保存为原空间范围的项目资料，只有直接本人依据允许通用个人标记。
 
 App新增入口详见OpenAPI：materials/PDF、recordings/tags/transcript/self-speaker、business-jobs、personal-memories。导出和整库删除覆盖这些表、provider_runs及device_actions；远程替换须覆盖全部读写，不只替换Agent搜索。
+
+资料产物的evidence_refs绑定原始内容指纹；Agent检索返回的引用额外绑定当前空间/标签范围指纹。读取会先检查当前空间权限，再接受匹配的内容指纹或完整范围指纹；旧Agent范围指纹不会因此被视作新范围。

@@ -19,6 +19,7 @@ def version(row):
 
 
 def text_of(kind, row):
+    if kind == 'message':return row.get('content','')
     if kind == 'diagnosis':
         return row.get('finding', '') + '\n' + row.get('suggestion', '')
     return row.get('text') or json.dumps(row.get('body') or row.get('fields') or row.get('bullets') or {}, ensure_ascii=False)

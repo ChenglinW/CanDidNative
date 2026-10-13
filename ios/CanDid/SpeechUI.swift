@@ -526,7 +526,9 @@ struct MaterialIntake:View {
 struct PersonalMemoryRecord:Decodable,Identifiable {
     var id:String;var title:String;var text:String;var version:Int;var status:String;var general_personal:Bool
     var archive_workspace_id:String;var confirmation_mode:String
+    var evidence_refs:[PersonalMemoryEvidence]
 }
+struct PersonalMemoryEvidence:Decodable { var source_id:String;var quote:String? }
 struct PersonalMemories:View {
     @EnvironmentObject var store:Store
     @State private var rows:[PersonalMemoryRecord]=[];@State private var editing:PersonalMemoryRecord?;@State private var error:String?
@@ -537,6 +539,12 @@ struct PersonalMemories:View {
             VStack(alignment:.leading,spacing:8) {
                 Text(row.title).font(.headline);Text(row.text).textSelection(.enabled)
                 Text(row.general_personal ? "归档自动确认 · 通用个人资料":"归档自动确认 · 原空间资料").font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup("查看原始依据") {
+                    ForEach(Array(row.evidence_refs.enumerated()),id:\.offset) { _,reference in
+                        Text(reference.quote ?? "原始片段").font(.subheadline).textSelection(.enabled)
+                    }
+                    Text("来自空间："+(store.projectSpaces.first(where:{$0.id==row.archive_workspace_id})?.name ?? "已归档空间")).font(.caption).foregroundStyle(.secondary)
+                }
                 HStack {
                     Button("修改") { editing=row }
                     Button("撤回") { Task { do { _=try await store.api.raw("/v1/personal-memories/"+row.id,method:"PATCH",body:["expected_version":row.version,"status":"withdrawn"]);await reload() } catch { self.error=error.localizedDescription } } }
