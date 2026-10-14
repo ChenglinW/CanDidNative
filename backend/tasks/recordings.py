@@ -123,7 +123,7 @@ class Recordings:
             if size+len(segment['text'])>24000 and group:groups.append(group);group=[];size=0
             group.append(segment);size+=len(segment['text'])
         if group:groups.append(group)
-        saved=[]; spaces=[{'id':s['id'],'name':s['name'],'goal':s['goal']} for s in self.business.workspaces.list(owner) if s['status']=='active']
+        saved=[]; spaces=[{'id':s['id'],'name':s['name'],'goal':s['goal']} for s in self.business.workspaces.list(owner) if s['status']=='active' and not s.get('is_scope_context')]
         for number,group in enumerate(groups):
             self.business.guard(owner,job)
             prior=next((k for k in self.store.rows('recording_knowledge',owner,session_id=sid) if k.get('revision')==job['revision'] and k.get('part')==number),None)
@@ -165,6 +165,7 @@ class Recordings:
         with self.store.transaction(owner):
             self.business.guard(owner,job)
             self.store.update('sessions',owner,sid,{'pipeline_status':'done','knowledge_revision':job['revision']})
+        self.business.product.sync_recording(owner,sid)
         return {'knowledge_ids':[k['id'] for k in saved],'session_id':sid}
 
     def tts(self,owner,job):

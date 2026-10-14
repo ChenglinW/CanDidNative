@@ -84,7 +84,7 @@ class SQLiteMemoryAdapter:
             row = {**row,'personal_identity_confirmed':False}
         if kind in {'document','research'} and not row.get('text'):
             raise Fault('SOURCE_UNREADABLE', '资料正文尚未取得或解析', 409)
-        if kind in {'personal','knowledge'}:
+        if kind in {'personal','knowledge','discovery'}:
             for reference in row.get('evidence_refs',[]):
                 parent_kind,_,parent_id=reference.get('source_id','').partition(':')
                 parent_table=SOURCE_TABLES.get(parent_kind)
@@ -156,7 +156,7 @@ class SQLiteMemoryAdapter:
                 raise Fault('BAD_REQUEST', '场次不属于该场合', 422)
         terms, ranked, excluded = self._terms(query), [], []
         sessions = {r['id']: r for r in self.rows('sessions', owner)}
-        kinds = ['asset', 'experience', 'occasion', 'personal'] + ([] if confirmed_only else ['transcript'])
+        kinds = ['asset', 'experience', 'occasion', 'personal', 'discovery'] + ([] if confirmed_only else ['transcript'])
         for kind in kinds:
             for row in self.rows(SOURCE_TABLES[kind], owner):
                 if not self.workspaces.allowed(owner,kind,row,workspace_id):

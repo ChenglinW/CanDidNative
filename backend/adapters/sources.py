@@ -8,7 +8,7 @@ from memory import L1, L2, L3
 SOURCE_TABLES = {'asset': 'assets', 'experience': 'experiences', 'occasion': 'occasions',
                  'transcript': 'transcript_segments', 'diagnosis': 'diagnoses',
                  'document': 'documents', 'research': 'agent_sources',
-                 'personal': 'personal_memories', 'knowledge': 'recording_knowledge', 'message': 'chat_messages'}
+                 'discovery':'discoveries', 'personal': 'personal_memories', 'knowledge': 'recording_knowledge', 'message': 'chat_messages'}
 
 
 def version(row):

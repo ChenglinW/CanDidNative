@@ -11,7 +11,7 @@ struct VoicePresentation:ViewModifier {
             .onChange(of:store.currentProjectSpace?.id) {_,_ in voice.contextChanged()}
             .onChange(of:store.base) {_,_ in voice.contextChanged()}
             .onChange(of:store.remote) {_,value in if !value {voice.contextChanged()}}
-            .onChange(of:store.soundcore.recordStatus) {_,value in if value != 0 && voice.active {voice.pause(reason:"设备已开始沟通录音，语音对话已暂停。")}}
+
     }
 }
 
@@ -125,7 +125,7 @@ struct VoiceComposer:View {
             Button {
                 guard !voice.justEndedGesture else{return}
                 if voice.holding {voice.releaseHold(cancelled:false)} else {focused.wrappedValue=false;voice.beginHold(store:store)}
-            } label:{Image(systemName:voice.holding ? "stop.circle.fill":"mic").font(.body).frame(width:40,height:44)}
+            } label:{Image(systemName:voice.holding ? "stop.circle.fill":"mic").font(.body).frame(width:44,height:44)}
                 .accessibilityLabel(voice.holding ? "结束并发送语音":"开始语音输入，再次点击发送")
                 .modifier(VoiceHoldGesture(voice:voice))
             TextField(store.chatBusy ? "补充内容，会排队处理":"长按说话，或点这里输入",text:Binding(get:{store.chatDraft},set:{store.saveChatDraft($0)}),axis:.vertical)

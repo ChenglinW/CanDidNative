@@ -66,10 +66,12 @@ enum RecordingFormat {
 }
 
 struct RecordingPrimary: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.body.weight(.semibold)).frame(maxWidth:.infinity).frame(minHeight:50)
             .foregroundStyle(Warm.ink).background(Warm.orange,in:RoundedRectangle(cornerRadius:16))
             .opacity(configuration.isPressed ? 0.8:1)
+            .opacity(enabled ? 1:0.45)
     }
 }
 
@@ -81,19 +83,19 @@ struct RecordingShell: View {
     let onSettings: () -> Void
     var body: some View {
         TabView(selection:$navigation.section) {
-            NavigationStack { ChatView(onSettings:onSettings) }
-                .tabItem { Label("Candid",systemImage:"bubble.left.and.bubble.right") }.tag(CandidSection.chat)
-            NavigationStack { MemoryView().safeAreaInset(edge:.bottom) { RecordingStatusBar(speech:speech,device:device) } }
-                .tabItem { Label("记忆库",systemImage:"book.closed") }.tag(CandidSection.memory)
-            NavigationStack { OccasionsView().safeAreaInset(edge:.bottom) { RecordingStatusBar(speech:speech,device:device) } }
-                .tabItem { Label("场合",systemImage:"rectangle.stack") }.tag(CandidSection.occasions)
-            NavigationStack { RecordingLibrary(speech:speech,device:device) }
+            NavigationStack { ProductHome(onSettings:onSettings) }
+                .tabItem { Label("首页",systemImage:"house") }.tag(CandidSection.chat)
+            NavigationStack { ProductProjects() }
+                .tabItem { Label("项目",systemImage:"rectangle.stack") }.tag(CandidSection.occasions)
+            NavigationStack { RecordingLibrary(speech:speech,device:device).safeAreaInset(edge:.bottom) { ProductRecordingInput() } }
                 .tabItem { Label("录音",systemImage:"mic") }.tag(CandidSection.recordings)
+            NavigationStack { ProductMemory() }
+                .tabItem { Label("记忆库",systemImage:"book.closed") }.tag(CandidSection.memory)
         }
         .toolbarBackground(Warm.white,for:.tabBar)
         .fullScreenCover(isPresented:$navigation.showRecorder) {
             NavigationStack { LiveRecordingView(speech:speech,device:device,navigation:navigation).environmentObject(store) }
-                .tint(Warm.purple).fontDesign(.rounded).foregroundStyle(Warm.ink)
+                .preferredColorScheme(.dark).tint(Warm.lavender).fontDesign(.rounded).foregroundStyle(Color.white)
         }
         .onChange(of:device.recordStatus) { old,value in
             speech.devicePaused=value==2
@@ -104,6 +106,12 @@ struct RecordingShell: View {
             } else { coordinateDevice() }
         }
         .onChange(of:device.currentFileID) { _,_ in coordinateDevice() }
+        .onChange(of:device.fileMarkers) {_,values in
+            guard store.remote,let connected=device.connected else{return}
+            for (fileID,times) in values {
+                if let sid=DeviceRecordingMap.get(api:store.api,fileID:fileID,deviceID:connected.uuid) {Task {try? await speech.saveMarkers(times,sessionID:sid,api:store.api)}}
+            }
+        }
         .onChange(of:device.realtimeReady) { _,_ in coordinateDevice() }
         .onChange(of:device.durationMS) { _,value in
             if speech.meetingSource=="soundcore",device.recordStatus != 0,speech.meetingMatches(store.api) { speech.seconds=value/1000 }
@@ -115,7 +123,6 @@ struct RecordingShell: View {
         .task { await store.observeDeviceActions() }
     }
     private func coordinateDevice() {
-        if device.recordStatus != 0 && store.voice.active {store.voice.pause(reason:"设备已开始沟通录音，语音对话已暂停。")}
         guard device.recordStatus != 0,store.remote,!speech.meetingPreparing,!speech.finishing else { return }
         guard speech.hasMeetingConsent(store.api) else {return}
         Task {
@@ -166,6 +173,7 @@ struct LiveRecordingView: View {
     @State private var consentForDevice=false
     @State private var consentIdentity=""
     @State private var askedDeviceConsent=false
+    @State private var captionPreview=false
     @State private var record:RecordingRecord?
     @State private var detailID:String?
     @State private var issue:String?
@@ -206,12 +214,12 @@ struct LiveRecordingView: View {
             VStack(alignment:.leading,spacing:8) {
                 Text(title).font(.system(size:27,weight:.bold,design:.rounded)).lineLimit(2)
                 Text(record.map(RecordingFormat.timestamp) ?? (hasLiveMeeting ? "沟通录音 · 全局录音库":"每一场沟通，都可以变成用得上的资料"))
-                    .font(.caption).foregroundStyle(RecordingFormat.secondary)
+                    .font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
                 HStack {
                     HStack(spacing:6) {
                         Circle().fill(isPaused ? Color.brown:hasLiveMeeting ? Color(red:0.28,green:0.42,blue:0.27):Warm.purple).frame(width:7,height:7)
                         Text(sameConnection && speech.deviceRecordingUncertain ? "设备状态待重新连接核对":deviceActive ? "安克录音豆 · \(isPaused ? "已暂停":"正在录音")" : phoneActive ? "手机录音 · 开发入口":"\(sameConnection && speech.meetingID != nil ? "录音已结束":"安克录音豆")")
-                    }.font(.caption).foregroundStyle(RecordingFormat.secondary)
+                    }.font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
                     Spacer()
                     Text(RecordingFormat.clock(duration,hours:true)).font(.system(size:23,weight:.semibold,design:.rounded)).monospacedDigit()
                 }.padding(.top,8)
@@ -222,19 +230,20 @@ struct LiveRecordingView: View {
                     Text(record.pipeline_status=="done" ? "总结与原文已就绪" : speech.meetingProgress ?? RecordingFormat.status(record))
                         .font(.caption).lineSpacing(3)
                     Spacer()
-                }.foregroundStyle(Warm.ink).padding(13).background(Warm.sage,in:RoundedRectangle(cornerRadius:12)).padding(.horizontal,16).padding(.bottom,12)
+                }.foregroundStyle(Color.white).padding(13).background(Warm.sage,in:RoundedRectangle(cornerRadius:12)).padding(.horizontal,16).padding(.bottom,12)
             }
             transcript
             VStack(spacing:10) {
                 Label(captionText,systemImage:speech.captionState == .reconnecting ? "wifi":"checkmark.shield")
-                    .font(.caption2).foregroundStyle(RecordingFormat.secondary).frame(maxWidth:.infinity,alignment:.leading).fixedSize(horizontal:false,vertical:true)
+                    .font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84)).frame(maxWidth:.infinity,alignment:.leading).fixedSize(horizontal:false,vertical:true)
                 if let text=issue ?? (sameConnection ? speech.notice:nil) {
-                    Text(text).font(.caption).foregroundStyle(RecordingFormat.secondary).frame(maxWidth:.infinity,alignment:.leading).lineLimit(3)
+                    Text(text).font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84)).frame(maxWidth:.infinity,alignment:.leading).lineLimit(3)
                 }
+                if hasLiveMeeting {Button("标记这一刻",systemImage:"bookmark.fill") {Task {await speech.markCurrent(store:store,device:device)}}.frame(minHeight:44).disabled(!store.remote)}
                 if deviceActive {
                     Button { device.pauseOrResume() } label: { Label(isPaused ? "继续录音":"暂停录音",systemImage:isPaused ? "play.fill":"pause.fill") }
                         .buttonStyle(RecordingPrimary()).disabled(device.transferring || device.connected==nil)
-                    Text("按设备按钮结束本场录音").font(.caption2).foregroundStyle(RecordingFormat.secondary)
+                    Text("按设备按钮结束本场录音").font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
                 } else if phoneActive {
                     HStack(spacing:10) {
                         Button { Task { await speech.togglePhonePause() } } label: { Label(isPaused ? "继续":"暂停",systemImage:isPaused ? "play.fill":"pause.fill") }
@@ -251,13 +260,18 @@ struct LiveRecordingView: View {
                 } else {
                     if store.remote {
                         Button { deviceSheet=true } label: { Label("\(device.connected==nil ? "连接录音豆":"查看设备")",systemImage:"waveform") }.buttonStyle(RecordingPrimary())
-                        Text("连接后，按录音豆按钮开始本场沟通").font(.caption2).foregroundStyle(RecordingFormat.secondary)
+                        Text("连接后，按录音豆按钮开始本场沟通").font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
                         if RecordingFormat.phoneEnabled(store) { Button("临时手机录音 · 开发入口") { beginPhone() }.font(.caption).frame(minHeight:44).disabled(speech.meetingPreparing || speech.finishing || speech.uploading || speech.meetingSyncing) }
                     } else { Button("连接后端") { connectionSheet=true }.buttonStyle(RecordingPrimary()) }
                 }
             }.padding(.horizontal,23).padding(.top,13).padding(.bottom,18)
         }
-        .background(Warm.paper.ignoresSafeArea()).toolbar(.hidden,for:.navigationBar)
+        .onAppear {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") && ProcessInfo.processInfo.arguments.contains("-candid-surface-review") && ProcessInfo.processInfo.environment["CANDID_CAPTION_PREVIEW"]=="1" {speech.prepareCaptionPreview(api:store.api);captionPreview=true}
+            #endif
+        }
+        .foregroundStyle(Color.white).background(Color(red:0.09,green:0.08,blue:0.12).ignoresSafeArea()).toolbar(.hidden,for:.navigationBar)
         .sheet(isPresented:$deviceSheet) { NavigationStack { RecordingDeviceLibrary(speech:speech,device:device).environmentObject(store) } }
         .sheet(isPresented:$connectionSheet) { SettingsView().environmentObject(store) }
         .alert(consentForDevice ? "开启本场转写":"开始沟通录音",isPresented:$consent) {
@@ -280,27 +294,27 @@ struct LiveRecordingView: View {
     }
     private var transcript: some View {
         VStack(spacing:0) {
-            HStack { Text("实时原文").font(.subheadline.weight(.semibold));Spacer();Text("录后校准与分人").font(.caption2).foregroundStyle(RecordingFormat.secondary) }
+            HStack { Text("实时原文").font(.subheadline.weight(.semibold));Spacer();Text("录后校准与分人").font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84)) }
                 .padding(.horizontal,18).padding(.vertical,15)
-            Divider().overlay(Warm.ink.opacity(0.06))
+            Divider().overlay(Color.white.opacity(0.12))
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment:.leading,spacing:22) {
-                            if sameConnection && !speech.liveSentences.isEmpty {
+                            if (sameConnection || captionPreview) && !speech.liveSentences.isEmpty {
                                 ForEach(speech.liveSentences) { line in
                                     VStack(alignment:.leading,spacing:7) {
-                                        Text(RecordingFormat.clock(line.startMS/1000)).font(.caption2).monospacedDigit().foregroundStyle(RecordingFormat.secondary)
-                                        Text(line.text+(line.stable ? "":" ▏")).font(.body).lineSpacing(6).foregroundStyle(line.stable ? Warm.ink:Warm.purple)
+                                        Text(RecordingFormat.clock(line.startMS/1000)).font(.caption2).monospacedDigit().foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
+                                        Text(line.text+(line.stable ? "":" ▏")).font(.body).lineSpacing(6).foregroundStyle(line.stable ? Color.white:Warm.lavender)
                                             .textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)
                                     }.id(line.id)
                                 }
-                                if speech.hasCaptionGap { Text("实时字幕曾有缺段，录后会使用完整音频补齐。").font(.caption).foregroundStyle(RecordingFormat.secondary).padding(.vertical,8) }
+                                if speech.hasCaptionGap { Text("实时字幕曾有缺段，录后会使用完整音频补齐。").font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84)).padding(.vertical,8) }
                             } else {
                                 VStack(alignment:.leading,spacing:12) {
                                     Text(hasLiveMeeting ? "在这里，慢慢记下每一句。":"从一场沟通开始。").font(.headline)
                                     Text(hasLiveMeeting ? "收到实际音频后会显示实时字幕；录后再校准时间戳和说话人。":"录音开始后，这里会显示实时原文。结束后自动整理，不需要先填写客户或项目。")
-                                        .font(.subheadline).lineSpacing(6).foregroundStyle(RecordingFormat.secondary)
+                                        .font(.subheadline).lineSpacing(6).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
                                 }.padding(.top,25)
                             }
                             Color.clear.frame(height:1).id("live-bottom")
@@ -319,7 +333,7 @@ struct LiveRecordingView: View {
                         .onAppear { if followsLatest {proxy.scrollTo("live-bottom",anchor:.bottom)} }
                 }
             }
-        }.background(Warm.white,in:RoundedRectangle(cornerRadius:22))
+        }.background(Color(red:0.15,green:0.13,blue:0.20),in:RoundedRectangle(cornerRadius:22))
             .overlay(RoundedRectangle(cornerRadius:22).stroke(Warm.ink.opacity(0.08))).padding(.horizontal,16)
     }
     private func beginPhone() {
@@ -463,6 +477,7 @@ struct RecordingTagWrap: View {
 struct RecordingDetail: View {
     @EnvironmentObject var store: Store
     let recordID:String
+    var focusMS:Int?=nil
     @State private var record:RecordingRecord?
     @State private var issue:String?
     @State private var content="总结"
@@ -562,6 +577,9 @@ struct RecordingDetail: View {
     }
     @ViewBuilder private func raw(_ record:RecordingRecord) -> some View {
         HStack {Text("录后分人 · 时间戳已校准").font(.caption2).foregroundStyle(RecordingFormat.secondary);Spacer();Button("哪位是我？") {chooseSpeaker=true}.font(.caption).frame(minHeight:44).disabled((record.segments ?? []).isEmpty)}
+        if let marks=record.marks,!marks.isEmpty {
+            ScrollView(.horizontal) {HStack {ForEach(marks) {mark in Button {Task {await store.perform {try await store.playRecording(record.id,startMS:mark.t_ms)}}} label:{Label("标记 "+RecordingFormat.clock(mark.t_ms/1000),systemImage:"bookmark.fill").font(.caption).frame(minHeight:44)}}}}
+        }
         if (record.segments ?? []).isEmpty {ContentUnavailableView("原文还在准备",systemImage:"text.alignleft",description:Text("精转写完成后会显示逐句原文和回听入口。"))}
         else {
             LazyVStack(alignment:.leading,spacing:0) {
@@ -569,7 +587,7 @@ struct RecordingDetail: View {
                     VStack(alignment:.leading,spacing:8) {
                         HStack {
                             Text(RecordingFormat.clock(line.start_ms/1000,hours:true)).monospacedDigit().foregroundStyle(RecordingFormat.secondary)
-                            Text(line.speaker=="self" ? "本人":RecordingFormat.speaker(line.speaker_id)).foregroundStyle(Warm.purple).lineLimit(2)
+                            Text(line.speaker_name ?? (line.speaker=="self" ? "本人":RecordingFormat.speaker(line.speaker_id))).foregroundStyle(Warm.purple).lineLimit(2)
                             Spacer()
                             Button {Task {await play(line)}} label: {Image(systemName:store.recordingPlaybackID==recordID && store.recordingPlaybackStartMS==line.start_ms && store.recordingPlaybackPlaying ? "pause.fill":"play.fill").font(.caption).frame(width:44,height:44).background(Warm.lavender,in:Circle())}
                                 .accessibilityLabel("回听\(RecordingFormat.clock(line.start_ms/1000))的原文")
@@ -607,6 +625,7 @@ struct RecordingDetail: View {
             let value:RecordingRecord=try await api.call("/v1/recordings/"+recordID)
             guard !Task.isCancelled,DeviceRecordingMap.identity(api)==DeviceRecordingMap.identity(store.api) else{return}
             record=value;issue=nil
+            if focusSentence==nil,let ms=focusMS {focusSentence=value.segments?.first(where:{$0.start_ms<=ms && $0.end_ms>=ms})?.id;content="原文"}
         } catch is CancellationError {} catch {issue=error.localizedDescription}
     }
     private func play(_ line:RecordingSentence?=nil) async {
@@ -689,6 +708,7 @@ struct RecordingSpeakerPicker: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     let record:RecordingRecord
+    @State private var names:[String:String]=[:]
     @State private var selected:Set<String>=[]; @State private var issue:String?; @State private var saving=false
     private var speakers:[String] {Array(Set((record.segments ?? []).compactMap(\.speaker_id))).sorted()}
     var body: some View {
@@ -697,6 +717,7 @@ struct RecordingSpeakerPicker: View {
                 Text("选择本人，只用于个人经历归属；全场总结不受影响。长录音跨段的说话人编号分别保存，需要分别选择，不自动猜测跨段身份。").font(.caption).foregroundStyle(RecordingFormat.secondary)
                 ForEach(speakers,id:\.self) {id in
                     VStack(alignment:.leading,spacing:6) {
+                        TextField("姓名（不确定可留空）",text:Binding(get:{names[id] ?? ""},set:{names[id]=$0}))
                         Toggle(RecordingFormat.speaker(id),isOn:Binding(get:{selected.contains(id)},set:{if $0 {selected.insert(id)} else {selected.remove(id)}}))
                         if let line=record.segments?.first(where:{$0.speaker_id==id}) {Text(line.text).font(.caption).lineLimit(2).foregroundStyle(RecordingFormat.secondary)}
                     }
@@ -704,12 +725,12 @@ struct RecordingSpeakerPicker: View {
                 if let issue {Text(issue).font(.caption)}
             }.navigationTitle("哪位是你？").navigationBarTitleDisplayMode(.inline)
                 .toolbar {ToolbarItem(placement:.cancellationAction) {Button("暂时跳过") {dismiss()}};ToolbarItem(placement:.confirmationAction) {Button("保存") {Task {await save()}}.disabled(saving)}}
-                .onAppear {selected=Set((record.segments ?? []).filter{$0.speaker=="self"}.compactMap(\.speaker_id))}
+                .onAppear {selected=Set((record.segments ?? []).filter{$0.speaker=="self"}.compactMap(\.speaker_id));for line in record.segments ?? [] {if let sid=line.speaker_id,let name=line.speaker_name {names[sid]=name}}}
         }
     }
     private func save() async {
         saving=true;defer {saving=false}
-        do {_=try await store.api.raw("/v1/recordings/"+record.id+"/self-speaker",method:"PUT",body:["speaker_ids":Array(selected),"expected_revision":record.transcript_revision ?? 1]);dismiss()} catch {issue=error.localizedDescription}
+        do {_=try await store.api.raw("/v1/recordings/"+record.id+"/speakers",method:"PATCH",body:["speakers":speakers.map{["speaker_id":$0,"name":names[$0] ?? "","is_self":selected.contains($0)] as [String:Any]},"expected_revision":record.transcript_revision ?? 1]);dismiss()} catch {issue=error.localizedDescription}
     }
 }
 

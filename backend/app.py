@@ -60,6 +60,8 @@ async def loop():
 @asynccontextmanager
 async def lifespan(app):
     await asyncio.to_thread(agent.workspaces.migrate_legacy)
+    for row in store.db.execute('SELECT DISTINCT owner_id FROM project_spaces').fetchall():
+        await asyncio.to_thread(business.product.migrate,row['owner_id'])
     await asyncio.to_thread(business.recover)
     await asyncio.to_thread(agent.tasks.interrupt_running)
     task=asyncio.create_task(loop())
@@ -770,7 +772,7 @@ def recording_library(tag:str|None=None,uid=Depends(owner)):
 @app.get('/v1/recordings/{id}')
 def recording_detail(id:str,uid=Depends(owner)):
     row=store.get('sessions',uid,id)
-    return {**row,'segments':recordings.segments(uid,id),
+    return {**row,'segments':recordings.segments(uid,id),'marks':store.rows('marks',uid,session_id=id),
         'tags':[t for t in store.rows('recording_tags',uid,session_id=id) if t.get('active')],
         'knowledge':[r for r in store.rows('recording_knowledge',uid,session_id=id) if str(r.get('revision'))==str(row.get('transcript_revision',1))],
         'jobs':store.rows('business_jobs',uid,object_id=id)}
@@ -789,7 +791,9 @@ def add_recording_tag(id:str,body:TagIn,uid=Depends(owner)):
     with store.transaction(uid):
         store.get('sessions',uid,id)
         if body.workspace_id:agent.workspaces.get(uid,str(body.workspace_id))
-        return store.put('recording_tags',uid,{**data(body),'label':body.label.strip(),'session_id':id,'active':True,'revision':1,'manual':True},L1)
+        result=store.put('recording_tags',uid,{**data(body),'label':body.label.strip(),'session_id':id,'active':True,'revision':1,'manual':True},L1)
+        business.product.sync_recording(uid,id)
+        return result
 
 class TagEdit(TagIn):
     expected_revision:int=Field(ge=1)
@@ -803,7 +807,9 @@ def change_recording_tag(id:str,body:TagEdit,uid=Depends(owner)):
         if body.workspace_id:agent.workspaces.get(uid,str(body.workspace_id))
         # Suppression survives reanalysis. Preserve original AI producer alongside the human edit.
         patch=data(body);patch.pop('expected_revision');patch['workspace_id']=str(body.workspace_id) if body.workspace_id else None
-        return store.update('recording_tags',uid,id,{**patch,'revision':row['revision']+1,'manual':True,'edited_by':uid,'original_label':row.get('original_label',row['label'])})
+        result=store.update('recording_tags',uid,id,{**patch,'revision':row['revision']+1,'manual':True,'edited_by':uid,'original_label':row.get('original_label',row['label'])})
+        business.product.sync_recording(uid,row['session_id'])
+        return result
 
 class SpeakerIn(Input):
     speaker_ids:list[str]=Field(min_length=1,max_length=100)
@@ -903,3 +909,8 @@ def upload_state(id:str,uid=Depends(owner)):
     media=store.rows('session_media',uid,session_id=id)
     partial=store.root/uid/(id+'.part')
     return {'offset':partial.stat().st_size if partial.exists() else 0,'media':media[0] if media else None}
+
+# Product routes resolve the same authenticated store and durable business worker.
+import sys
+from product_routes import router as product_router
+app.include_router(product_router(sys.modules[__name__]))

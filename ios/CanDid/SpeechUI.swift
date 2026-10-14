@@ -15,7 +15,7 @@ struct RecordingTag: Codable, Identifiable {
 }
 struct RecordingSentence: Decodable, Identifiable {
     var id: String; var text: String; var start_ms: Int; var end_ms: Int
-    var speaker: String; var speaker_id: String?
+    var speaker: String; var speaker_id: String?;var speaker_name:String?
 }
 struct RecordingKnowledge: Decodable, Identifiable {
     var id: String; var title: String; var text: String
@@ -41,8 +41,10 @@ struct RecordingRecord: Decodable, Identifiable {
     var id: String; var started_at: String?; var pipeline_status: String; var recording_source: String?
     var tags: [RecordingTag]?; var segments: [RecordingSentence]?; var knowledge: [RecordingKnowledge]?
     var jobs: [BusinessJob]?; var transcript_revision: Int?
+    var marks:[RecordingMark]?
     var duration_ms: Int?; var title: String?; var kind: String?; var fixture: Bool?; var device_file_id: Int?
 }
+struct RecordingMark:Decodable,Identifiable {var id:String;var t_ms:Int;var user_label:String?}
 struct LiveRecordingSentence: Identifiable {
     var id: String; var text: String; var startMS: Int; var stable: Bool
 }
@@ -147,9 +149,8 @@ struct PendingRecording: Codable, Identifiable {
         if let data=try? JSONEncoder().encode(pending) { try? data.write(to:pendingPath,options:[.atomic,.completeFileProtection]) }
     }
     func start(store: Store, voice: Bool) async {
-        guard !store.audio.voiceActive else {notice="请先结束语音对话，再开始沟通录音。";return}
         guard !recording,!finishing,!uploading,!meetingPreparing,!meetingSyncing, store.remote else { notice="请先连接后端，或等待当前录音处理。"; return }
-        guard store.soundcore.recordStatus == 0 else { notice="设备正在录音，请先结束本场录音再使用手机麦克风。"; return }
+        guard voice || store.soundcore.recordStatus == 0 else { notice="设备正在录音，请使用设备完成本场录音。"; return }
         if !voice && store.capabilities?.recording_mode == "device" { notice="正式沟通录音请连接安克设备并按设备按钮开始。"; return }
         meetingPreparing=true;defer { meetingPreparing=false }
         store.stopPlayback();stopPlayback(); notice=nil; preview=""; finalSentences=[:]; liveOrder=[];liveText=[]; partial=""; seconds=0
@@ -176,33 +177,20 @@ struct PendingRecording: Codable, Identifiable {
             try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
             let url=folder.appendingPathComponent(identifier+".m4a");fileURL=url
             audioResources=store.audio;audioLease=try store.audio.acquire(.meeting)
-            let audio=AVAudioSession.sharedInstance()
-            try audio.setCategory(.playAndRecord,mode:.default,options:[.defaultToSpeaker,.allowBluetoothHFP])
-            try audio.setActive(true)
-            let engine=AVAudioEngine();let input=engine.inputNode;let format=input.outputFormat(forBus:0)
-            guard format.sampleRate>0, let target=AVAudioFormat(commonFormat:.pcmFormatInt16,sampleRate:16000,channels:1,interleaved:true),
-                  let converter=AVAudioConverter(from:format,to:target) else { throw PrototypeError.message("麦克风音频格式不可用。") }
-            let file=try AVAudioFile(forWriting:url,settings:[AVFormatIDKey:kAudioFormatMPEG4AAC,AVSampleRateKey:format.sampleRate,AVNumberOfChannelsKey:format.channelCount,AVEncoderBitRateKey:64000],commonFormat:format.commonFormat,interleaved:format.isInterleaved)
+            let microphone=VoiceCapture.shared
+            guard let format=AVAudioFormat(commonFormat:.pcmFormatInt16,sampleRate:16000,channels:1,interleaved:true) else{throw PrototypeError.message("麦克风音频格式不可用。")}
+            let file=try AVAudioFile(forWriting:url,settings:[AVFormatIDKey:kAudioFormatMPEG4AAC,AVSampleRateKey:16000,AVNumberOfChannelsKey:1,AVEncoderBitRateKey:64000],commonFormat:.pcmFormatInt16,interleaved:true)
             try FileManager.default.setAttributes([.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],ofItemAtPath:url.path)
-            self.engine=engine;recording=true;started=Date()
-            if let sid=sessionID {
-                pending.append(PendingRecording(id:sid,path:url.path,milliseconds:0,backendIdentity:identity(api)));persistPending()
+            recording=true;started=Date();microphone.setMeetingPaused(false)
+            if let sid=sessionID {pending.append(PendingRecording(id:sid,path:url.path,milliseconds:0,backendIdentity:identity(api)));persistPending()}
+            microphone.onMeetingFrame={ [weak self] pcm in
+                guard let buffer=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(pcm.count/2)),let ptr=buffer.int16ChannelData?[0] else{return}
+                buffer.frameLength=AVAudioFrameCount(pcm.count/2)
+                pcm.withUnsafeBytes{bytes in if let base=bytes.baseAddress {memcpy(ptr,base,pcm.count)}}
+                do {try file.write(from:buffer)} catch {DispatchQueue.main.async {self?.notice="本机写入失败，已保留录音。";Task {await self?.finishCapture()}};return}
+                DispatchQueue.main.async {self?.sendFrame(pcm)}
             }
-            input.installTap(onBus:0,bufferSize:4096,format:format) { [weak self] buffer,_ in
-                do { try file.write(from:buffer) }
-                catch { DispatchQueue.main.async { self?.notice="本机写入失败，已保存部分录音。"; Task { await self?.finishCapture() } }; return }
-                let count=AVAudioFrameCount(Double(buffer.frameLength)*16000/format.sampleRate)+32
-                guard let output=AVAudioPCMBuffer(pcmFormat:target,frameCapacity:count) else { return }
-                var supplied=false;var error: NSError?
-                converter.convert(to:output,error:&error) { _,status in
-                    if supplied { status.pointee = .noDataNow;return nil }
-                    supplied=true;status.pointee = .haveData;return buffer
-                }
-                guard error == nil, let bytes=output.int16ChannelData?[0],output.frameLength>0 else { return }
-                let pcm=Data(bytes:bytes,count:Int(output.frameLength)*2)
-                DispatchQueue.main.async { self?.sendFrame(pcm) }
-            }
-            try engine.start();await openLive(api:api,sid:sessionID)
+            try microphone.start();await openLive(api:api,sid:sessionID)
             clock=Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(for:.seconds(1))
@@ -299,7 +287,8 @@ struct PendingRecording: Codable, Identifiable {
     }
     func finishCapture() async {
         guard !finishing else { return };finishing=true;defer{finishing=false}
-        engine?.inputNode.removeTap(onBus:0);engine?.stop();engine=nil
+        if meetingSource != "soundcore" {VoiceCapture.shared.stopMeeting()}
+        engine=nil
         let wasRecording=recording;recording=false;clock?.cancel();clock=nil
         if wasRecording && meetingSource != "soundcore" { seconds=phoneElapsedSeconds }
         phonePaused=false;pausedAt=nil
@@ -312,7 +301,7 @@ struct PendingRecording: Codable, Identifiable {
         }
         liveReady=false;receiver?.cancel();sendTail?.cancel();sendTail=nil;socket?.cancel(with:.normalClosure,reason:nil);socket=nil;liveQueue=[];liveQueueBytes=0;liveStartupAllowance=0;liveReconnects=0;captionState = .finished
         if let audioLease {audioResources?.release(audioLease)};audioLease=nil
-        try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
+        if audioResources?.voiceActive != true && meetingSource=="soundcore" {try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)}
         if let sid=sessionID,let i=pending.firstIndex(where:{$0.id==sid}) { pending[i].milliseconds=max(1,seconds*1000);persistPending() }
     }
     func finishAndUpload() async {
@@ -352,12 +341,12 @@ struct PendingRecording: Codable, Identifiable {
         guard recording,!voiceMessage,meetingSource=="iphone",!finishing else { return }
         if phonePaused {
             do {
-                try engine?.start()
+                try VoiceCapture.shared.start();VoiceCapture.shared.setMeetingPaused(false)
                 totalPauseSeconds += pausedAt.map { Date().timeIntervalSince($0) } ?? 0
                 pausedAt=nil;phonePaused=false
                 if !liveReady,let api=connection { await openLive(api:api,sid:sessionID) }
             } catch { notice=error.localizedDescription }
-        } else { engine?.pause();seconds=phoneElapsedSeconds;pausedAt=Date();phonePaused=true }
+        } else { VoiceCapture.shared.setMeetingPaused(true);seconds=phoneElapsedSeconds;pausedAt=Date();phonePaused=true }
     }
     func retryLive(store: Store, device: Soundcore) async {
         guard meetingMatches(store.api),!finishing else { return }
@@ -628,6 +617,22 @@ extension SpeechController {
             try device.acquireLiveAudio()
         } catch { notice=error.localizedDescription;captionState = .unavailable;await finishCapture() }
     }
+    #if DEBUG
+    func prepareCaptionPreview(api:API) {
+        connection=api
+        liveSentences=[LiveRecordingSentence(id:"preview-stable",text:"示例 · 我们先确认接口和交付范围，再安排下一场沟通。",startMS:1000,stable:true),
+            LiveRecordingSentence(id:"preview-provisional",text:"示例 · 这句话仍在实时识别中",startMS:7000,stable:false)]
+        liveRevision+=1
+    }
+    #endif
+    func saveMarkers(_ times:[Int],sessionID:String,api:API) async throws {
+        guard !times.isEmpty else{return}
+        _=try await api.raw("/v1/sessions/"+sessionID+"/marks",method:"POST",body:["marks":times.map{["t_ms":$0,"user_label":"unlabeled"] as [String:Any]}])
+    }
+    func markCurrent(store:Store,device:Soundcore) async {
+        guard let sid=meetingID,meetingMatches(store.api) else{return}
+        do {try await saveMarkers([meetingSource=="soundcore" ? device.durationMS:seconds*1000],sessionID:sid,api:store.api);notice="已标记，录后可从原文回听。"} catch {notice=error.localizedDescription}
+    }
     func deviceDidEnd(store: Store, device: Soundcore, realEnd: Bool) async {
         guard meetingSource=="soundcore",meetingMatches(store.api) else { return }
         seconds=max(seconds,device.durationMS/1000)
@@ -676,6 +681,7 @@ extension SpeechController {
             keepPending(id:sid,url:target,milliseconds:duration,api:api)
             guard identity(store.api)==identity(api) else { throw PrototypeError.message("连接已变化，本机文件已保留；请返回原连接上传。") }
             await upload(PendingRecording(id:sid,path:target.path,milliseconds:duration,backendIdentity:identity(api)),api:api)
+            try await saveMarkers(device.fileMarkers[file.id] ?? [],sessionID:sid,api:api)
             if trackedDevice?.sessionID==sid && !pending.contains(where:{$0.id==sid}) {
                 trackedDevice=nil;deviceRecordingUncertain=false;UserDefaults.standard.removeObject(forKey:"candid-device-capture")
             }

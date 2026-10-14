@@ -50,6 +50,10 @@ class TextAgent:
             register_research_tools(self.registry, self.monid)
         from tools.device_tools import register_device_tools
         register_device_tools(self.registry, memory)
+        from tools.product_tools import register_product_tools,register_product_writes,register_progress_tool
+        register_product_tools(self.registry,memory)
+        register_product_writes(self.registry,memory)
+        register_progress_tool(self.registry,memory)
         self.catalog.index(self.registry.names)
         self.tasks = TaskStore(memory)
         self.workspaces = WorkspaceStore(memory)
@@ -121,7 +125,7 @@ class TextAgent:
                 'budget_profiles': {name: asdict(value) for name, value in self.config.profiles.items()},
                 'budget_ceiling': asdict(self.config.task_budget),
                 'workspace_snapshot':{k:workspace[k] for k in ('id','name','goal','context_version')},
-                'context_policy':dict(self.config.context_policy), 'base_rules_body':BASE_RULES,
+                'query_scope':workspace.get('query_scope',{'mode':'project','project_id':workspace['id']}), 'context_policy':dict(self.config.context_policy), 'base_rules_body':BASE_RULES,
                 'soul': soul, 'skill_index': index, 'user_preferences': preferences,
                 'prompt': {'version': 'candid-files@2', 'body': prompt, 'digest': fingerprint(prompt)}}
 
@@ -513,7 +517,7 @@ class TextAgent:
                     snapshot['runtime_version'],budget,occasion_id=occasion_id,
                     task_kind=task.get('task_kind','chat'),skill_index_snapshot=tuple(snapshot['skill_index']),
                     deadline=time.monotonic()+ceiling.timeout_seconds,cancellation=cancellation,attempt=attempt,workspace_id=task['workspace_id'],
-                    budget_profiles=profiles,budget_ceiling=ceiling,voice=bool(task.get('voice_context',{}).get('continuous')))
+                    allow_mutations=True,budget_profiles=profiles,budget_ceiling=ceiling,voice=bool(task.get('voice_context',{}).get('continuous')))
                 active_skill = task.get('active_skill_snapshot')
                 if active_skill:
                     context = self._skill_context(context, active_skill)

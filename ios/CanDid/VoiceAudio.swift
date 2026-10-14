@@ -3,16 +3,18 @@ import AVFoundation
 import Combine
 
 @MainActor final class AudioResources: ObservableObject {
-    enum Owner { case voice, meeting, manualSpeech, recordingPlayback }
+    enum Owner:Hashable { case voice, meeting, manualSpeech, recordingPlayback }
     @Published private(set) var owner: Owner?
-    private var lease: UUID?
-    func acquire(_ kind: Owner) throws -> UUID {
-        guard owner == nil else { throw PrototypeError.message("当前音频正在使用，请先暂停或结束现有模式。") }
-        let value=UUID();owner=kind;lease=value;return value
+    private var leases:[UUID:Owner]=[:]
+    func acquire(_ kind:Owner)throws->UUID {
+        let combined=Set(leases.values).union([kind])
+        guard !leases.values.contains(kind),leases.isEmpty || combined.isSubset(of:[.voice,.meeting]) else {throw PrototypeError.message("当前播放正在使用音频，请先暂停播放。")}
+        let value=UUID();leases[value]=kind;owner=kind;return value
     }
-    func release(_ value: UUID) { guard lease==value else{return};owner=nil;lease=nil }
-    func owns(_ value: UUID) -> Bool { lease==value }
-    var voiceActive: Bool { owner == .voice }
+    func release(_ value:UUID) {leases.removeValue(forKey:value);owner=leases.values.first}
+    func owns(_ value:UUID)->Bool {leases[value] != nil}
+    var voiceActive:Bool {leases.values.contains(.voice)}
+
 }
 
 final class VoiceActivityDetector {
@@ -39,6 +41,14 @@ final class VoiceActivityDetector {
 
 // Conversion is serialized on the input tap. UI/state crosses to MainActor only with owned bytes.
 final class VoiceCapture {
+    static let shared=VoiceCapture()
+    private var meetingHandler:((Data)->Void)?
+    var onMeetingFrame:((Data)->Void)? {
+        get {stateLock.lock();defer{stateLock.unlock()};return meetingHandler}
+        set {stateLock.lock();meetingHandler=newValue;stateLock.unlock()}
+    }
+    private var meetingPaused=false
+    func setMeetingPaused(_ paused:Bool){stateLock.lock();meetingPaused=paused;stateLock.unlock()}
     let engine=AVAudioEngine()
     let player=AVAudioPlayerNode()
     private var epoch=UUID()
@@ -46,18 +56,26 @@ final class VoiceCapture {
     private var stopped=false
     private var tapInstalled=false
     private let stateLock=NSLock()
-    var onFrame: ((Data)->Void)?
+    private var frameHandler:((Data)->Void)?
+    var onFrame:((Data)->Void)? {
+        get {stateLock.lock();defer{stateLock.unlock()};return frameHandler}
+        set {stateLock.lock();frameHandler=newValue;stateLock.unlock()}
+    }
     var onError: (()->Void)?
     var onPlaybackChanged: ((Bool)->Void)?
     func start() throws {
+        if engine.isRunning {return}
+        stateLock.lock();stopped=false;stateLock.unlock()
         let session=AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord,mode:.voiceChat,options:[.defaultToSpeaker,.allowBluetoothHFP])
         try session.setActive(true)
         try engine.inputNode.setVoiceProcessingEnabled(true)
         let input=engine.inputNode;let format=input.outputFormat(forBus:0)
         guard format.sampleRate>0,let target=AVAudioFormat(commonFormat:.pcmFormatInt16,sampleRate:16000,channels:1,interleaved:true),let converter=AVAudioConverter(from:format,to:target) else {throw PrototypeError.message("麦克风格式不可用。")}
-        engine.attach(player)
-        engine.connect(player,to:engine.mainMixerNode,format:AVAudioFormat(standardFormatWithSampleRate:24000,channels:1))
+        if player.engine==nil {
+            engine.attach(player)
+            engine.connect(player,to:engine.mainMixerNode,format:AVAudioFormat(standardFormatWithSampleRate:24000,channels:1))
+        }
         input.installTap(onBus:0,bufferSize:1024,format:format) { [weak self] buffer,_ in
             guard let self else{return};self.stateLock.lock();let active = !self.stopped;self.stateLock.unlock();guard active else{return}
             let capacity=AVAudioFrameCount(Double(buffer.frameLength)*16000/format.sampleRate)+32
@@ -67,7 +85,10 @@ final class VoiceCapture {
                 if supplied {status.pointee = .noDataNow;return nil};supplied=true;status.pointee = .haveData;return buffer
             }
             guard error==nil,let samples=output.int16ChannelData?[0] else{self.onError?();return}
-            self.onFrame?(Data(bytes:samples,count:Int(output.frameLength)*2))
+            let pcm=Data(bytes:samples,count:Int(output.frameLength)*2)
+            self.onFrame?(pcm)
+            self.stateLock.lock();let meetingEnabled = !self.meetingPaused;self.stateLock.unlock()
+            if meetingEnabled {self.onMeetingFrame?(pcm)}
         }
         tapInstalled=true
         try engine.start()
@@ -90,7 +111,12 @@ final class VoiceCapture {
     @MainActor func pausePlayback() {player.pause();onPlaybackChanged?(false)}
     @MainActor func resumePlayback() {if scheduled>0 {player.play();onPlaybackChanged?(true)}}
     @MainActor func stop() {
-        stateLock.lock();stopped=true;stateLock.unlock();stopPlayback();onFrame=nil;onError=nil
+        stopPlayback();onFrame=nil;onError=nil
+        if onMeetingFrame==nil {stopEngine()}
+    }
+    @MainActor func stopMeeting() {onMeetingFrame=nil;setMeetingPaused(false);if onFrame==nil {stopEngine()}}
+    @MainActor private func stopEngine() {
+        stateLock.lock();stopped=true;stateLock.unlock()
         if tapInstalled {engine.inputNode.removeTap(onBus:0);tapInstalled=false};engine.stop()
         try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
     }

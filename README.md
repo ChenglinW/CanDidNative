@@ -1,10 +1,12 @@
+> 2026-10-15 首轮场景改造：销售 BD 与面试采用「我 → 场景 → 项目 → 业务场次」；首页、项目、录音、记忆库统一导航。会前准备、录后结构化资料、客户跟进、内部纪要、项目追踪、本地提醒和 PDF / Word / 图片 / 文字导出已接入。跨场新个人结论集中确认。先看 [首轮交付记录](docs/PRODUCT_REFACTOR_DELIVERY.md)、[已确认计划](docs/PRODUCT_REFACTOR_PLAN.md)与 [队友接入](docs/TEAM_SETUP.md)。飞书下一阶段，真机安装保持暂停。
+
 > 2026-10-14 Agent demo 更新：项目空间、资料/调研、录音/ASR、标签、归档学习与TTS已接入代码；本轮只构建和启动，功能与设备待测开验收。先看[交付说明](docs/AGENT_DELIVERY.md)、[队友接入](docs/TEAM_SETUP.md)及[迁移准备](docs/MIGRATION.md)。团队服务密钥通过加密配置包导入，不需要写进App。
 
 # CanDid 原生 iOS 动态记忆库原型
 
-这是 SwiftUI 原生 iOS 客户端与 FastAPI 后端工程，不是 HTML 或 WebView 包装。依据《Can Did 动态记忆库 PRD 与技术规格 v0.1》和此前温暖版视觉开发。
+这是 SwiftUI 原生 iOS 客户端与 FastAPI 后端工程，不是 HTML 或 WebView 包装。产品结构以最新场景流程草图及已确认改造计划为准，沿用此前温暖版视觉。
 
-**当前开发环境为 macOS，已接入 Xcode 26.6 与 iOS 26.5 模拟器。** soundcore SDK 已完成原生链接构建，并执行音频转换与页面测试；后端已接入 `deepseek-v4-pro`，本人文字复盘可生成带证据的诊断与待确认素材。详细结果与尚未执行的项目见 [验证记录](验证记录.md)。
+**当前开发环境为 macOS、Xcode 27.0 与 iOS 27.0 模拟器。** soundcore SDK 已完成原生链接构建，并执行音频转换与页面测试；后端已接入 `deepseek-v4-pro`，本人文字复盘可生成带证据的诊断与待确认素材。详细结果与尚未执行的项目见 [验证记录](验证记录.md)。
 
 录音入口已改为 **soundcore 设备**，使用资料包的 iOS v1.3.01 SDK。设备通过按键开始／结束录音，App 预留授权、扫描、连接、暂停／恢复与文件同步接口；设备文件通过 libopus 解码后转换为可播放、可上传的 m4a。当前没有硬件或有效 token，实际鉴权和蓝牙录音链路尚未验证，模拟器不会冒充设备。环境配置与接口约束见 [macOS 开发说明](macOS开发.md)。
 

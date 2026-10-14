@@ -3,8 +3,8 @@ import json
 from memory import Fault, L1, ident, now
 from adapters.sources import SOURCE_TABLES, text_of
 
-MATERIAL_TABLES = {**{k:v for k,v in SOURCE_TABLES.items() if k!='message'}, 'session':'sessions'}
-PERSONAL_KINDS = {'asset','experience','document','personal'}
+MATERIAL_TABLES = {**SOURCE_TABLES, 'session':'sessions'}
+PERSONAL_KINDS = {'asset','experience','document','personal','discovery'}
 
 
 class WorkspaceStore:
@@ -111,7 +111,7 @@ class WorkspaceStore:
             return self.store.update('project_spaces',owner,workspace_id,{'status':target,'version':row['version']+1,
                 'archived_at':None if restore else now(),
                 'archive_analysis_status':row.get('archive_analysis_status','not_requested') if restore else 'queued',
-                'archive_confirmation_policy':'auto_confirmed_personal',
+                'archive_confirmation_policy':'review_new_conclusions',
                 'archived_by':row.get('archived_by') if restore else owner})
 
     def scope(self, owner, source_id):
@@ -132,6 +132,8 @@ class WorkspaceStore:
         return result
 
     def allowed(self, owner, kind, row, workspace_id):
+        if workspace_id and self.get(owner,workspace_id).get('is_scope_context'):
+            return self._scope_allowed(owner,kind,row,self.get(owner,workspace_id))
         if workspace_id is None:
             return True  # User-facing library APIs; Agent always supplies its server-bound space.
         sid = row.get('session_id') or row.get('source_session_id')
@@ -141,12 +143,15 @@ class WorkspaceStore:
             if kind=='transcript' and row.get('transcript_revision',1)!=session.get('transcript_revision',1):return False
         if kind=='message':
             thread=self.store.get('chat_threads',owner,row['thread_id'])
-            return thread.get('workspace_id')==workspace_id
-        if kind=='personal' and row.get('general_personal') and row.get('status')=='confirmed':
+            explicit=self.scope(owner,'message:'+row['id'])
+            return thread.get('workspace_id')==workspace_id or bool(explicit and explicit['mode']=='spaces' and workspace_id in explicit['workspace_ids'])
+        if kind in {'personal','discovery'} and row.get('general_personal') and row.get('status')=='confirmed':
             return True
-        if kind=='personal' and row.get('archive_workspace_id')==workspace_id:
+        if kind in {'personal','discovery'} and row.get('archive_workspace_id')==workspace_id:
             return row.get('status')=='confirmed'
         if kind in {'knowledge','session'} or row.get('session_id'):
+            recording_id=row.get('session_id') or row['id']
+            if self.store.rows('recording_links',owner,session_id=recording_id,project_id=workspace_id,active=True):return True
             sid = row.get('session_id') or row['id']
             tags = self.store.rows('recording_tags',owner,session_id=sid)
             if any(t.get('active') and t.get('workspace_id')==workspace_id for t in tags):
@@ -160,6 +165,32 @@ class WorkspaceStore:
             if item.get('workspace_id'):
                 return item['workspace_id']==workspace_id
         return False
+
+    def _scope_allowed(self, owner, kind, row, context):
+        scope=context['query_scope']; mode=scope['mode']
+        if kind=='message':
+            if self.store.get('chat_threads',owner,row['thread_id']).get('workspace_id')==context['id']:return True
+            explicit=self.scope(owner,'message:'+row['id'])
+            if not explicit or explicit['mode']!='spaces':return False
+            if mode=='project':return scope['project_id'] in explicit['workspace_ids']
+            if mode=='meeting':return self.store.get('business_meetings',owner,scope['meeting_id'])['project_id'] in explicit['workspace_ids']
+            if mode in {'all','scenario'}:return any(s['id'] in explicit['workspace_ids'] for s in self.list(owner) if not s.get('is_scope_context') and (mode!='scenario' or s.get('scenario')==scope.get('scenario')))
+            return False
+        if kind in {'personal','discovery'} and row.get('general_personal') and row.get('status')=='confirmed':return True
+        if row.get('workspace_id')==context['id'] and kind in {'research','document'}:return True
+        if mode=='project':return self.allowed(owner,kind,row,scope['project_id'])
+        if mode=='personal':
+            explicit=self.scope(owner,kind+':'+row['id'])
+            return bool(explicit and explicit['mode']=='personal' and kind in PERSONAL_KINDS)
+        spaces=[s for s in self.list(owner) if not s.get('is_scope_context') and
+                (mode!='scenario' or s.get('scenario')==scope.get('scenario'))]
+        if mode=='meeting':
+            meeting=self.store.get('business_meetings',owner,scope['meeting_id'])
+            sid=row.get('session_id') or row.get('source_session_id') or (row['id'] if kind=='session' else None)
+            links=self.store.rows('recording_links',owner,meeting_id=meeting['id'],active=True)
+            if sid:return any(link['session_id']==sid for link in links) and self.allowed(owner,kind,row,meeting['project_id'])
+            return self.allowed(owner,kind,row,meeting['project_id']) and kind not in {'knowledge','transcript'}
+        return any(self.allowed(owner,kind,row,s['id']) for s in spaces)
 
     def scope_versions(self, owner, kind, row):
         result=[{'source_id':k+':'+r['id'],'revision':scope['revision'],'mode':scope['mode'],

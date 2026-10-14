@@ -3,17 +3,25 @@ import AVFoundation
 @testable import CanDid
 
 final class SoundcoreAudioTests: XCTestCase {
-    @MainActor func testAudioLeaseRejectsOverlapAndStaleRelease() throws {
-        let resources = AudioResources()
-        let first = try resources.acquire(.voice)
-        XCTAssertThrowsError(try resources.acquire(.meeting))
-        resources.release(first)
-        let second = try resources.acquire(.meeting)
-        resources.release(first)
-        XCTAssertTrue(resources.owns(second))
+    @MainActor func testAudioLeaseSharesCaptureAndRejectsPlaybackConflict() throws {
+        let resources=AudioResources();let voice=try resources.acquire(.voice)
+        let meeting=try resources.acquire(.meeting)
+        XCTAssertTrue(resources.owns(voice));XCTAssertTrue(resources.owns(meeting))
         XCTAssertThrowsError(try resources.acquire(.manualSpeech))
-        resources.release(second)
-        XCTAssertNil(resources.owner)
+        XCTAssertThrowsError(try resources.acquire(.voice))
+        resources.release(voice);XCTAssertTrue(resources.owns(meeting));XCTAssertFalse(resources.voiceActive)
+        resources.release(voice);XCTAssertTrue(resources.owns(meeting))
+        resources.release(meeting);XCTAssertNil(resources.owner)
+    }
+    @MainActor func testExportPaginatesLongTextAndKeepsChinese() throws {
+        let text=String(repeating:"粤语原话与承诺日期，不混入内部纪要。\n",count:240)
+        let value=ProductExport(title:"沟通跟进",text:text,internal:false)
+        let pdf=try ProductRenderer.render(value,format:"PDF")[0]
+        let bytes=try Data(contentsOf:pdf);XCTAssertTrue(bytes.starts(with:Data("%PDF".utf8)))
+        let images=try ProductRenderer.render(value,format:"图片卡片");XCTAssertGreaterThan(images.count,1)
+        let file=try ProductRenderer.render(value,format:"文字")[0]
+        XCTAssertTrue(try String(contentsOf:file,encoding:.utf8).contains("粤语原话"))
+        for url in [pdf,file]+images {try? FileManager.default.removeItem(at:url)}
     }
     func testVADHandlesFragmentedSilentPCMWithoutInventingSpeech() throws {
         let detector = try VoiceActivityDetector()

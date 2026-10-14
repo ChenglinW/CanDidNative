@@ -19,6 +19,8 @@ class BusinessJobs:
     def __init__(self, store, gateway, workspaces):
         self.store, self.gateway, self.workspaces = store, gateway, workspaces
         self.handlers = {'archive': self.archive}
+        from product import Product
+        self.product = Product(store,self)
         # Speech keeps its own slot: long ASR polling cannot occupy the TTS worker.
         self.limits = {'speech': 1, 'background': 2}
         self.pools = {lane: ThreadPoolExecutor(max_workers=limit, thread_name_prefix='candid-'+lane)
@@ -162,7 +164,7 @@ class BusinessJobs:
         from adapters.sqlite_memory import SQLiteMemoryAdapter
         adapter=SQLiteMemoryAdapter(self.store)
         for item in sorted(self.workspaces.materials(owner,space['id']),key=lambda item:item['source_id']):
-            if not item['linked'] or item['kind'] not in {'transcript','knowledge','research','document'}:continue
+            if not item['linked'] or item['kind'] not in {'transcript','knowledge','research','document','message'}:continue
             kind,record_id=item['source_id'].split(':',1)
             row=self.store.get(SOURCE_TABLES[kind],owner,record_id)
             try:resolved=adapter.resolve(owner,item['source_id'],space['id'])[1]
@@ -174,7 +176,7 @@ class BusinessJobs:
             text=text_of(kind,row)
             if not text.strip():continue
             evidence.append({'source_id':item['source_id'],'text':text,
-                'personal_eligible':kind=='transcript' and row.get('speaker')=='self',
+                'personal_eligible':kind=='transcript' and row.get('speaker')=='self' or kind=='message' and row.get('role')=='user',
                 'source_version':version(row),'input_version':version(resolved)})
         groups=[];group=[];group_size=0
         for item in evidence:
@@ -251,17 +253,20 @@ class BusinessJobs:
                 if prior:
                     if prior.get('status')=='confirmed':saved.append(prior['id'])
                     continue
-                row=self.store.put('personal_memories',owner,{'title':title,'text':text,'status':'confirmed',
-                    'producer':'anker/'+self.gateway.model,'archive_workspace_id':space['id'],'archive_job_id':job['id'],
-                    'general_personal':item['general_personal'],'version':1,'dedupe_key':dedupe,
-                    'confirmation_mode':'archive_auto','authorization_owner':owner,'authorization_at':space['archived_at'],
-                    'evidence_refs':[{'source_id':sid,'source_version':by_id[sid]['source_version'],'quote':quote}],
-                    'coverage':'all_accessible_evidence_in_parts'},L3,source='ai',actor='archive:'+space['id'])
-                saved.append(row['id'])
-                existing.append(row)  # Suppress duplicates within the same extraction as well.
+                if item['general_personal']:
+                    candidates=self.product.discovery_candidates(owner,space['id'],[{'title':title,'text':text,
+                        'evidence_refs':[{'source_id':sid,'source_version':by_id[sid]['source_version'],'quote':quote}]}],job['id'])
+                    saved.extend(candidates)
+                else:
+                    prior_source=next((r for r in self.store.rows('agent_sources',owner) if r.get('archive_dedupe')==dedupe),None)
+                    if not prior_source:
+                        self.store.put('agent_sources',owner,{'title':title,'text':text,'workspace_id':space['id'],
+                            'archive_dedupe':dedupe,'producer':'anker/'+self.gateway.model,'rubric_version':'archive-project@1',
+                            'evidence_refs':[{'source_id':sid,'source_version':by_id[sid]['source_version'],'quote':quote}]},'L2_inferred',source='ai')
+
             saved=list(dict.fromkeys(saved))
             self.store.update('project_spaces',owner,space['id'],{'archive_analysis_status':'completed','archive_memory_count':len(saved)})
-        return {'memory_count':len(saved),'memory_ids':saved,'coverage':'all_accessible_evidence_in_parts'}
+        return {'candidate_count':len(saved),'discovery_ids':saved,'memory_count':0,'memory_ids':[],'coverage':'all_accessible_evidence_in_parts'}
 
     def close(self):
         with self.lock:self.closed=True

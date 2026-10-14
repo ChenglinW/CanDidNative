@@ -52,6 +52,8 @@ struct SoundcoreFile: Identifiable {
     @Published private(set) var progress: Double = 0
     @Published private(set) var transferring = false
     @Published private(set) var realtimeReady = false
+    @Published private(set) var fileMarkers:[Int32:[Int]]=[:]
+    @Published private(set) var markedFragments:[Int32:Set<Int32>]=[:]
     var onLiveAudio: ((Data,Int32)->Void)?
     var onRecordingEnded: (()->Void)?
     private let sdk = SoundcoreSDK.companion.proxy
@@ -190,6 +192,11 @@ struct SoundcoreFile: Identifiable {
     private func matches(_ mac: String, _ uuid: String) -> Bool { connected?.mac == mac && connected?.uuid == uuid }
     private func handle(_ event: SoundcoreEvent) {
         switch event {
+        case .markers(let mac,let uuid,let fileID,let times):
+            guard matches(mac,uuid) else{return}
+            fileMarkers[fileID]=Array(Set((fileMarkers[fileID] ?? [])+times.filter{$0>=0})).sorted()
+        case .markedFragment(let mac,let uuid,let fileID,let sequence):
+            guard matches(mac,uuid) else{return};markedFragments[fileID,default:[]].insert(sequence)
         case .realtimeReady(let mac,let uuid,let fileID):
             guard matches(mac,uuid) else { return };realtimeReady=true;currentFileID=fileID
         case .liveAudio(let mac,let uuid,let fileID,let data,let sequence):
@@ -276,5 +283,6 @@ enum SoundcoreEvent {
     case files(String, String, [FileInfoModel]), fileError(String, String, Int32)
     case progress(String, String, Int32, Int32, Int32), completed(String, String, Int32, String)
     case realtimeReady(String,String,Int32),liveAudio(String,String,Int32,Data,Int32)
+    case markers(String,String,Int32,[Int]),markedFragment(String,String,Int32,Int32)
     case transferError(String, String, Int32)
 }

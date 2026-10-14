@@ -125,7 +125,7 @@ private final class VoiceInput {
     private func begin(store:Store,continuous:Bool) {
         guard !active || (mode == .continuous && microphonePaused) else{notice="请先结束当前语音。";return}
         guard store.remote,store.capabilities?.asr_configured==true,let thread=store.chatThread?.id,let space=store.currentProjectSpace,space.status=="active" else{holding=false;phase = .failed;notice="请先连接后端并选择可用项目空间。";return}
-        guard !store.speech.activeMeeting,!store.speech.meetingPreparing,!store.speech.meetingSyncing,store.soundcore.recordStatus==0 else{holding=false;phase = .failed;notice="正在沟通录音，请结束后再使用语音对话。";return}
+
         self.store=store;self.api=store.api;self.thread=thread;workspace=space.id;backend=identity(store.api)
         epoch=UUID();session=UUID();reply=nil;waitingQuestion=nil;timing=[:];onsets=[:];let stamp=epoch
         mode=continuous ? .continuous:.hold;microphonePaused=false;phase = .connecting;notice=nil;preview="";response="";preRoll=Data();sample=0;lastSpeech=0;voiced=0;quiet=0
@@ -138,7 +138,7 @@ private final class VoiceInput {
                 if mode == .hold && !holding {throw PrototypeError.message("权限已准备好，请重新按住说话。")}
                 store.stopPlayback();store.speech.stopPlayback()
                 lease=try store.audio.acquire(.voice)
-                let microphone=VoiceCapture();capture=microphone;vad=try VoiceActivityDetector()
+                let microphone=VoiceCapture.shared;capture=microphone;vad=try VoiceActivityDetector()
                 microphone.onFrame={ [weak self] bytes in Task { @MainActor in self?.consume(bytes,stamp:stamp) } }
                 microphone.onError={ [weak self] in Task { @MainActor in if self?.epoch==stamp {self?.pause(reason:"音频接收失败，已保留输入。")}} }
                 microphone.onPlaybackChanged={ [weak self] playing in

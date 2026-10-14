@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import json
 import re
 
-from memory import Fault
+from memory import Fault, now
 from .rules import BASE_RULES
 from .skills import skill_prompt
 from .summary import SummaryStore
@@ -104,7 +104,7 @@ class ContextManager:
         section('固定后台流程索引', json.dumps(index, ensure_ascii=False), budget.context_index_chars)
         section('用户偏好', json.dumps(snapshot['user_preferences'], ensure_ascii=False), budget.context_preferences_chars, True)
         section('当前任务', json.dumps({'task_kind':context.task_kind, 'occasion_id':context.occasion_id,
-                                      'session_id':context.session_id, 'project_space':snapshot.get('workspace_snapshot'), 'goal_message_id':recent[-1]['id'] if recent else None,
+                                      'request_time':now(), 'timezone':'Asia/Hong_Kong', 'session_id':context.session_id, 'query_scope':snapshot.get('query_scope'), 'project_space':snapshot.get('workspace_snapshot'), 'goal_message_id':recent[-1]['id'] if recent else None,
                                       'active_skill':active_skill['name'] if active_skill else None,
                                       'note':'原沟通流程已恢复，继续执行，无需重新加载。' if active_skill else '围绕最新用户消息，流程只在需要时后台加载。'}, ensure_ascii=False), budget.context_task_chars, True)
         if context.occasion_id:

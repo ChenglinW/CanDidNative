@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-15T01:15:31+08:00",
+  "title": "Design System: CanDid Native",
+  "extensions": {
+    "platform": {
+      "name": "iOS / iPadOS SwiftUI",
+      "sourceOfTruth": ["ios/CanDid/CanDidApp.swift", "ios/CanDid/ProductViews.swift", "ios/CanDid/RecordingUI.swift", "ios/CanDid/VoiceViews.swift"],
+      "nativeUnits": "All geometry in DESIGN.md is native logical points; component HTML/CSS previews use the same numeric CSS px values as an illustrative translation, not physical CSS pt.",
+      "previewBoundary": "Static component previews preserve extracted color and geometry. They do not reproduce Dynamic Type, SF Symbols, Apple semantic colors, native navigation, hit testing or SwiftUI lifecycle behavior. No web hover/focus states are invented.",
+      "colorBoundary": "Frontmatter percentage rgb values retain source SwiftUI channel precision. System semantic colors remain platform-owned. No synthetic tonal ramp or unimplemented breakpoint was generated."
+    },
+    "colorMeta": {
+      "warm-paper": { "role": "neutral", "displayName": "Warm 米白页面", "source": "Warm.paper" },
+      "warm-white": { "role": "neutral", "displayName": "Warm 近白容器", "source": "Warm.white" },
+      "warm-ink": { "role": "neutral", "displayName": "Warm 深墨文字", "source": "Warm.ink" },
+      "warm-purple": { "role": "primary", "displayName": "Warm 紫色交互", "source": "Warm.purple" },
+      "warm-lavender": { "role": "secondary", "displayName": "Warm 淡紫色面", "source": "Warm.lavender" },
+      "warm-orange": { "role": "primary", "displayName": "Warm 橙色主操作", "source": "Warm.orange" },
+      "warm-sage": { "role": "secondary", "displayName": "Warm 浅绿说明", "source": "Warm.sage" },
+      "secondary-text": { "role": "neutral", "displayName": "浅色辅助文字", "source": "RecordingFormat.secondary" },
+      "recorder-background": { "role": "neutral", "displayName": "录音深色背景", "source": "LiveRecordingView.body" },
+      "recorder-panel": { "role": "neutral", "displayName": "录音原文容器", "source": "LiveRecordingView.transcript" },
+      "recorder-secondary": { "role": "neutral", "displayName": "录音浅紫辅助文字", "source": "LiveRecordingView caption / timestamp / state text" },
+      "recorder-white": { "role": "neutral", "displayName": "录音白色主文字", "source": "Color.white / .white" }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "系统圆角正文", "purpose": "正文与实时原文", "swiftUIStyle": ".body; inherited .fontDesign(.rounded); Dynamic Type remains system-owned" },
+      "body-semibold": { "displayName": "系统圆角半粗体", "purpose": "主要按钮", "swiftUIStyle": ".body.weight(.semibold)" },
+      "recorder-title": { "displayName": "录音标题", "purpose": "录音全屏页标题", "swiftUIStyle": ".system(size:27,weight:.bold,design:.rounded)" },
+      "recorder-timer": { "displayName": "录音计时", "purpose": "固定宽度数字计时", "swiftUIStyle": ".system(size:23,weight:.semibold,design:.rounded).monospacedDigit()" }
+    },
+    "shadows": [
+      {
+        "name": "legacy-primary-button-rest",
+        "value": "SwiftUI .shadow(color:.brown.opacity(0.3), radius:0, y:4)",
+        "purpose": "既有 PrimaryButton 的硬边底影；不应用到 RecordingPrimary。"
+      },
+      {
+        "name": "legacy-primary-button-pressed",
+        "value": "SwiftUI .shadow(color:.brown.opacity(0.3), radius:0, y:1).offset(y:2)",
+        "purpose": "既有 PrimaryButton 按下状态。Color.brown 保持系统语义值。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "voice-level-pulse",
+        "value": "scaleEffect(1 + level * 0.12); .easeOut(duration:0.12)",
+        "purpose": "VoiceConversationView 的 152pt 圆背景随音量变化；accessibilityReduceMotion 时显式 animation 为 nil。"
+      }
+    ],
+    "componentStates": {
+      "recording-primary": { "pressedOpacity": 0.8, "disabledOpacity": 0.45, "stateComposition": "Two source opacity modifiers are applied sequentially.", "nativeHeight": "minHeight:50" },
+      "composer-send": { "emptyDraftOpacity": 0.45, "disabledWhen": "empty draft || chatControlBusy || chatLoading || voice.active", "nativeSize": "44 × 44pt" },
+      "voice-composer": { "border": "Warm.ink.opacity(0.15)", "holdingBorder": "Warm.purple", "disabledWhen": "currentProjectSpace.status != active || chatLoading", "nativeTextLineLimit": "1...5" },
+      "warm-card": { "border": "Warm.ink.opacity(0.08)", "contentGap": "12pt" },
+      "recording-status": { "border": "Warm.purple.opacity(0.22)", "nativeHeight": "minHeight:46" },
+      "recorder-transcript": { "stableText": "Color.white", "pendingText": "Warm.lavender", "helperAndTimestamps": "recorder-secondary", "divider": "Color.white.opacity(0.12)", "outerHorizontalPadding": "16pt" },
+      "navigation": { "nativeTypes": "TabView, NavigationStack, native segmented Picker, fullScreenCover", "destinations": ["首页", "项目", "录音", "记忆库"], "globalScheme": "light", "recorderPresentationScheme": "dark", "nativeTabPlacement": "iPhone bottom / iPad top in reviewed simulator captures; platform-owned" }
+    },
+    "assetProvenance": [
+      {
+        "path": "ios/CanDid/Assets.xcassets/Mascot.imageset/mascot.png",
+        "status": "pre-existing repository asset; retained unchanged in this UI extension",
+        "sourceBoundary": "Original author, initial creation or generation method, and license evidence were not provided. No invented origin.",
+        "sha256": "c997b11e1570c85a8af0ba5143cfbdc5dce538bbc6fc5a4a01cb387369ff8414",
+        "bytes": 677795,
+        "use": "Mascot uses Image(\"Mascot\").resizable().scaledToFit(); accessibility label: Candid 紫色双气泡",
+        "newRasterThisPass": false
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "RecordingPrimary",
+      "kind": "button",
+      "refersTo": "recording-primary",
+      "description": "当前产品页与录音页的橙色主要操作；原生最小高度 50pt。",
+      "html": "<button class=\"ds-recording-primary\">连接后端</button>",
+      "css": ".ds-recording-primary{display:block;width:100%;min-height:50px;background:rgb(100% 75.3% 47.1%);color:rgb(20.4% 20.8% 18%);border:0;border-radius:16px;font-family:ui-rounded,system-ui,sans-serif;font-weight:600}.ds-recording-primary:active{opacity:.8}"
+    },
+    {
+      "name": "RecordingPrimary disabled",
+      "kind": "button",
+      "refersTo": "recording-primary-disabled",
+      "description": "离线会前整理主按钮的禁用反馈，整体 opacity 0.45。",
+      "html": "<button class=\"ds-recording-disabled\" disabled>整理会前准备包</button>",
+      "css": ".ds-recording-disabled{display:block;width:100%;min-height:50px;background:rgb(100% 75.3% 47.1%);color:rgb(20.4% 20.8% 18%);border:0;border-radius:16px;font-family:ui-rounded,system-ui,sans-serif;font-weight:600;opacity:.45}"
+    },
+    {
+      "name": "WarmCard",
+      "kind": "card",
+      "refersTo": "warm-card",
+      "description": "近白、轻描边容器；内部 gap 12pt、padding 18pt。",
+      "html": "<div class=\"ds-warm-card\"><strong>每一条，都有来处</strong><span>事实、推断和证据分开保存。</span></div>",
+      "css": ".ds-warm-card{display:flex;flex-direction:column;gap:12px;padding:18px;background:rgb(100% 99.6% 98.4%);color:rgb(20.4% 20.8% 18%);border:1px solid rgb(20.4% 20.8% 18% / .08);border-radius:22px;font-family:ui-rounded,system-ui,sans-serif}"
+    },
+    {
+      "name": "Next meeting card",
+      "kind": "card",
+      "refersTo": "next-meeting-card",
+      "description": "首页下一场卡片复用 WarmCard，只更换为 lavender 色面。",
+      "html": "<div class=\"ds-next-card\"><strong>示例 · 下一场谈判</strong><span>华味餐饮 · 采购沟通</span><span>准备包待整理</span></div>",
+      "css": ".ds-next-card{display:flex;flex-direction:column;gap:12px;padding:18px;background:rgb(93.3% 90.6% 98%);color:rgb(20.4% 20.8% 18%);border:1px solid rgb(20.4% 20.8% 18% / .08);border-radius:22px;font-family:ui-rounded,system-ui,sans-serif}"
+    },
+    {
+      "name": "Project row",
+      "kind": "card",
+      "refersTo": "project-row",
+      "description": "近白项目入口，纵向 gap 9pt、竖直 16pt / 水平 18pt padding。",
+      "html": "<div class=\"ds-project-row\"><strong>华味餐饮 · 采购沟通</strong><span>推进试点</span><small>销售 BD · 需求 · 示例</small></div>",
+      "css": ".ds-project-row{display:flex;flex-direction:column;gap:9px;padding:16px 18px;border-radius:16px;background:rgb(100% 99.6% 98.4%);color:rgb(20.4% 20.8% 18%);font-family:ui-rounded,system-ui,sans-serif}.ds-project-row>span{color:rgb(44% 44% 40%)}.ds-project-row>small{color:rgb(44.7% 31.4% 63.1%)}"
+    },
+    {
+      "name": "Voice composer",
+      "kind": "input",
+      "refersTo": "voice-composer",
+      "description": "麦克风、1–5 行原生输入和发送动作；预览只展示几何，SF Symbols 由原生界面提供。",
+      "html": "<div class=\"ds-composer\"><button class=\"ds-composer-mic\" aria-label=\"开始语音输入\">语音</button><input class=\"ds-composer-text\" aria-label=\"给 Candid 的消息\" placeholder=\"长按说话，或点这里输入\"><button class=\"ds-composer-send\" aria-label=\"发送消息\" disabled>↑</button></div>",
+      "css": ".ds-composer{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid rgb(20.4% 20.8% 18% / .15);border-radius:18px;background:rgb(100% 99.6% 98.4%);color:rgb(20.4% 20.8% 18%);font-family:ui-rounded,system-ui,sans-serif}.ds-composer-mic{width:44px;height:44px;flex-shrink:0;border:0;background:transparent;color:inherit}.ds-composer-text{flex:1;min-width:0;padding:9px 0;border:0;background:transparent;color:inherit;font-family:inherit}.ds-composer-send{width:44px;height:44px;flex-shrink:0;border:0;border-radius:12px;background:rgb(44.7% 31.4% 63.1%);color:white;font-weight:600}.ds-composer-send:disabled{opacity:.45}"
+    },
+    {
+      "name": "Recording status",
+      "kind": "custom",
+      "refersTo": "recording-status",
+      "description": "可返回当前录音的 lavender 状态条，原生 minHeight 46pt。",
+      "html": "<div class=\"ds-recording-status\"><span>正在录音</span><span>00:01</span><span class=\"ds-status-end\">查看字幕</span></div>",
+      "css": ".ds-recording-status{display:flex;align-items:center;gap:8px;min-height:46px;padding:0 14px;background:rgb(93.3% 90.6% 98%);color:rgb(44.7% 31.4% 63.1%);border:1px solid rgb(44.7% 31.4% 63.1% / .22);border-radius:15px;font-family:ui-rounded,system-ui,sans-serif}.ds-status-end{margin-left:auto}"
+    },
+    {
+      "name": "Recorder transcript",
+      "kind": "custom",
+      "refersTo": "recorder-transcript",
+      "description": "局部深色原文容器，稳定 white、临时 lavender、时间戳和说明为 recorder-secondary。",
+      "html": "<div class=\"ds-transcript\"><div class=\"ds-transcript-header\"><strong>实时原文</strong><span>录后校准与分人</span></div><div class=\"ds-transcript-body\"><small>00:01</small><p>示例 · 我们先确认接口和交付范围。</p><small>00:07</small><p class=\"ds-transcript-pending\">示例 · 这句话仍在实时识别中 ▏</p></div></div>",
+      "css": ".ds-transcript{background:rgb(15% 13% 20%);color:white;border:1px solid rgb(20.4% 20.8% 18% / .08);border-radius:22px;font-family:ui-rounded,system-ui,sans-serif;overflow:hidden}.ds-transcript-header{display:flex;justify-content:space-between;gap:8px;padding:15px 18px;border-bottom:1px solid rgb(100% 100% 100% / .12)}.ds-transcript-header>span,.ds-transcript-body>small{color:rgb(78% 75% 84%)}.ds-transcript-body{padding:18px}.ds-transcript-body>p{margin:7px 0 22px}.ds-transcript-pending{color:rgb(93.3% 90.6% 98%)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Warm 原生沟通界面",
+    "overview": "本文件是当前实现的提取记录。用户已固定的米白、紫色、橙色与系统圆角风格继续作为视觉依据；名称仅描述已有界面。业务表面约定见 `docs/PRODUCT_SURFACES.md`。\n\n应用主体是浅色 SwiftUI 界面，内容通过留白、圆角卡片和轻微描边组织。录音全屏页使用已确认的局部深色配色，连续语音对话仍使用 Warm 浅色。导航、选择器、表单、弹窗和图标依赖原生 SwiftUI 与 SF Symbols。",
+    "keyCharacteristics": ["米白页面、近白卡片、紫色交互和橙色主按钮。", "系统圆角文字与原生导航，保留 Dynamic Type 的语义文字样式。", "深色录音页以原文、时间戳和状态为主要内容。"],
+    "rules": [
+      { "name": "The Recorder Scope Rule", "body": "全局仍是浅色；深色方案局限于录音全屏页，其 presentation 指定 `.preferredColorScheme(.dark)`，状态栏采用浅色文字。", "section": "colors" }
+    ],
+    "dos": ["Do 沿用 Warm 源码配色、系统圆角文字和 SF Symbols。", "Do 为录音全屏页保留局部深色 scheme 与浅色状态文字。", "Do 保留原生导航、安全区输入、Dynamic Type 语义样式与已实现的禁用反馈。", "Do 用文字与图标共同表达状态，并保留示例、草稿、待确认和原文依据标记。"],
+    "donts": ["Don't 把局部深色录音方案扩展为整个应用的新视觉方向。", "Don't 新增字体或替换现有 Mascot 来改变已固定的视觉体系。", "Don't 把系统动态字体、语义颜色或原生导航伪装成已定义的固定网页 token。", "Don't 用示例截图推断真实数据、外部发送、ASR 或硬件已经通过验收。"]
+  }
+}

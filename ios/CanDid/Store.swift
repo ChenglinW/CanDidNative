@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import AVFoundation
+import UserNotifications
 
 @MainActor final class Store: ObservableObject {
     @Published var assets: [Asset] = []
@@ -10,6 +11,10 @@ import AVFoundation
     @Published var onboarding = false
     @Published var remote = false
     @Published var capabilities: Capabilities?
+    var productScopeGeneration=UUID()
+    @Published var products:[ProductProject]=[]
+    @Published var productDetails:[ProductDetail]=[]
+    @Published var personalDiscoveries:[PersonalDiscovery]=[]
     @Published var projectSpaces: [ProjectSpace] = []
     @Published var chatReadPosition: String?
     @Published var chatThreads: [ChatThread] = []
@@ -57,7 +62,10 @@ import AVFoundation
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             demoURL = folder.appendingPathComponent("candid-demo.json")
         } else { demoURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("candid-demo.json") }
-        retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90; loadDemo(); purgeLocalExpired()
+        retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90; loadDemo(); purgeLocalExpired();loadProductCache()
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") && ProcessInfo.processInfo.arguments.contains("-candid-surface-review") {onboarding=true;seedProducts()}
+        #endif
     }
     func purgeLocalExpired() {
         guard !remote else { return }
@@ -123,6 +131,7 @@ import AVFoundation
         let o: [Occasion] = try await api.all("/v1/occasions")
         let s: [Session] = try await api.all("/v1/sessions")
         assets = a; occasions = o; sessions = s
+        try await reloadProducts()
     }
     func addOccasion(title: String, scenario: Scenario, goal: String) async throws {
         if remote {
@@ -261,6 +270,11 @@ import AVFoundation
     }
     func deleteMemory() async throws {
         stopPlayback()
+        voice.exit()
+        try? FileManager.default.removeItem(at:productCacheURL)
+        products=[];productDetails=[];personalDiscoveries=[]
+        let pending=await UNUserNotificationCenter.current().pendingNotificationRequests()
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers:pending.map(\.identifier).filter{$0.hasPrefix("candid-action-")})
         if remote { _ = try await api.raw("/v1/memory", method: "DELETE") }
         else {
             let folder = demoURL.deletingLastPathComponent().appendingPathComponent("Recordings")

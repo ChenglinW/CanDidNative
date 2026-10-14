@@ -127,7 +127,7 @@ extension Store {
             requestedID = ProcessInfo.processInfo.environment["CANDID_CHAT_THREAD_ID"]
             #endif
             if let id = requestedID { try await loadChat(id) }
-            else { try await restoreWorkspaceSelection() }
+            else { try await openScope(["mode":"all"]) }
             #if DEBUG && targetEnvironment(simulator)
             if let message = ProcessInfo.processInfo.environment["CANDID_CHAT_MESSAGE"], !message.isEmpty { sendChat(message) }
             #endif
@@ -427,12 +427,8 @@ struct ChatView: View {
                     .onChange(of: store.chatBusy) { _, _ in if followsLatest { scroll(proxy) } }
                     .onChange(of: focused) { _, value in if value { scroll(proxy) } }
             }
-            WorkspaceCarousel(spaces: store.activeProjectSpaces, selectedID: store.currentProjectSpace?.id,
-                compact: focused, disabled: !store.remote || store.chatControlBusy || store.chatLoading,
-                select: { id in Task { await store.selectProjectSpace(id) } },
-                create: { Task { await store.createProjectSpace() } })
             if store.currentProjectSpace?.status == "archived" {
-                Text("空间已归档，Candid 会自动整理有依据的个人资料；历史仍可查看。").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 22)
+                Text("项目已归档，资料自动整理；新增个人发现集中核对，历史仍可查看。").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 22)
                 Button("恢复这个空间") { Task { await store.archiveProjectSpace(restore: true) } }.frame(minHeight: 44)
             }
             RecordingStatusBar(speech:store.speech,device:store.soundcore).environmentObject(store)
@@ -452,13 +448,14 @@ struct ChatView: View {
             Mascot(size: 47).contentShape(Rectangle()).onTapGesture(count:2) {focused=false;store.voice.enter(store:store)}
                 .accessibilityAddTraits(.isButton).accessibilityAction(named:Text("连续对话")) {store.voice.enter(store:store)}
             VStack(alignment: .leading, spacing: 3) {
-                Text("Candid").font(.title3.bold())
-                Text("和你一起，准备下一次").font(.caption).foregroundStyle(.secondary)
+                Text("问 Candid").font(.title3.bold())
+                Text("双击头像，或点击连续对话").font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
+            Button {focused=false;store.voice.enter(store:store)} label:{Image(systemName:"waveform").frame(width:44,height:44)}.accessibilityLabel("连续对话")
             Menu {
                 Button("连续对话",systemImage:"waveform") {focused=false;store.voice.enter(store:store)}
-                Button("新建项目空间", systemImage: "square.and.pencil") { Task { await store.createProjectSpace() } }
+                Button("查看当前范围", systemImage: "scope") { history=true }
                     .disabled(store.chatControlBusy)
                 Button("空间列表与归档", systemImage: "square.stack") {
                     Task { try? await store.reloadChats(); history = true }
@@ -576,7 +573,7 @@ struct ChatView: View {
         switch trust { case "CONFIRMED": return "用户已确认"; case "EVIDENCE": return "原始依据"; default: return "AI 推断 · 待核实" }
     }
     private var historySheet: some View {
-        WorkspaceList().environmentObject(store)
+        ProductScopeChooser().environmentObject(store)
     }
     private func sourceSheet(_ value: ChatSource) -> some View {
         NavigationStack {
@@ -600,6 +597,7 @@ struct ProjectSpace: Codable, Identifiable {
     var version: Int; var context_version: Int; var status: String; var created_at: String
     var task_status: String; var message_count: Int; var last_message: String; var queued_count: Int
     var client_request_id: String?; var archive_analysis_status: String?
+    var is_scope_context:Bool?;var scope_label:String?
     var activityLabel: String {
         switch task_status { case "thinking": return queued_count > 1 ? "正在处理 · 有补充排队" : "正在处理"
         case "waiting_input": return "等待你的补充"; case "error": return "有任务待处理"
@@ -613,7 +611,7 @@ struct WorkspaceMaterial: Decodable, Identifiable {
 }
 
 extension Store {
-    var activeProjectSpaces: [ProjectSpace] { projectSpaces.filter { $0.status == "active" } }
+    var activeProjectSpaces: [ProjectSpace] { projectSpaces.filter { $0.status == "active" && $0.is_scope_context != true } }
     var currentProjectSpace: ProjectSpace? {
         projectSpaces.first { $0.id == chatThread?.workspace_id || $0.default_thread_id == chatThread?.id }
     }
