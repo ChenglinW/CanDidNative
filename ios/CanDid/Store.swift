@@ -38,6 +38,9 @@ import AVFoundation
     private var player: AVPlayer?
     let soundcore = Soundcore()
     let speech = SpeechController()
+    let audio = AudioResources()
+    let voice = VoiceSessionController()
+    private var playbackLease: UUID?
     let recordingNavigation = RecordingNavigation()
     @Published var recordingPlaybackID: String?
     @Published var recordingPlaybackPlaying = false
@@ -207,9 +210,13 @@ import AVFoundation
         message = remote ? "反馈已保存" : "离线示例反馈不写入后端"
     }
     func play(_ session: Session) async throws {
+        guard !audio.voiceActive,!speech.activeMeeting,soundcore.recordStatus==0 else{throw PrototypeError.message("请先结束现有语音或录音，再回听。") }
+        speech.stopPlayback();stopPlayback();let lease=try audio.acquire(.recordingPlayback);playbackLease=lease
+        defer {if player==nil {audio.release(lease);playbackLease=nil}}
         if remote {
             let link: Link = try await api.call("/v1/sessions/"+session.id+"/audio")
             guard let path = link.url else { throw PrototypeError.message("没有音频链接") }
+            guard audio.owns(lease) else {throw PrototypeError.message("音频模式已变化。") }
             player = AVPlayer(url: try api.url(path))
         } else {
             guard let path = session.local_audio else { throw PrototypeError.message("示例没有原始音频。真实录音完成后可以回听。") }
@@ -219,6 +226,7 @@ import AVFoundation
         player?.play()
     }
     func stopPlayback() {
+        if let playbackLease {audio.release(playbackLease)};playbackLease=nil
         player?.pause()
         if let observer=recordingPlaybackObserver { player?.removeTimeObserver(observer) }
         recordingPlaybackObserver=nil
@@ -270,11 +278,15 @@ import AVFoundation
 extension Store {
     func playRecording(_ id:String,startMS:Int=0,endMS:Int?=nil) async throws {
         guard !speech.activeMeeting,soundcore.recordStatus==0 else { throw PrototypeError.message("请先暂停回听，完成本场录音后再播放。") }
+        guard !audio.voiceActive else {throw PrototypeError.message("请先暂停或结束语音对话，再回听录音。") }
         speech.stopPlayback();stopPlayback()
+        let lease=try audio.acquire(.recordingPlayback);playbackLease=lease
+        defer {if recordingPlaybackID != id {audio.release(lease);playbackLease=nil}}
         let api=self.api
         let playbackIdentity=DeviceRecordingMap.identity(api)
         let link:Link=try await api.call("/v1/sessions/"+id+"/audio?start_ms="+String(startMS))
         guard let path=link.url else { throw PrototypeError.message("原音频不可用") }
+        guard audio.owns(lease) else {throw PrototypeError.message("音频模式已变化。") }
         let item=AVPlayerItem(url:try api.url(path))
         if let endMS { item.forwardPlaybackEndTime=CMTime(seconds:Double(endMS)/1000,preferredTimescale:1000) }
         player=AVPlayer(playerItem:item)

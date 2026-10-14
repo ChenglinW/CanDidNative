@@ -23,7 +23,7 @@ class TaskStore:
         # Runtime instructions and hidden Skill bodies do not travel to the mobile UI.
         return {k:task[k] for k in ('id','thread_id','turn_id','client_request_id','status','attempt',
             'event_seq','partial_text','visible_steps','error','artifact_refs','created_at','updated_at',
-            'started_at','finished_at','phase','workspace_id','input','input_request','provider_state','queue_order') if k in task} | {'tool_steps':task.get('visible_steps',[]),'accepted_action_ids':task.get('resume_requests',[])}
+            'started_at','finished_at','phase','workspace_id','input','input_request','provider_state','queue_order','voice_context') if k in task} | {'tool_steps':task.get('visible_steps',[]),'accepted_action_ids':task.get('resume_requests',[])}
 
     def require_running(self, owner, task_id, attempt):
         task = self.get(owner, task_id)

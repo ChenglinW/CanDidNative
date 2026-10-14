@@ -102,6 +102,9 @@ extension Store {
         Task { try? await loadChat(id) }
     }
     func restoreConnection() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") { return }
+        #endif
         var token = TokenVault.read()
         var shouldConnect = UserDefaults.standard.bool(forKey: "remote-enabled")
         #if DEBUG && targetEnvironment(simulator)
@@ -434,6 +437,7 @@ struct ChatView: View {
             }
             RecordingStatusBar(speech:store.speech,device:store.soundcore).environmentObject(store)
             SpeechToolbar(speech:store.speech).environmentObject(store)
+            VoiceInputStatus(voice:store.voice).environmentObject(store)
             composer
         }
         .background(Warm.paper.ignoresSafeArea()).toolbar(.hidden, for: .navigationBar)
@@ -445,13 +449,15 @@ struct ChatView: View {
     }
     private var header: some View {
         HStack(spacing: 10) {
-            Mascot(size: 47)
+            Mascot(size: 47).contentShape(Rectangle()).onTapGesture(count:2) {focused=false;store.voice.enter(store:store)}
+                .accessibilityAddTraits(.isButton).accessibilityAction(named:Text("连续对话")) {store.voice.enter(store:store)}
             VStack(alignment: .leading, spacing: 3) {
                 Text("Candid").font(.title3.bold())
                 Text("和你一起，准备下一次").font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
             Menu {
+                Button("连续对话",systemImage:"waveform") {focused=false;store.voice.enter(store:store)}
                 Button("新建项目空间", systemImage: "square.and.pencil") { Task { await store.createProjectSpace() } }
                     .disabled(store.chatControlBusy)
                 Button("空间列表与归档", systemImage: "square.stack") {
@@ -494,7 +500,7 @@ struct ChatView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) { Mascot(size: 23); Text("Candid").font(.caption).foregroundStyle(.secondary) }
                 VStack(alignment: .leading, spacing: 14) {
-                    if message.incomplete != true { Button("播报",systemImage:"speaker.wave.2") { store.stopPlayback();store.speech.speak(message,api:store.api) }.font(.caption).frame(minHeight:44) }
+                    if message.incomplete != true { Button("播报",systemImage:"speaker.wave.2") { store.stopPlayback();store.speech.speak(message,api:store.api,resources:store.audio) }.font(.caption).frame(minHeight:44) }
                     if message.incomplete == true { Label("未完成 · 已停止", systemImage: "stop.circle").font(.caption).foregroundStyle(.secondary) }
                     Text(LocalizedStringKey(message.content)).font(.body).lineSpacing(6).textSelection(.enabled)
                     if !message.tool_steps.isEmpty {
@@ -545,19 +551,7 @@ struct ChatView: View {
                 quickAction("准备下一场", icon: "scope", prompt: "帮我准备下一场沟通。请先问我最关键的背景。")
                 quickAction("复盘上一场", icon: "headphones", prompt: "帮我复盘上一场真实沟通。请先查找已有记忆和本人原文，没有资料就告诉我。")
             }
-            HStack(alignment: .bottom, spacing: 8) {
-                TextField(store.chatTask?.status == "waiting_input" ? "补充后继续这次任务" : store.chatBusy ? "补充内容，会排队处理" : "有什么想一起想想的？", text: Binding(get: { store.chatDraft }, set: { store.saveChatDraft($0) }), axis: .vertical)
-                    .lineLimit(1...5).focused($focused).font(.body).padding(.vertical, 9)
-                    .accessibilityLabel("给 Candid 的消息").disabled(store.chatLoading)
-                Button(action: send) {
-                    Image(systemName: "arrow.up").font(.headline).foregroundStyle(.white)
-                        .frame(width: 44, height: 44).background(Warm.purple, in: RoundedRectangle(cornerRadius: 12))
-                }.disabled(store.chatDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.chatControlBusy || store.chatLoading)
-                    .opacity(store.chatDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.chatControlBusy || store.chatLoading ? 0.45 : 1)
-                    .accessibilityLabel(store.chatTask?.status == "waiting_input" ? "补充后继续" : store.chatBusy ? "加入队列" : "发送消息")
-            }.padding(8).padding(.leading, 5).background(Warm.white, in: RoundedRectangle(cornerRadius: 18))
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Warm.ink.opacity(0.15)))
-                .disabled(store.currentProjectSpace?.status != "active")
+            VoiceComposer(voice:store.voice,focused:$focused,send:send).environmentObject(store)
         }.padding(.horizontal, 18).padding(.top, 10).padding(.bottom, 12)
     }
     private func quickAction(_ title: String, icon: String, prompt: String) -> some View {

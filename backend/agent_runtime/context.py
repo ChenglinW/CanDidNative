@@ -28,6 +28,7 @@ class RunContext:
     workspace_id: str | None = None
     budget_profiles: tuple[tuple[str, Budget], ...] = ()
     budget_ceiling: Budget | None = None
+    voice: bool = False
 
     def remaining(self):
         if self.cancellation:

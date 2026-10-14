@@ -37,11 +37,11 @@ def test_T3_diagnosis_requires_evidence(m):
     assert e.value.code=='EVIDENCE_MISSING'
 def test_T4_version_required(m):
     with pytest.raises(Fault):m.put('metrics',A,{'producer':'fixture@1'},L2,'ai')
-def test_T5_consent_guard_api(tmp_path,monkeypatch):
+def test_T5_consent_guard_api(tmp_path,monkeypatch,bind_app_store):
     monkeypatch.setenv('CANDID_DATA_DIR',str(tmp_path/'api'));monkeypatch.setenv('CANDID_LOCAL_TOKEN','test-token')
     import app
     from fastapi.testclient import TestClient
-    app.store=Memory(tmp_path/'api.sqlite',tmp_path/'storage');app.LOCAL_TOKEN='test-token'
+    bind_app_store(app,Memory(tmp_path/'api.sqlite',tmp_path/'storage'))
     client=TestClient(app.app);h={'Authorization':'Bearer test-token'}
     s=client.post('/v1/sessions',json={'client_request_id':ident(),'kind':'live','consent':'unknown'},headers=h).json()
     r=client.post('/v1/sessions/'+s['id']+'/media',json={'storage_path':'invalid','sha256':'a'*64,'mime':'audio/mp4','bytes':1},headers=h)
@@ -118,10 +118,10 @@ def test_fixture_does_not_require_external_provider(m):
     o=occasion(m);s=m.fixture(A,o['id']);[m.tick() for _ in range(3)]
     assert m.get('sessions',A,s['id'])['pipeline_status']=='done'
     assert m.rows('assets',A)[0]['status']=='draft'
-def test_signed_upload_and_hash_confirmation(tmp_path,monkeypatch):
+def test_signed_upload_and_hash_confirmation(tmp_path,monkeypatch,bind_app_store):
     import app
     from fastapi.testclient import TestClient
-    app.store=Memory(tmp_path/'api.sqlite',tmp_path/'storage');app.LOCAL_TOKEN='test-token'
+    bind_app_store(app,Memory(tmp_path/'api.sqlite',tmp_path/'storage'))
     c=TestClient(app.app);h={'Authorization':'Bearer test-token'}
     c.patch('/v1/profile',json={'product_use_consent':True},headers=h)
     s=c.post('/v1/sessions',json={'client_request_id':ident(),'kind':'practice','consent':'yes','recording_source':'soundcore','device_file_id':1701234567},headers=h).json()
@@ -146,10 +146,10 @@ def test_missing_l2_version_rejected_by_sql(m):
     payload={'id':ident(),'owner_id':A,'visibility':'private','source':'ai','trust':L2,'producer':'test@1'}
     with pytest.raises(sqlite3.IntegrityError):m.db.execute('INSERT INTO metrics VALUES(?,?,?,?)',(payload['id'],A,now(),json.dumps(payload)))
 
-def test_processing_consent_required(tmp_path):
+def test_processing_consent_required(tmp_path,bind_app_store):
     import app
     from fastapi.testclient import TestClient
-    app.store=Memory(tmp_path/'api.sqlite',tmp_path/'storage');app.LOCAL_TOKEN='test-token'
+    bind_app_store(app,Memory(tmp_path/'api.sqlite',tmp_path/'storage'))
     c=TestClient(app.app);h={'Authorization':'Bearer test-token'}
     s=c.post('/v1/sessions',json={'client_request_id':ident(),'kind':'practice','consent':'yes'},headers=h).json()
     r=c.post('/v1/sessions/'+s['id']+'/upload-url',headers=h)

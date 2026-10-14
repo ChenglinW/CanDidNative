@@ -3,6 +3,26 @@ import AVFoundation
 @testable import CanDid
 
 final class SoundcoreAudioTests: XCTestCase {
+    @MainActor func testAudioLeaseRejectsOverlapAndStaleRelease() throws {
+        let resources = AudioResources()
+        let first = try resources.acquire(.voice)
+        XCTAssertThrowsError(try resources.acquire(.meeting))
+        resources.release(first)
+        let second = try resources.acquire(.meeting)
+        resources.release(first)
+        XCTAssertTrue(resources.owns(second))
+        XCTAssertThrowsError(try resources.acquire(.manualSpeech))
+        resources.release(second)
+        XCTAssertNil(resources.owner)
+    }
+    func testVADHandlesFragmentedSilentPCMWithoutInventingSpeech() throws {
+        let detector = try VoiceActivityDetector()
+        XCTAssertTrue(try detector.frames(Data(repeating: 0, count: 318)).isEmpty)
+        let frames = try detector.frames(Data(repeating: 0, count: 962))
+        XCTAssertEqual(frames.count, 2)
+        XCTAssertTrue(frames.allSatisfy { $0.0.count == 640 && !$0.1 && $0.2 == 0 })
+        XCTAssertTrue(try detector.frames(Data()).isEmpty)
+    }
     private func fixture(in folder: URL, packets: Int = 50) throws -> URL {
         var error: Int32 = 0
         let encoder = try XCTUnwrap(opus_encoder_create(16_000, 2, OPUS_APPLICATION_AUDIO, &error))

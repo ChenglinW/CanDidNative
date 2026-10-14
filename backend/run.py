@@ -36,4 +36,6 @@ if __name__=='__main__':
     load_service_environment([*args.env_file, *([team_file] if team_file.exists() else [])])
     import app
     if app.MODE=='local':print('本机访问令牌保存在：'+str(app.TOKEN_PATH.resolve()))
-    uvicorn.run(app.app,host='0.0.0.0' if args.lan else '127.0.0.1',port=args.port,access_log=False)
+    # Live captions require a server-side WebSocket protocol. Fail at startup
+    # if the dependency is missing instead of serving HTTP with broken upgrades.
+    uvicorn.run(app.app,host='0.0.0.0' if args.lan else '127.0.0.1',port=args.port,access_log=False,ws='wsproto')

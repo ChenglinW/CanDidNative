@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-14",
+  "base_commit": "aa0231818398e123c72813776c4173555478a4ec",
+  "scope": "live captions and homepage voice",
+  "implementation": "stages_1_to_6_debug",
+  "stage_7": "software regressions passed; real iPhone and provider acceptance pending",
+  "checks": {
+    "ios_debug_build": "succeeded",
+    "python_source_parsing": "succeeded",
+    "backend_health_http": 200,
+    "capabilities_http": 200,
+    "openapi_http": 200,
+    "native_launch": "succeeded",
+    "ios_software_tests": "11 passed",
+    "backend_software_tests": "82 passed",
+    "ios_device_build": "succeeded without signing"
+  },
+  "software_tests_executed": true,
+  "new_paid_provider_calls": 0,
+  "microphone_validation": false,
+  "hardware_validation": false,
+  "release_continuous_voice_enabled": false,
+  "build_log_sha256": "087b28d626f7780344dc8340e551fe72ee49efe412425aa71d5828c28dc12948",
+  "dependency": {
+    "name": "WebRTC VAD",
+    "source": "wiseman/py-webrtcvad",
+    "commit": "e283ca41df3a84b0e87fb1f5cb9b21580a286b09",
+    "approved_by_user": true
+  },
+  "software_validation": "validation.json",
+  "publish_branch": "master"
+}

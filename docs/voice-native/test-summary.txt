@@ -1,0 +1,6 @@
+2026-10-14
+Backend: 82 passed, 0 failed; 2 dependency deprecation warnings.
+iOS: 7 unit tests + 4 UI tests passed, 0 failed.
+Debug iphoneos build: succeeded, CODE_SIGNING_ALLOWED=NO.
+No physical installation, real microphone, cloud ASR/TTS, speaker echo or latency acceptance.
+Earlier failing fixtures and obsolete UI paths were corrected before the final run.

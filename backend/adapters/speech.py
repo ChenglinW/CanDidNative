@@ -64,35 +64,44 @@ class Speech:
 
     def live(self,callback):
         self.check()
-        recognition=Recognition(model=self.realtime_model,callback=callback,format='pcm',sample_rate=16000,
-            api_key=self.key,language_hints=['zh','en'],semantic_punctuation_enabled=True)
-        recognition.start()
-        return recognition
+        from .live_asr import LiveRecognition
+        return LiveRecognition(self, callback).start()
 
     def synthesize(self,text,guard=lambda:None):
+        chunks=[]
+        usage=self.stream_synthesize(text,chunks.append,guard)
+        output=io.BytesIO()
+        with wave.open(output,'wb') as wav:
+            wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(24000);wav.writeframes(b''.join(chunks))
+        return output.getvalue(),usage
+
+    def stream_synthesize(self,text,on_audio,guard=lambda:None,cancellation=None):
         self.check()
-        done=threading.Event();audio=bytearray();failure=[];usage=[]
+        done=threading.Event();finished=threading.Event();audio=bytearray();failure=[];usage=[]
         class Callback(QwenTtsRealtimeCallback):
             def on_event(self,event):
                 if event.get('type')=='response.audio.delta':
-                    audio.extend(base64.b64decode(event['delta']))
+                    chunk=base64.b64decode(event['delta']);audio.extend(chunk)
+                    if len(audio)<=12_000_000:on_audio(chunk)
                     if len(audio)>12_000_000:failure.append('output_limit');done.set()
                 if event.get('type')=='response.done':usage.append(event.get('response',{}).get('usage',{}))
-                if event.get('type')=='session.finished':done.set()
+                if event.get('type')=='session.finished':finished.set();done.set()
                 if event.get('type')=='error':failure.append('provider');done.set()
             def on_close(self,*args):done.set()
         client=QwenTtsRealtime(model=self.tts_model,callback=Callback(),url=self.ws)
         try:
-            guard();client.connect()
+            guard()
+            if cancellation:cancellation.register(client.close)
+            client.connect();guard()
             client.update_session(voice=self.voice,response_format=AudioFormat.PCM_24000HZ_MONO_16BIT,mode='server_commit',language_type='Auto')
-            client.append_text(text);client.finish()
+            guard();client.append_text(text);client.finish()
             for _ in range(180):
                 guard()
                 if done.wait(.5):break
             else:raise Fault('TTS_TIMEOUT','播报合成超时，文字仍可阅读',504)
+            if not finished.is_set():raise Fault('TTS_INCOMPLETE','播报连接中断，文字仍可阅读',502)
             if failure or not audio:raise Fault('TTS_FAILED','播报合成失败，文字仍可阅读',502)
-        finally:client.close()
-        output=io.BytesIO()
-        with wave.open(output,'wb') as wav:
-            wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(24000);wav.writeframes(audio)
-        return output.getvalue(),usage
+        finally:
+            if cancellation:cancellation.unregister(client.close)
+            client.close()
+        return usage

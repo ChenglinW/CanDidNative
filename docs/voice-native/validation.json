@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-14",
+  "authorization": "Software tests allowed for caption and voice update; physical installation remains paused",
+  "backend": {
+    "command": "backend/.venv/bin/python -m pytest backend/tests -q",
+    "passed": 82,
+    "failed": 0,
+    "warnings": 2,
+    "mode": "local doubles; isolated temporary DB; provider keys removed"
+  },
+  "ios": {
+    "command": "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer sh scripts/check-ios.sh --test <iPhone17 simulator UDID>",
+    "result": "Passed",
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "unit_tests": 7,
+    "ui_tests": 4
+  },
+  "device_build": {
+    "sdk": "iphoneos",
+    "configuration": "Debug",
+    "signing": false,
+    "result": "BUILD SUCCEEDED"
+  },
+  "real_microphone_asr_tts_acceptance": false,
+  "physical_installation": "paused",
+  "continuous_voice_release_enabled": false,
+  "publish_branch": "master"
+}

@@ -861,66 +861,11 @@ def speech_file(id:str,uid=Depends(owner)):
 
 @app.websocket('/v1/speech/live')
 async def live_speech(ws:WebSocket):
-    await ws.accept()
-    recognition=None;uid=None;receipt=None;sid=None;last_seq=-1
-    queue=asyncio.Queue(maxsize=128);event_loop=asyncio.get_running_loop();alive=True;lost=False
-    def enqueue(event):
-        nonlocal lost
-        if not alive:return
-        try:queue.put_nowait(event)
-        except asyncio.QueueFull:lost=True
-    def publish(event):event_loop.call_soon_threadsafe(enqueue,event)
-    class Callback(RecognitionCallback):
-        def on_event(self,result):
-            sentence=result.get_sentence()
-            if isinstance(sentence,dict):publish({'type':'transcript','sentence':sentence,'usage':result.get_usage(sentence)})
-        def on_error(self,result):publish({'type':'error','message':'实时转写连接中断，完整录音继续保存'})
-        def on_complete(self):publish({'type':'complete'})
-    async def transmit():
-        while True:
-            event=await queue.get()
-            await ws.send_json(event)
-    sender=None
-    try:
-        hello=await asyncio.wait_for(ws.receive_json(),timeout=10)
-        req=Request({'type':'http','headers':[(b'authorization',('Bearer '+str(hello.get('token',''))).encode())]})
-        uid=owner(req);sid=hello.get('session_id')
-        if sid:
-            session=store.get('sessions',uid,sid)
-            if session.get('consent')!='yes':raise Fault('RECORDING_CONSENT_REQUIRED','没有录音授权',403)
-        speech.check()
-        with store.transaction(uid):receipt=store.put('provider_runs',uid,{'provider':'dashscope','kind':'realtime_asr','session_id':sid,'model':speech.realtime_model,
-            'status':'running','offset_ms':hello.get('offset_ms',0),'last_seq':-1},L1)
-        recognition=await asyncio.to_thread(speech.live,Callback())
-        sender=asyncio.create_task(transmit())
-        await ws.send_json({'type':'ready','stream_id':receipt['id']})
-        while True:
-            packet=await ws.receive_json()
-            if packet.get('type')=='finish':break
-            seq=packet.get('seq');raw=packet.get('audio')
-            if type(seq) is not int or seq!=last_seq+1 or not isinstance(raw,str) or len(raw)>100000:
-                raise Fault('AUDIO_SEQUENCE_INVALID','音频顺序中断，请重新连接；完整录音仍保留',422)
-            pcm=base64.b64decode(raw,validate=True)
-            if len(pcm)%2 or len(pcm)>64000:raise Fault('AUDIO_FORMAT_INVALID','需要16kHz单声道PCM16',422)
-            await asyncio.to_thread(recognition.send_audio_frame,pcm);last_seq=seq
-        await asyncio.to_thread(recognition.stop);recognition=None
-        # Drain final provider events before acknowledging end of this live stream.
-        await asyncio.sleep(.1)
-        await ws.send_json({'type':'finished','last_seq':last_seq,'display_gap':lost})
-    except WebSocketDisconnect:pass
-    except Exception:
-        try:await ws.send_json({'type':'error','message':'实时字幕暂不可用，完整音频保留供录后精转写'})
-        except Exception:pass
-    finally:
-        alive=False
-        if sender:sender.cancel()
-        if recognition:
-            try:await asyncio.to_thread(recognition.stop)
-            except Exception:pass
-        if receipt:
-            with store.transaction():store.update('provider_runs',uid,receipt['id'],{'status':'ended','last_seq':last_seq,'display_gap':lost})
-        try:await ws.close()
-        except Exception:pass
+    from voice.live_bridge import live_speech as relay
+    await relay(ws,owner,store,speech)
+
+from voice.routes import install as install_voice
+install_voice(app,owner,store,agent,speech)
 
 @app.get('/v1/speech-clips')
 def speech_clips(job_id:str,uid=Depends(owner)):

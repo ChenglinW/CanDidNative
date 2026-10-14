@@ -178,8 +178,14 @@ class TextAgent:
             steps = checkpoint['steps']; total_calls = checkpoint['total_calls']
         if active_skill:
             context = self._skill_context(context, active_skill)
-        usage = self.tasks.require_running(context.owner_id, context.task_id, context.attempt).get('budget_usage', {})
+        task = self.tasks.require_running(context.owner_id, context.task_id, context.attempt)
+        usage = task.get('budget_usage', {})
         total_calls = max(total_calls, usage.get('tool_calls', 0))
+        voice_final = bool(checkpoint and checkpoint.get('voice_final'))
+        if context.voice:
+            import re
+            voice_final = voice_final or bool(re.fullmatch(r'(你好|嗨|谢谢|早上好|晚上好|再见)[！!。 .]*', task.get('input',{}).get('content','')))
+        from voice.committer import SpeechCommitter
         turn = max(checkpoint['round'] if checkpoint else 0, usage.get('model_rounds', 0))
         while turn < context.budget.max_rounds:
             budget = context.budget
@@ -188,20 +194,35 @@ class TextAgent:
             remaining = context.remaining()
             if len(json.dumps(messages, ensure_ascii=False)) > budget.max_context_chars:
                 raise Fault('AGENT_CONTEXT_LIMIT', '这次任务资料较多，请缩小问题范围', 422)
-            enabled = turn < budget.max_rounds - 1 and total_calls < budget.max_tool_calls
+            enabled = not voice_final and turn < budget.max_rounds - 1 and total_calls < budget.max_tool_calls
             schemas = [s.schema() for s in self.registry.available(context)]
+            enabled=enabled and bool(schemas)
             self.tasks.emit(context,'text.reset',{'phase':'answer'}, {'partial_text':'','phase':'answer'})
             self._budget_usage(context, turn + 1, total_calls)
+            committed = SpeechCommitter(self, context, sources, input_references) if context.voice and not enabled else None
+            def delta(text):
+                if not context.voice or committed:
+                    self.tasks.text(context,text)
+                if committed: committed.push(text)
             result = self.gateway.complete(messages, tools=enabled and bool(schemas), schemas=schemas,
                                            timeout_seconds=min(remaining, budget.model_timeout_seconds),
                                            cancellation=context.cancellation,
-                                           on_delta=lambda text:self.tasks.text(context,text))
+                                           on_delta=delta)
             context.remaining()
             calls = result.get('tool_calls', [])
             if not calls:
                 content = result['content'].strip()
                 if not content:
                     raise Fault('AGENT_INVALID_OUTPUT', '模型没有返回回答，可以重试', 502)
+                if context.voice and enabled:
+                    voice_final=True
+                    turn+=1
+                    saved={'messages':messages,'sources':sources,'references':input_references,'steps':steps,
+                        'total_calls':total_calls,'round':turn,'voice_final':True,'effective_budget':asdict(context.budget),
+                        'active_skill_digest':fingerprint(active_skill) if active_skill else None}
+                    self.tasks.emit(context,'phase',{'phase':'answer'},{'checkpoint':saved})
+                    continue
+                if committed: committed.finish()
                 return content, sources, steps
             if not isinstance(calls, list) or not enabled or len(calls) > budget.max_calls_per_round or total_calls + len(calls) > budget.max_tool_calls:
                 raise Fault('AGENT_TOOL_LIMIT', '本次查询步骤过多，请缩小问题范围', 502)
@@ -279,7 +300,13 @@ class TextAgent:
                      'total_calls':total_calls,'round':turn+1,'effective_budget':asdict(context.budget),
                      'active_skill_digest':fingerprint(active_skill) if active_skill else None}
             if input_request:
-                self.tasks.pause(context,input_request,saved)
+                with self.memory.transaction(context.owner_id):
+                    self.tasks.pause(context,input_request,saved)
+                    if context.voice:
+                        voice=self.tasks.get(context.owner_id,context.task_id).get('voice_context',{})
+                        self.tasks.events.append(context.owner_id,context.task_id,'speech.segment',{'text':input_request['question'],
+                            'segment_seq':1,'kind':'prompt','input_id':input_request['id'],
+                            'generation_id':voice.get('generation_id'),'voice_session_id':voice.get('voice_session_id')},attempt=context.attempt)
                 return None
             self.tasks.emit(context,'phase',{'phase':'answer'},{'checkpoint':saved})
             turn += 1
@@ -313,14 +340,18 @@ class TextAgent:
         if queue:
             self._schedule(owner,queue[0])
 
-    def submit(self, owner, thread_id, text, request_id):
+    def submit(self, owner, thread_id, text, request_id, voice=None):
         self.memory.check_owner(owner)
         budget = self.config.budget('chat')
         if not isinstance(text,str) or not text.strip() or len(text)>budget.max_input_chars:
             raise Fault('AGENT_INPUT_LIMIT','消息为空或超过输入预算，请拆分消息',422)
         with self._lock_guard:
+            if voice and self.memory.db.execute("SELECT 1 FROM requests WHERE owner_id=? AND request_id=? AND kind='voice_cancel'",(owner,request_id)).fetchone():
+                raise Fault('VOICE_TURN_CANCELLED','该语音轮已取消',409)
             previous = next((t for t in self.tasks.list(owner,thread_id) if t['client_request_id']==request_id),None)
             if previous:
+                if voice and previous.get('voice_context') != {**voice,'client_request_id':request_id}:
+                    raise Fault('REQUEST_CONFLICT','语音轮标识与原请求不一致',409)
                 if previous['input']['content']!=text:
                     raise Fault('REQUEST_CONFLICT','重试消息与原消息不一致',409)
                 return self.tasks.public(previous)
@@ -333,6 +364,8 @@ class TextAgent:
                 with self.memory.transaction(owner):
                     workspace = self.workspaces.seed_from_message(owner,workspace['id'],text)
                     task, fresh = self.tasks.enqueue(owner,thread_id,request_id,text,self.snapshot(budget,owner,workspace))
+                    if fresh and voice:
+                        task=self.tasks.update(owner,task['id'],{'voice_context':{**voice,'client_request_id':request_id}})
             except Exception:
                 self._capacity.release()
                 raise
@@ -377,11 +410,13 @@ class TextAgent:
                 self._capacity.release()
             return self.tasks.public(task)
 
-    def answer_input(self, owner, task_id, request_id, input_id, text, expected_attempt):
+    def answer_input(self, owner, task_id, request_id, input_id, text, expected_attempt, voice=None):
         text = text.strip()
         if not text or len(text)>self.config.budget('chat').max_input_chars:
             raise Fault('AGENT_INPUT_LIMIT','补充内容为空或过长',422)
         with self._lock_guard:
+            if voice and self.memory.db.execute("SELECT 1 FROM requests WHERE owner_id=? AND request_id=? AND kind='voice_cancel'",(owner,request_id)).fetchone():
+                raise Fault('VOICE_TURN_CANCELLED','该语音轮已取消',409)
             task = self.tasks.get(owner,task_id)
             prior = next((r for r in task.get('input_responses',[]) if r['request_id']==request_id),None)
             if prior:
@@ -405,7 +440,8 @@ class TextAgent:
                         'client_request_id':request_id,'task_id':task_id,'turn_id':task['turn_id'],
                         'sources':[],'tool_steps':[],'response_to':input_id},L1)
                     self.tasks.update(owner,task_id,{'checkpoint':checkpoint,'input_request':None,
-                        'input_responses':[*task.get('input_responses',[]),{'request_id':request_id,'input_id':input_id,'text':text}]})
+                        'input_responses':[*task.get('input_responses',[]),{'request_id':request_id,'input_id':input_id,'text':text}],
+                        **({'voice_context':{**voice,'client_request_id':request_id}} if voice else {})})
                     task,fresh = self.tasks.resume(owner,task_id,request_id)
             except Exception:
                 self._capacity.release()
@@ -477,7 +513,7 @@ class TextAgent:
                     snapshot['runtime_version'],budget,occasion_id=occasion_id,
                     task_kind=task.get('task_kind','chat'),skill_index_snapshot=tuple(snapshot['skill_index']),
                     deadline=time.monotonic()+ceiling.timeout_seconds,cancellation=cancellation,attempt=attempt,workspace_id=task['workspace_id'],
-                    budget_profiles=profiles,budget_ceiling=ceiling)
+                    budget_profiles=profiles,budget_ceiling=ceiling,voice=bool(task.get('voice_context',{}).get('continuous')))
                 active_skill = task.get('active_skill_snapshot')
                 if active_skill:
                     context = self._skill_context(context, active_skill)

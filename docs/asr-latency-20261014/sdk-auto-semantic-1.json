@@ -1,0 +1,965 @@
+{
+  "client": "sdk",
+  "route": "auto",
+  "model": "qwen-audio-3.1-asr-flash-streaming",
+  "semantic": true,
+  "silence_s": 0,
+  "pcm_sha256": "40205373f90ae31eed713d3eedf688e395bf4a6b9965ca86c30695abcd41e383",
+  "audio_s": 17.645125,
+  "events": [
+    {
+      "at": 1.184438,
+      "sent_audio_s": 1.2,
+      "text": "",
+      "sentence_id": 1,
+      "begin_ms": 0,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 0
+    },
+    {
+      "at": 1.377225,
+      "sent_audio_s": 1.4,
+      "text": "C",
+      "sentence_id": 1,
+      "begin_ms": 0,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 480
+    },
+    {
+      "at": 1.580827,
+      "sent_audio_s": 1.5999999999999999,
+      "text": "See your",
+      "sentence_id": 1,
+      "begin_ms": 400,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 720
+    },
+    {
+      "at": 1.98109,
+      "sent_audio_s": 1.9999999999999998,
+      "text": "See yourtaff",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 1440
+    },
+    {
+      "at": 3.382464,
+      "sent_audio_s": 3.400000000000001,
+      "text": "Senior staff, principal do",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 2160
+    },
+    {
+      "at": 3.785641,
+      "sent_audio_s": 3.800000000000001,
+      "text": "Senior staff, principal doris Jackson",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 2880
+    },
+    {
+      "at": 4.581418,
+      "sent_audio_s": 4.600000000000001,
+      "text": "Senior staff, principal doris Jackson, Wake",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 3600
+    },
+    {
+      "at": 5.185726,
+      "sent_audio_s": 5.200000000000002,
+      "text": "Senior Staff Principal Doris Jackson Wakefield Faculty",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 4320
+    },
+    {
+      "at": 5.980807,
+      "sent_audio_s": 6.000000000000003,
+      "text": "Senior Staff Principal Doris Jackson Wakefield Faculty, and of",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 5040
+    },
+    {
+      "at": 6.778135,
+      "sent_audio_s": 6.800000000000003,
+      "text": "Senior Staff Principal Doris Jackson Wakefield Faculty, and of course my",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 5760
+    },
+    {
+      "at": 7.581419,
+      "sent_audio_s": 7.600000000000004,
+      "text": "Senior staff, Principal Doris Jackson, Wakefield faculty, and of course my fellow classmates",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 6480
+    },
+    {
+      "at": 8.977046,
+      "sent_audio_s": 9.0,
+      "text": "Senior staff, Principal Doris Jackson, Wakefield faculty, and of course my fellow classmates. ",
+      "sentence_id": 1,
+      "begin_ms": 440,
+      "end_ms": 6920,
+      "final": true,
+      "last_word_ms": 6920
+    },
+    {
+      "at": 13.185723,
+      "sent_audio_s": 13.199999999999985,
+      "text": "I",
+      "sentence_id": 2,
+      "begin_ms": 11870,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 12350
+    },
+    {
+      "at": 13.379665,
+      "sent_audio_s": 13.399999999999984,
+      "text": "Im",
+      "sentence_id": 2,
+      "begin_ms": 12270,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 12590
+    },
+    {
+      "at": 13.984839,
+      "sent_audio_s": 13.999999999999982,
+      "text": "Imam honored to have been",
+      "sentence_id": 2,
+      "begin_ms": 12310,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 13310
+    },
+    {
+      "at": 15.377157,
+      "sent_audio_s": 15.399999999999977,
+      "text": "I am honored to have been chosen to speak",
+      "sentence_id": 2,
+      "begin_ms": 12310,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 14030
+    },
+    {
+      "at": 16.18776,
+      "sent_audio_s": 16.199999999999974,
+      "text": "I am honored to have been chosen to speak before my class",
+      "sentence_id": 2,
+      "begin_ms": 12310,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 14750
+    },
+    {
+      "at": 16.385421,
+      "sent_audio_s": 16.399999999999974,
+      "text": "I am honored to have been chosen to speak before my classmates as",
+      "sentence_id": 2,
+      "begin_ms": 12310,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 15470
+    },
+    {
+      "at": 17.58575,
+      "sent_audio_s": 17.59999999999997,
+      "text": "I am honored to have been chosen to speak before my classmates as well as the students",
+      "sentence_id": 2,
+      "begin_ms": 12310,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 16190
+    },
+    {
+      "at": 18.474619,
+      "sent_audio_s": 17.645124999999968,
+      "text": "I am honored to have been chosen to speak before my classmates as well as the students across America",
+      "sentence_id": 2,
+      "begin_ms": 12310,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 16910
+    },
+    {
+      "at": 18.576397,
+      "sent_audio_s": 17.645124999999968,
+      "text": "I am honored to have been chosen to speak before my classmates as well as the students across America today",
+      "sentence_id": 2,
+      "begin_ms": 12310,
+      "end_ms": null,
+      "final": false,
+      "last_word_ms": 17630
+    },
+    {
+      "at": 19.132724,
+      "sent_audio_s": 17.645124999999968,
+      "text": "I am honored to have been chosen to speak before my classmates as well as the students across America today. ",
+      "sentence_id": 2,
+      "begin_ms": 12310,
+      "end_ms": 17470,
+      "final": true,
+      "last_word_ms": 17470
+    }
+  ],
+  "sends": [
+    {
+      "at": 0.524175,
+      "duration": 0.000204,
+      "audio_s": 0.2,
+      "bytes": 6400
+    },
+    {
+      "at": 0.524362,
+      "duration": 6.8e-05,
+      "audio_s": 0.4,
+      "bytes": 6400
+    },
+    {
+      "at": 0.58448,
+      "duration": 0.000313,
+      "audio_s": 0.6000000000000001,
+      "bytes": 6400
+    },
+    {
+      "at": 0.780182,
+      "duration": 0.000361,
+      "audio_s": 0.8,
+      "bytes": 6400
+    },
+    {
+      "at": 0.979108,
+      "duration": 9.6e-05,
+      "audio_s": 1.0,
+      "bytes": 6400
+    },
+    {
+      "at": 1.184249,
+      "duration": 8.6e-05,
+      "audio_s": 1.2,
+      "bytes": 6400
+    },
+    {
+      "at": 1.37704,
+      "duration": 0.000101,
+      "audio_s": 1.4,
+      "bytes": 6400
+    },
+    {
+      "at": 1.580661,
+      "duration": 9.3e-05,
+      "audio_s": 1.5999999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 1.780858,
+      "duration": 0.000138,
+      "audio_s": 1.8,
+      "bytes": 6400
+    },
+    {
+      "at": 1.980783,
+      "duration": 0.000173,
+      "audio_s": 2.0,
+      "bytes": 6400
+    },
+    {
+      "at": 2.186131,
+      "duration": 0.000178,
+      "audio_s": 2.2,
+      "bytes": 6400
+    },
+    {
+      "at": 2.377787,
+      "duration": 8.8e-05,
+      "audio_s": 2.4000000000000004,
+      "bytes": 6400
+    },
+    {
+      "at": 2.584763,
+      "duration": 8.5e-05,
+      "audio_s": 2.6,
+      "bytes": 6400
+    },
+    {
+      "at": 2.781852,
+      "duration": 0.00015,
+      "audio_s": 2.8000000000000003,
+      "bytes": 6400
+    },
+    {
+      "at": 2.982887,
+      "duration": 0.000259,
+      "audio_s": 3.0,
+      "bytes": 6400
+    },
+    {
+      "at": 3.180049,
+      "duration": 0.000143,
+      "audio_s": 3.2,
+      "bytes": 6400
+    },
+    {
+      "at": 3.382331,
+      "duration": 9.2e-05,
+      "audio_s": 3.4000000000000004,
+      "bytes": 6400
+    },
+    {
+      "at": 3.580693,
+      "duration": 7.2e-05,
+      "audio_s": 3.6,
+      "bytes": 6400
+    },
+    {
+      "at": 3.785415,
+      "duration": 7.8e-05,
+      "audio_s": 3.8000000000000003,
+      "bytes": 6400
+    },
+    {
+      "at": 3.988049,
+      "duration": 0.000301,
+      "audio_s": 4.0,
+      "bytes": 6400
+    },
+    {
+      "at": 4.177368,
+      "duration": 0.00039,
+      "audio_s": 4.2,
+      "bytes": 6400
+    },
+    {
+      "at": 4.386786,
+      "duration": 0.000334,
+      "audio_s": 4.4,
+      "bytes": 6400
+    },
+    {
+      "at": 4.581026,
+      "duration": 0.000265,
+      "audio_s": 4.6000000000000005,
+      "bytes": 6400
+    },
+    {
+      "at": 4.781282,
+      "duration": 0.000207,
+      "audio_s": 4.8,
+      "bytes": 6400
+    },
+    {
+      "at": 4.989216,
+      "duration": 0.000191,
+      "audio_s": 5.0,
+      "bytes": 6400
+    },
+    {
+      "at": 5.185351,
+      "duration": 0.000245,
+      "audio_s": 5.2,
+      "bytes": 6400
+    },
+    {
+      "at": 5.379384,
+      "duration": 7.2e-05,
+      "audio_s": 5.4,
+      "bytes": 6400
+    },
+    {
+      "at": 5.585759,
+      "duration": 0.000112,
+      "audio_s": 5.6000000000000005,
+      "bytes": 6400
+    },
+    {
+      "at": 5.781088,
+      "duration": 0.000119,
+      "audio_s": 5.8,
+      "bytes": 6400
+    },
+    {
+      "at": 5.980674,
+      "duration": 0.000101,
+      "audio_s": 6.0,
+      "bytes": 6400
+    },
+    {
+      "at": 6.181162,
+      "duration": 0.000215,
+      "audio_s": 6.2,
+      "bytes": 6400
+    },
+    {
+      "at": 6.387124,
+      "duration": 0.00034,
+      "audio_s": 6.4,
+      "bytes": 6400
+    },
+    {
+      "at": 6.577049,
+      "duration": 0.000348,
+      "audio_s": 6.6000000000000005,
+      "bytes": 6400
+    },
+    {
+      "at": 6.777846,
+      "duration": 0.000188,
+      "audio_s": 6.8,
+      "bytes": 6400
+    },
+    {
+      "at": 6.987806,
+      "duration": 0.000147,
+      "audio_s": 7.0,
+      "bytes": 6400
+    },
+    {
+      "at": 7.184293,
+      "duration": 0.000256,
+      "audio_s": 7.2,
+      "bytes": 6400
+    },
+    {
+      "at": 7.381368,
+      "duration": 0.000319,
+      "audio_s": 7.4,
+      "bytes": 6400
+    },
+    {
+      "at": 7.580974,
+      "duration": 0.000325,
+      "audio_s": 7.6000000000000005,
+      "bytes": 6400
+    },
+    {
+      "at": 7.786415,
+      "duration": 0.000207,
+      "audio_s": 7.8,
+      "bytes": 6400
+    },
+    {
+      "at": 7.981205,
+      "duration": 0.000218,
+      "audio_s": 8.0,
+      "bytes": 6400
+    },
+    {
+      "at": 8.17665,
+      "duration": 0.000282,
+      "audio_s": 8.2,
+      "bytes": 6400
+    },
+    {
+      "at": 8.382655,
+      "duration": 0.000249,
+      "audio_s": 8.399999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 8.586132,
+      "duration": 0.000312,
+      "audio_s": 8.6,
+      "bytes": 6400
+    },
+    {
+      "at": 8.784553,
+      "duration": 0.000147,
+      "audio_s": 8.799999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 8.976794,
+      "duration": 0.000157,
+      "audio_s": 9.0,
+      "bytes": 6400
+    },
+    {
+      "at": 9.188592,
+      "duration": 0.000115,
+      "audio_s": 9.2,
+      "bytes": 6400
+    },
+    {
+      "at": 9.384726,
+      "duration": 0.000196,
+      "audio_s": 9.399999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 9.580229,
+      "duration": 0.000226,
+      "audio_s": 9.6,
+      "bytes": 6400
+    },
+    {
+      "at": 9.780988,
+      "duration": 0.000121,
+      "audio_s": 9.799999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 9.977727,
+      "duration": 0.000337,
+      "audio_s": 10.0,
+      "bytes": 6400
+    },
+    {
+      "at": 10.180216,
+      "duration": 0.000153,
+      "audio_s": 10.2,
+      "bytes": 6400
+    },
+    {
+      "at": 10.379941,
+      "duration": 0.000104,
+      "audio_s": 10.399999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 10.57754,
+      "duration": 0.000302,
+      "audio_s": 10.6,
+      "bytes": 6400
+    },
+    {
+      "at": 10.784679,
+      "duration": 0.000156,
+      "audio_s": 10.799999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 10.977916,
+      "duration": 0.000168,
+      "audio_s": 11.0,
+      "bytes": 6400
+    },
+    {
+      "at": 11.178439,
+      "duration": 0.000371,
+      "audio_s": 11.2,
+      "bytes": 6400
+    },
+    {
+      "at": 11.373446,
+      "duration": 0.000217,
+      "audio_s": 11.399999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 11.587073,
+      "duration": 0.000349,
+      "audio_s": 11.6,
+      "bytes": 6400
+    },
+    {
+      "at": 11.785299,
+      "duration": 0.00017,
+      "audio_s": 11.799999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 11.978937,
+      "duration": 0.000254,
+      "audio_s": 12.0,
+      "bytes": 6400
+    },
+    {
+      "at": 12.186944,
+      "duration": 0.00031,
+      "audio_s": 12.2,
+      "bytes": 6400
+    },
+    {
+      "at": 12.384937,
+      "duration": 0.000315,
+      "audio_s": 12.399999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 12.584178,
+      "duration": 0.000384,
+      "audio_s": 12.6,
+      "bytes": 6400
+    },
+    {
+      "at": 12.780641,
+      "duration": 0.00018,
+      "audio_s": 12.799999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 12.986967,
+      "duration": 0.000197,
+      "audio_s": 13.0,
+      "bytes": 6400
+    },
+    {
+      "at": 13.185336,
+      "duration": 0.000216,
+      "audio_s": 13.2,
+      "bytes": 6400
+    },
+    {
+      "at": 13.379271,
+      "duration": 0.000212,
+      "audio_s": 13.399999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 13.577278,
+      "duration": 0.000287,
+      "audio_s": 13.6,
+      "bytes": 6400
+    },
+    {
+      "at": 13.783525,
+      "duration": 0.000122,
+      "audio_s": 13.799999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 13.984424,
+      "duration": 0.00027,
+      "audio_s": 14.0,
+      "bytes": 6400
+    },
+    {
+      "at": 14.179648,
+      "duration": 0.000115,
+      "audio_s": 14.2,
+      "bytes": 6400
+    },
+    {
+      "at": 14.376803,
+      "duration": 0.000129,
+      "audio_s": 14.399999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 14.584756,
+      "duration": 0.000121,
+      "audio_s": 14.6,
+      "bytes": 6400
+    },
+    {
+      "at": 14.784627,
+      "duration": 0.000115,
+      "audio_s": 14.799999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 14.980305,
+      "duration": 0.000191,
+      "audio_s": 15.0,
+      "bytes": 6400
+    },
+    {
+      "at": 15.186176,
+      "duration": 0.000322,
+      "audio_s": 15.2,
+      "bytes": 6400
+    },
+    {
+      "at": 15.376871,
+      "duration": 0.000137,
+      "audio_s": 15.399999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 15.581068,
+      "duration": 8.9e-05,
+      "audio_s": 15.6,
+      "bytes": 6400
+    },
+    {
+      "at": 15.779748,
+      "duration": 0.000119,
+      "audio_s": 15.799999999999999,
+      "bytes": 6400
+    },
+    {
+      "at": 15.977178,
+      "duration": 0.000308,
+      "audio_s": 16.0,
+      "bytes": 6400
+    },
+    {
+      "at": 16.187053,
+      "duration": 0.000412,
+      "audio_s": 16.2,
+      "bytes": 6400
+    },
+    {
+      "at": 16.384618,
+      "duration": 0.000307,
+      "audio_s": 16.4,
+      "bytes": 6400
+    },
+    {
+      "at": 16.577431,
+      "duration": 0.000296,
+      "audio_s": 16.599999999999998,
+      "bytes": 6400
+    },
+    {
+      "at": 16.783465,
+      "duration": 0.000195,
+      "audio_s": 16.8,
+      "bytes": 6400
+    },
+    {
+      "at": 16.984532,
+      "duration": 0.000206,
+      "audio_s": 17.0,
+      "bytes": 6400
+    },
+    {
+      "at": 17.181383,
+      "duration": 0.000206,
+      "audio_s": 17.2,
+      "bytes": 6400
+    },
+    {
+      "at": 17.386377,
+      "duration": 6.3e-05,
+      "audio_s": 17.4,
+      "bytes": 6400
+    },
+    {
+      "at": 17.585507,
+      "duration": 0.00014,
+      "audio_s": 17.599999999999998,
+      "bytes": 6400
+    },
+    {
+      "at": 17.780869,
+      "duration": 0.000205,
+      "audio_s": 17.645125,
+      "bytes": 1444
+    }
+  ],
+  "ticks": [
+    0.021089,
+    0.021132,
+    0.021114,
+    0.02112,
+    0.063108,
+    0.196006,
+    0.198588,
+    0.2051,
+    0.192781,
+    0.203601,
+    0.200326,
+    0.199968,
+    0.205342,
+    0.191385,
+    0.206976,
+    0.197169,
+    0.201102,
+    0.197269,
+    0.202116,
+    0.19838,
+    0.204844,
+    0.202597,
+    0.189302,
+    0.209914,
+    0.193933,
+    0.199982,
+    0.208134,
+    0.196203,
+    0.193679,
+    0.206458,
+    0.195417,
+    0.199491,
+    0.200529,
+    0.206051,
+    0.190211,
+    0.200565,
+    0.209945,
+    0.196378,
+    0.197508,
+    0.199466,
+    0.205131,
+    0.194724,
+    0.195615,
+    0.205994,
+    0.203458,
+    0.198538,
+    0.192146,
+    0.211629,
+    0.196155,
+    0.195532,
+    0.200691,
+    0.196841,
+    0.202389,
+    0.199716,
+    0.197721,
+    0.207051,
+    0.193312,
+    0.20057,
+    0.194922,
+    0.213774,
+    0.198068,
+    0.193652,
+    0.208058,
+    0.198062,
+    0.19924,
+    0.196326,
+    0.206483,
+    0.198493,
+    0.193932,
+    0.197868,
+    0.206242,
+    0.201094,
+    0.194865,
+    0.197141,
+    0.207928,
+    0.199885,
+    0.195741,
+    0.206444,
+    0.190283,
+    0.203954,
+    0.198756,
+    0.197863,
+    0.210074,
+    0.197663,
+    0.192297,
+    0.205807,
+    0.201053,
+    0.196876,
+    0.205,
+    0.199246,
+    0.195245,
+    0.048815,
+    0.021056,
+    0.021144,
+    0.021183,
+    0.021212,
+    0.020744,
+    0.021082,
+    0.020738,
+    0.021194,
+    0.02125,
+    0.02118,
+    0.021106,
+    0.021065,
+    0.021089,
+    0.021216,
+    0.021201,
+    0.021232,
+    0.021121,
+    0.021143,
+    0.021093,
+    0.020715,
+    0.021124,
+    0.020701,
+    0.020533,
+    0.02119,
+    0.021482,
+    0.020308,
+    0.021198,
+    0.020281,
+    0.021137,
+    0.020647,
+    0.020792,
+    0.021139,
+    0.021225,
+    0.02121,
+    0.021174,
+    0.021119,
+    0.021081,
+    0.021087,
+    0.021078,
+    0.021108,
+    0.021096,
+    0.021059,
+    0.021057,
+    0.021081,
+    0.021192,
+    0.021168,
+    0.021105,
+    0.0211,
+    0.021972,
+    0.021171,
+    0.021314,
+    0.02049,
+    0.021364,
+    0.021028,
+    0.020168,
+    0.021129,
+    0.021115,
+    0.021133,
+    0.021237,
+    0.02123,
+    0.02123,
+    0.020326,
+    0.021127,
+    0.021093,
+    0.021081,
+    0.021095,
+    0.021081,
+    0.02116,
+    0.020601
+  ],
+  "wire": [
+    {
+      "at": 0.437055,
+      "action": "run-task"
+    },
+    {
+      "at": 17.829667,
+      "action": "finish-task"
+    }
+  ],
+  "sent_audio_s": 17.645124999999968,
+  "auto_proxy": null,
+  "sdk_start_returned": 0.17135,
+  "audio_started": 0.171436,
+  "connect_start": 0.18658,
+  "connected": 0.436884,
+  "socket_peer": [
+    "198.18.0.200",
+    443
+  ],
+  "finish_requested": 17.821522,
+  "completed": 19.133036,
+  "stop_returned": 19.291534,
+  "first_text_from_audio_s": 1.206,
+  "tail_s": 1.312,
+  "send_max_ms": 0.412,
+  "loop_max_gap_ms": 213.774,
+  "final_sentence_lags_s": [
+    1.886,
+    1.491
+  ],
+  "status": "SUCCEEDED",
+  "first_text_after_first_wire_s": 0.853,
+  "parameters_note": "pcm/16000/keep_dialect/zh,en/semantic flag",
+  "trial_name": "sdk-auto-semantic-1"
+}

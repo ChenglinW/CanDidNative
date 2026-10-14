@@ -91,6 +91,7 @@ class Gateway:
             self._status(response.status_code)
             if not response.headers.get('content-type', '').startswith('text/event-stream'):
                 raise Fault('AGENT_STREAM_UNAVAILABLE', '模型网关未返回流式响应，请检查当前模型的流式支持', 502)
+            if cancellation:cancellation.register(response.close)
             try:
                 for line in response.iter_lines():
                     if cancellation:
@@ -139,3 +140,6 @@ class Gateway:
                 return result
             except (ValueError, KeyError, IndexError, TypeError):
                 raise Fault('AGENT_INVALID_OUTPUT', '模型没有返回完整流式回答，消息已保留，可以重试', 502) from None
+
+            finally:
+                if cancellation:cancellation.unregister(response.close)

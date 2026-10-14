@@ -82,6 +82,10 @@ struct PendingRecording: Codable, Identifiable {
     private var pausedAt: Date?
     private var streamOffsetMS = 0
     private var deviceLiveBlocked = false
+    private var audioLease:UUID?
+    private var playbackLease:UUID?
+    private weak var audioResources:AudioResources?
+    private var liveFatalError=false
     private var engine: AVAudioEngine?
     private var socket: URLSessionWebSocketTask?
     private var receiver: Task<Void,Never>?
@@ -105,7 +109,10 @@ struct PendingRecording: Codable, Identifiable {
     private var routeObserver: NSObjectProtocol?
     var voiceThreadID: String?
     private var voiceRequestID=UUID().uuidString
-    private var bufferCount = 0
+    private var liveQueue:[Data]=[]
+    private var liveQueueBytes=0
+    private var liveStartupAllowance=0
+    private var liveReconnects=0
     private var completedClips: Set<String> = []
     private var clipQueue: [String] = []
     private var finishedPlaying = false
@@ -140,6 +147,7 @@ struct PendingRecording: Codable, Identifiable {
         if let data=try? JSONEncoder().encode(pending) { try? data.write(to:pendingPath,options:[.atomic,.completeFileProtection]) }
     }
     func start(store: Store, voice: Bool) async {
+        guard !store.audio.voiceActive else {notice="请先结束语音对话，再开始沟通录音。";return}
         guard !recording,!finishing,!uploading,!meetingPreparing,!meetingSyncing, store.remote else { notice="请先连接后端，或等待当前录音处理。"; return }
         guard store.soundcore.recordStatus == 0 else { notice="设备正在录音，请先结束本场录音再使用手机麦克风。"; return }
         if !voice && store.capabilities?.recording_mode == "device" { notice="正式沟通录音请连接安克设备并按设备按钮开始。"; return }
@@ -167,6 +175,7 @@ struct PendingRecording: Codable, Identifiable {
             let folder=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("Recordings")
             try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
             let url=folder.appendingPathComponent(identifier+".m4a");fileURL=url
+            audioResources=store.audio;audioLease=try store.audio.acquire(.meeting)
             let audio=AVAudioSession.sharedInstance()
             try audio.setCategory(.playAndRecord,mode:.default,options:[.defaultToSpeaker,.allowBluetoothHFP])
             try audio.setActive(true)
@@ -205,8 +214,9 @@ struct PendingRecording: Codable, Identifiable {
         } catch { notice=error.localizedDescription; await finishCapture() }
     }
     private func openLive(api: API,sid: String?) async {
-        receiver?.cancel();socket?.cancel(with:.goingAway,reason:nil)
-        let epoch=UUID();streamID=epoch;nextSequence=0;liveReady=false;liveFinished=false;bufferCount=0
+        receiver?.cancel();sendTail?.cancel();sendTail=nil;socket?.cancel(with:.goingAway,reason:nil)
+        let epoch=UUID();streamID=epoch;nextSequence=0;liveReady=false;liveFinished=false;liveFatalError=false
+        liveQueue=[];liveQueueBytes=0;liveStartupAllowance=0
         captionState = liveSentences.isEmpty ? .connecting : .reconnecting
         streamOffsetMS=seconds*1000
         let offsetMS=streamOffsetMS
@@ -225,9 +235,9 @@ struct PendingRecording: Codable, Identifiable {
                         switch value { case .data(let data):raw=data;case .string(let text):raw=Data(text.utf8);@unknown default:continue }
                         guard let event=try JSONSerialization.jsonObject(with:raw) as? [String:Any],let self,self.streamID==epoch else { return }
                         let type=event["type"] as? String
-                        if type=="ready" { self.liveReady=true;self.captionState = .ready }
-                        if type=="finished" { self.liveFinished=true;self.captionState = .finished;return }
-                        if type=="error" { self.notice=event["message"] as? String;self.liveReady=false;self.captionState = .unavailable }
+                        if type=="ready" { self.liveReady=true;self.liveStartupAllowance=self.liveQueueBytes;self.liveReconnects=0;self.captionState = .ready;self.flushLive() }
+                        if type=="finished" { self.liveFinished=true;if event["complete"] as? Bool != true {self.hasCaptionGap=true;self.notice="实时结果未完整，录后精转写会使用完整文件。"};self.captionState = .finished;return }
+                        if type=="error" { self.notice=event["message"] as? String;self.liveReady=false;self.liveFatalError=event["retryable"] as? Bool != true;self.captionState = .unavailable }
                         if type=="transcript",let sentence=event["sentence"] as? [String:Any],let text=sentence["text"] as? String {
                             let key=epoch.uuidString+":"+String(describing:sentence["sentence_id"] ?? sentence["begin_time"] ?? 0)
                             let stable=sentence["sentence_end"] as? Bool == true || (sentence["end_time"] != nil && !(sentence["end_time"] is NSNull))
@@ -248,11 +258,12 @@ struct PendingRecording: Codable, Identifiable {
                 } catch {
                     guard let self,self.streamID==epoch else { return }
                     guard self.recording else {self.captionState = .finished;return}
-                    if self.deviceLiveBlocked {self.captionState = .unavailable;return}
+                    if self.deviceLiveBlocked || self.liveFatalError || self.liveReconnects>=3 {self.captionState = .unavailable;self.notice="实时字幕已暂停，完整录音仍保留；可手动恢复。";return}
                     self.liveReady=false;self.liveFinished=true;self.captionState = .reconnecting;self.hasCaptionGap=true
                     self.notice=self.meetingSource == "soundcore" ? "实时字幕已断开，设备录音仍保留。":"实时字幕已断开，完整录音仍在本机保存。"
                     if self.recording && !self.phonePaused && !self.devicePaused {
-                        try? await Task.sleep(for:.seconds(2))
+                        self.liveReconnects+=1
+                        try? await Task.sleep(for:.seconds(Double(1 << self.liveReconnects)))
                         if self.recording && self.streamID==epoch && !self.phonePaused && !self.devicePaused { await self.openLive(api:api,sid:sid) }
                     }
                 }
@@ -262,16 +273,28 @@ struct PendingRecording: Codable, Identifiable {
     private var liveOrder:[String]=[]
     private var liveText:[String]=[]
     private func sendFrame(_ data:Data) {
-        guard liveReady,let task=socket,recording else { return }
-        guard bufferCount<32 else { hasCaptionGap=true;notice="网络发送较慢，部分实时字幕缺失；录后精转写会使用完整文件。";return }
-        let seq=nextSequence;nextSequence+=1;bufferCount+=1
-        let epoch=streamID;let previous=sendTail
+        guard recording,!liveFatalError,!liveFinished else{return}
+        let limit=liveReady ? 64000+liveStartupAllowance:320000
+        guard liveQueueBytes+data.count<=limit else {
+            hasCaptionGap=true;liveFatalError=true;captionState = .unavailable
+            notice="网络未能及时发送实时音频，字幕已暂停；录后精转写使用完整文件。"
+            socket?.cancel(with:.goingAway,reason:nil);return
+        }
+        liveQueue.append(data);liveQueueBytes+=data.count;flushLive()
+    }
+    private func flushLive() {
+        guard liveReady,sendTail==nil,!liveFatalError,let task=socket else{return}
+        let epoch=streamID
         sendTail=Task { [weak self] in
-            await previous?.value
-            guard let self,self.streamID==epoch else { return }
-            defer { self.bufferCount=max(0,self.bufferCount-1) }
-            do { try await task.send(.string(String(data:JSONSerialization.data(withJSONObject:["seq":seq,"audio":data.base64EncodedString()]),encoding:.utf8)!)) }
-            catch { self.liveReady=false;self.captionState = .reconnecting;self.hasCaptionGap=true;self.notice="实时音频发送中断，文件仍保留。";task.cancel(with:.goingAway,reason:nil) }
+            guard let self else{return};defer{if streamID==epoch {sendTail=nil}}
+            do {
+                while !liveQueue.isEmpty,streamID==epoch,!Task.isCancelled {
+                    let data=liveQueue.removeFirst();let seq=nextSequence;nextSequence+=1
+                    try await task.send(.string(String(data:JSONSerialization.data(withJSONObject:["seq":seq,"audio":data.base64EncodedString()]),encoding:.utf8)!))
+                    guard streamID==epoch else{return}
+                    liveQueueBytes-=data.count;liveStartupAllowance=max(0,liveStartupAllowance-data.count)
+                }
+            } catch {if streamID==epoch {liveReady=false;captionState = .reconnecting;hasCaptionGap=true;notice="实时音频发送中断，文件仍保留。";task.cancel(with:.goingAway,reason:nil)}}
         }
     }
     func finishCapture() async {
@@ -280,12 +303,15 @@ struct PendingRecording: Codable, Identifiable {
         let wasRecording=recording;recording=false;clock?.cancel();clock=nil
         if wasRecording && meetingSource != "soundcore" { seconds=phoneElapsedSeconds }
         phonePaused=false;pausedAt=nil
-        await sendTail?.value
-        if let task=socket,liveReady {
-            try? await task.send(.string("{\"type\":\"finish\"}"))
+        // A short recording can end while upstream readiness is still pending.
+        for _ in 0..<160 {if liveReady || liveFinished || liveFatalError || socket==nil {break};try? await Task.sleep(for:.milliseconds(100))}
+        flushLive();await sendTail?.value
+        if let task=socket,liveReady,!liveFatalError {
+            try? await task.send(.string("{\"type\":\"finish\",\"last_seq\":\(nextSequence-1)}"))
             for _ in 0..<40 { if liveFinished { break };try? await Task.sleep(for:.milliseconds(500)) }
         }
-        liveReady=false;receiver?.cancel();socket?.cancel(with:.normalClosure,reason:nil);socket=nil;captionState = .finished
+        liveReady=false;receiver?.cancel();sendTail?.cancel();sendTail=nil;socket?.cancel(with:.normalClosure,reason:nil);socket=nil;liveQueue=[];liveQueueBytes=0;liveStartupAllowance=0;liveReconnects=0;captionState = .finished
+        if let audioLease {audioResources?.release(audioLease)};audioLease=nil
         try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
         if let sid=sessionID,let i=pending.firstIndex(where:{$0.id==sid}) { pending[i].milliseconds=max(1,seconds*1000);persistPending() }
     }
@@ -341,17 +367,22 @@ struct PendingRecording: Codable, Identifiable {
             await startDevice(store:store,device:device)
         } else if recording,let api=connection { await openLive(api:api,sid:sessionID) }
     }
-    func stopPlayback() { if let (api,id)=ttsJob { speechCancel=Task { _=try? await api.raw("/v1/business-jobs/"+id+"/cancel",method:"POST") };ttsJob=nil };playback?.cancel();playback=nil;player?.stop();player=nil;playing=false;paused=false }
+    func stopPlayback() { if let playbackLease {audioResources?.release(playbackLease)};playbackLease=nil;if let (api,id)=ttsJob { speechCancel=Task { _=try? await api.raw("/v1/business-jobs/"+id+"/cancel",method:"POST") };ttsJob=nil };playback?.cancel();playback=nil;player?.stop();player=nil;playing=false;paused=false }
     func pausePlayback() { paused.toggle();if paused { player?.pause() } else { player?.play() } }
-    func speak(_ message:ChatMessage,api:API) {
-        stopPlayback();notice=nil;completedClips=[]
+    func speak(_ message:ChatMessage,api:API,resources:AudioResources?=nil) {
+        guard resources?.voiceActive != true else {notice="请先暂停或结束连续语音，再播放历史回答。";return}
+        stopPlayback();
+        if let resources {do {audioResources=resources;playbackLease=try resources.acquire(.manualSpeech)} catch {notice=error.localizedDescription;return}}
+        notice=nil;completedClips=[]
+        let ownedLease=playbackLease
         playback=Task { [weak self] in
             guard let self else { return }
+            defer {if let ownedLease {resources?.release(ownedLease)};if self.playbackLease==ownedLease {self.playbackLease=nil}}
             do {
                 await self.speechCancel?.value
                 try Task.checkCancellation()
                 let job:BusinessJob=try await api.call("/v1/chat/messages/"+message.id+"/speak",method:"POST")
-                self.ttsJob=(api,job.id)
+                try Task.checkCancellation();self.ttsJob=(api,job.id)
                 for _ in 0..<600 {
                     try Task.checkCancellation()
                     let current:BusinessJob=try await api.call("/v1/business-jobs/"+job.id)
@@ -360,6 +391,8 @@ struct PendingRecording: Codable, Identifiable {
                     for clip in outputs.sorted(by:{$0.part<$1.part}) where !self.completedClips.contains(clip.id) {
                         try Task.checkCancellation()
                         let raw=try await api.raw("/v1/speech/"+clip.id)
+                        try Task.checkCancellation()
+                        if let ownedLease,resources?.owns(ownedLease) != true {return}
                         let session=AVAudioSession.sharedInstance();try session.setCategory(.playback,mode:.spokenAudio);try session.setActive(true)
                         self.player=try AVAudioPlayer(data:raw);self.player?.play();self.playing=true
                         while self.player?.isPlaying == true || self.paused { try Task.checkCancellation();try await Task.sleep(for:.milliseconds(100)) }
@@ -379,37 +412,15 @@ struct SpeechClip:Decodable,Identifiable { var id:String;var part:Int }
 struct SpeechToolbar: View {
     @EnvironmentObject var store: Store
     @ObservedObject var speech: SpeechController
-    @State private var voicePreview=false
     var body: some View {
         VStack(alignment:.leading,spacing:6) {
-            if speech.recording && speech.voiceMessage {
-                HStack {
-                    Label("语音消息",systemImage:"mic").foregroundStyle(Warm.purple)
-                    Text(RecordingFormat.clock(speech.seconds)).monospacedDigit()
-                    Spacer()
-                    Button("结束") { Task { await speech.finishCapture();voicePreview=true } }.frame(minHeight:44)
-                }.font(.caption)
-                Text(speech.preview).font(.caption).lineLimit(2)
-            } else {
-                HStack {
-                    Button { store.recordingNavigation.section = .recordings } label: { Label("录音库",systemImage:"waveform") }
-                    Spacer()
-                    Button { store.recordingNavigation.newMeeting = !speech.activeMeeting && store.soundcore.recordStatus==0;store.recordingNavigation.showRecorder=true } label: { Label("沟通录音",systemImage:"record.circle") }
-                    Button { Task { await speech.start(store:store,voice:true) } } label: { Image(systemName:"mic") }
-                        .accessibilityLabel("给 Agent 发语音消息")
-                        .disabled(speech.activeMeeting || store.soundcore.recordStatus != 0)
-                }.font(.caption).frame(minHeight:44)
-            }
-            if speech.finishing && speech.voiceMessage { Label("正在接收最后的语音文字",systemImage:"ellipsis").font(.caption) }
-            if speech.playing { HStack { Button("暂停/继续") { speech.pausePlayback() };Button("停止播报") { speech.stopPlayback() } }.font(.caption).frame(minHeight:44) }
-            if speech.voiceMessage,let notice=speech.notice { Text(notice).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
-        }.padding(.horizontal,22).disabled(speech.finishing || speech.uploading || speech.meetingPreparing || speech.meetingSyncing)
-        .sheet(isPresented:$voicePreview) {
-            NavigationStack {
-                VStack { TextEditor(text:$speech.preview).padding();Button("发送到原空间") { Task { await speech.sendVoice(store:store);voicePreview=false } }.buttonStyle(.borderedProminent).padding() }
-                    .navigationTitle("语音消息").toolbar { Button("保留文字") { store.saveVoiceDraft(speech.preview,threadID:speech.voiceThreadID);voicePreview=false } }
-            }
-        }
+            HStack {
+                Button { store.recordingNavigation.section = .recordings } label:{Label("录音库",systemImage:"waveform")}
+                Spacer()
+                Button {store.recordingNavigation.newMeeting = !speech.activeMeeting && store.soundcore.recordStatus==0;store.recordingNavigation.showRecorder=true} label:{Label("沟通录音",systemImage:"record.circle")}
+            }.font(.caption).frame(minHeight:44)
+            if speech.playing {HStack {Button("暂停/继续") {speech.pausePlayback()};Button("停止播报") {speech.stopPlayback()}}.font(.caption).frame(minHeight:44)}
+        }.padding(.horizontal,22)
     }
 }
 struct TagEditor:View {
@@ -597,6 +608,7 @@ extension SpeechController {
               device.currentFileID==reference.fileID,device.connected?.uuid==reference.deviceID else { return }
         store.stopPlayback();stopPlayback()
         do {
+            audioResources=store.audio;audioLease=try store.audio.acquire(.meeting)
             let decoder=try DevicePCMDecoder();recording=true;started=Date();seconds=device.durationMS/1000
             await openLive(api:store.api,sid:reference.sessionID)
             guard recording,device.recordStatus != 0,device.currentFileID==reference.fileID else { await finishCapture();return }

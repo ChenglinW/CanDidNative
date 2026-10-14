@@ -1,0 +1,5 @@
+2026-10-14
+Command: sh scripts/check-ios.sh --build
+Result: BUILD SUCCEEDED
+Configuration: Debug; generic iOS Simulator; arm64 and x86_64
+No XCTest, UI test, or microphone/provider validation executed.

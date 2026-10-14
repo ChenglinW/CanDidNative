@@ -109,11 +109,11 @@ def test_delete_during_network_request_cannot_resurrect_memory(m):
     assert not m.rows('sessions', OWNER) and not m.rows('diagnoses', OWNER)
 
 
-def test_api_explicit_consent_idempotency_and_real_review(m, monkeypatch, tmp_path):
+def test_api_explicit_consent_idempotency_and_real_review(m, monkeypatch, tmp_path, bind_app_store):
     monkeypatch.setenv('CANDID_DATA_DIR', str(tmp_path/'api'))
     import app
     from fastapi.testclient import TestClient
-    monkeypatch.setattr(app, 'store', m); monkeypatch.setattr(app, 'LOCAL_TOKEN', 'test-token')
+    bind_app_store(app,m)
     c = TestClient(app.app); headers = {'Authorization': 'Bearer test-token'}
     assert c.get('/v1/capabilities').status_code == 401
     capability = c.get('/v1/capabilities', headers=headers).json()

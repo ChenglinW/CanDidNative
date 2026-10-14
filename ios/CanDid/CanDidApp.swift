@@ -66,6 +66,7 @@ struct RootView: View {
             else { store.soundcore.stopScan() }
         }
         .task { await store.restoreConnection() }
+        .modifier(VoicePresentation(voice:store.voice))
     }
 }
 struct WelcomeView: View {

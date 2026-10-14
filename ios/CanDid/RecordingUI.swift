@@ -115,6 +115,7 @@ struct RecordingShell: View {
         .task { await store.observeDeviceActions() }
     }
     private func coordinateDevice() {
+        if device.recordStatus != 0 && store.voice.active {store.voice.pause(reason:"设备已开始沟通录音，语音对话已暂停。")}
         guard device.recordStatus != 0,store.remote,!speech.meetingPreparing,!speech.finishing else { return }
         guard speech.hasMeetingConsent(store.api) else {return}
         Task {
