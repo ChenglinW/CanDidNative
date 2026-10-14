@@ -1,3 +1,5 @@
+> 2026-10-14 Agent demo 更新：项目空间、资料/调研、录音/ASR、标签、归档学习与TTS已接入代码；本轮只构建和启动，功能与设备待测开验收。先看[交付说明](docs/AGENT_DELIVERY.md)、[队友接入](docs/TEAM_SETUP.md)及[迁移准备](docs/MIGRATION.md)。团队服务密钥通过加密配置包导入，不需要写进App。
+
 # CanDid 原生 iOS 动态记忆库原型
 
 这是 SwiftUI 原生 iOS 客户端与 FastAPI 后端工程，不是 HTML 或 WebView 包装。依据《Can Did 动态记忆库 PRD 与技术规格 v0.1》和此前温暖版视觉开发。

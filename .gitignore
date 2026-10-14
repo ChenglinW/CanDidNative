@@ -6,6 +6,11 @@ __pycache__/
 *.xcuserstate
 xcuserdata/
 .env
+.env.*.local
 资料包/
 .build/
 ios/Vendor/
+
+# Plaintext team credentials and out-of-band decryption password
+.secrets/
+*.password

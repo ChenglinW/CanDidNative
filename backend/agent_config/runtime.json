@@ -1,0 +1,59 @@
+{
+  "version": "agent-runtime@9-demo",
+  "profiles": {
+    "chat": {
+      "max_rounds": 4,
+      "max_calls_per_round": 4,
+      "max_tool_calls": 12,
+      "max_input_chars": 12000,
+      "history_messages": 20,
+      "history_chars": 24000,
+      "occasion_chars": 4000,
+      "max_context_chars": 120000,
+      "max_tool_result_chars": 64000,
+      "timeout_seconds": 600,
+      "model_timeout_seconds": 90,
+      "tool_timeout_seconds": 120,
+      "context_rules_chars": 6000,
+      "context_soul_chars": 6000,
+      "context_index_chars": 4000,
+      "context_preferences_chars": 2000,
+      "context_task_chars": 2000,
+      "context_skill_chars": 24000,
+      "context_memory_chars": 12000,
+      "context_summary_chars": 8000,
+      "summary_input_chars": 40000,
+      "summary_max_tokens": 4096
+    },
+    "company_research": {
+      "max_rounds": 8,
+      "max_calls_per_round": 4,
+      "max_tool_calls": 20,
+      "max_input_chars": 12000,
+      "history_messages": 20,
+      "history_chars": 24000,
+      "occasion_chars": 4000,
+      "max_context_chars": 180000,
+      "max_tool_result_chars": 64000,
+      "timeout_seconds": 600,
+      "model_timeout_seconds": 90,
+      "tool_timeout_seconds": 120,
+      "context_rules_chars": 6000,
+      "context_soul_chars": 6000,
+      "context_index_chars": 4000,
+      "context_preferences_chars": 2000,
+      "context_task_chars": 2000,
+      "context_skill_chars": 24000,
+      "context_memory_chars": 12000,
+      "context_summary_chars": 8000,
+      "summary_input_chars": 40000,
+      "summary_max_tokens": 4096
+    }
+  },
+  "context_policy": {
+    "automatic_memory": true,
+    "automatic_memory_limit": 4,
+    "summary_mode": "current_text_model",
+    "summary_schema_version": "task-summary@1"
+  }
+}

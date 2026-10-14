@@ -1,0 +1,48 @@
+{
+  "scope": "source/configuration and launch-only checks; no software tests or model calls",
+  "health": "ok",
+  "docs_http_status": 200,
+  "agent_runtime_version": "agent-runtime@2",
+  "agent_configured": true,
+  "skill_mode": "internal_fixed",
+  "skills": [
+    {
+      "name": "communication_prep",
+      "version": "1.0.0",
+      "available": true,
+      "missing_tools": []
+    },
+    {
+      "name": "communication_review",
+      "version": "1.0.0",
+      "available": true,
+      "missing_tools": []
+    },
+    {
+      "name": "memory_draft",
+      "version": "1.0.0",
+      "available": true,
+      "missing_tools": []
+    },
+    {
+      "name": "company_research",
+      "version": "1.0.0",
+      "available": false,
+      "missing_tools": [
+        "enrich_company",
+        "read_source",
+        "search_company"
+      ]
+    }
+  ],
+  "skill_body_fingerprints": "matched",
+  "monid": {
+    "configured": true,
+    "key_configured": true,
+    "budget_configured": false,
+    "integration_enabled": false
+  },
+  "model_routing_verified": false,
+  "scraper_runs_submitted": 0,
+  "ios_ui_changes": false
+}

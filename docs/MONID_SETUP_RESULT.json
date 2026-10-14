@@ -1,0 +1,10 @@
+{
+  "api_base_url": "https://api.monid.ai",
+  "check": "read-only authentication",
+  "http_status": 200,
+  "authenticated": true,
+  "scraper_runs_submitted": 0,
+  "source": "https://monid.ai/SKILL.md",
+  "protocol_source": "official @monid-ai/cli 0.1.7",
+  "integration_enabled": false
+}

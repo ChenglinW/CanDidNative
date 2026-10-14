@@ -48,10 +48,10 @@ struct RootView: View {
         Group {
             if store.onboarding {
                 TabView {
-                    NavigationStack { CompanionView() }.tabItem { Label("Candid", systemImage: "bubble.left.and.bubble.right") }
+                    NavigationStack { ChatView(onSettings: { settings = true }) }.tabItem { Label("Candid", systemImage: "bubble.left.and.bubble.right") }
                     NavigationStack { MemoryView() }.tabItem { Label("记忆库", systemImage: "book.closed") }
                     NavigationStack { OccasionsView() }.tabItem { Label("场合", systemImage: "rectangle.stack") }
-                    NavigationStack { SessionsView() }.tabItem { Label("场次", systemImage: "mic") }
+                    NavigationStack { SessionsView() }.tabItem { Label("录音", systemImage: "mic") }
                 }.toolbarBackground(Warm.white, for: .tabBar)
             } else { WelcomeView() }
         }
@@ -60,13 +60,17 @@ struct RootView: View {
         .alert("需要留意", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("知道了") { store.error = nil } } message: { Text(store.error ?? "") }
         .alert("Candid", isPresented: Binding(get: { store.message != nil }, set: { if !$0 { store.message = nil } })) { Button("好") { store.message = nil } } message: { Text(store.message ?? "") }
         .overlay(alignment: .topTrailing) {
-            Button { settings = true } label: { Image(systemName: "gearshape").padding(12).background(Warm.paper, in: Circle()) }.padding(.trailing, 12).accessibilityLabel("设置与后端连接")
+            if !store.onboarding {
+                Button { settings = true } label: { Image(systemName: "gearshape").padding(12).background(Warm.paper, in: Circle()) }.padding(.trailing, 12).accessibilityLabel("设置与后端连接")
+            }
         }
         .overlay { if store.busy { ProgressView().padding(22).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
         .onChange(of: phase) { _, value in
+            store.chatSceneChanged(active: value == .active)
             if value == .active { store.purgeLocalExpired() }
             else { store.soundcore.stopScan() }
         }
+        .task { await store.restoreConnection() }
     }
 }
 struct WelcomeView: View {
@@ -187,10 +191,10 @@ struct OccasionDetailView: View {
     var body: some View {
         ScrollView { VStack(alignment: .leading, spacing: 18) {
             Text(occasion.title).font(.title.bold()); Text(occasion.fields.goal ?? "目标待补充").foregroundStyle(.secondary)
-            WarmCard(color: Warm.lavender) { Text("先带上可靠的记忆").font(.headline); Text("已确认素材和原文可以作为事实；诊断和短板只能作为推断参考。"); Button("查看准备上下文") { Task { await store.perform { context = try await store.context(occasion) } } } }
+            WarmCard(color: Warm.lavender) { Text("先带上可靠的记忆").font(.headline); Text("已确认素材可复用，原文是沟通证据；诊断和短板作为 AI 建议参考。"); Button("查看准备上下文") { Task { await store.perform { context = try await store.context(occasion) } } } }
             if let context {
                 ForEach(context.sections) { section in
-                    ForEach(section.items) { item in WarmCard { Text(item.trust == "FACT" ? "事实" : "推断 · 之前的分析认为").font(.caption).foregroundStyle(Warm.purple); Text(item.text).font(.subheadline).textSelection(.enabled) } }
+                    ForEach(section.items) { item in WarmCard { Text(item.trust == "FACT" ? "用户已确认" : item.trust == "EVIDENCE" ? "原始证据 · 用户原话" : "AI 推断 · 待核实").font(.caption).foregroundStyle(Warm.purple); Text(item.text).font(.subheadline).textSelection(.enabled) } }
                 }
                 if context.sections.allSatisfy({ $0.items.isEmpty }) { Text("还没有可用于准备的已确认记忆。先到记忆库确认一条素材。") }
                 if !context.truncated.isEmpty { Text("低优先级内容已截断："+context.truncated.joined(separator: "、")).font(.caption) }
@@ -274,7 +278,7 @@ struct SettingsView: View {
     @EnvironmentObject var store: Store; @Environment(\.dismiss) var dismiss
     @State var token = ""; @State var exportURL: URL?; @State var deleting = false; @State var allowBackend = false
     var body: some View { NavigationStack { Form {
-        Section("运行模式") { Text(store.remote ? "已连接持久化 FastAPI 后端" : "离线示例 · 本机保存"); Button("切回离线示例") { store.loadDemo() } }
+        Section("运行模式") { Text(store.remote ? "已连接持久化 FastAPI 后端" : "离线示例 · 本机保存"); Button("切回离线示例") { UserDefaults.standard.set(false, forKey: "remote-enabled"); store.loadDemo() }.disabled(store.chatBusy) }
         Section("连接后端") {
             TextField("后端地址", text: $store.base).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
             SecureField("本机令牌或 Supabase 用户 JWT", text: $token).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -282,7 +286,14 @@ struct SettingsView: View {
             Text("模拟器连接 http://127.0.0.1:8000。真机填写电脑局域网地址。默认本机令牌由后端生成，不包含服务端密钥。跨境云端部署需要另行同意流程。").font(.footnote)
             Button("连接并读取真实后端数据") { Task { await store.perform { try await store.connect(token: token); dismiss() } } }.disabled(token.isEmpty || !allowBackend)
         }
-        Section("文本分析模型") {
+        Section("文本 Agent") {
+            if store.remote, let capability = store.capabilities {
+                Text(capability.agent_configured == true ? "已连接安克模型网关" : "后端尚未配置文本 Agent")
+                Text(capability.agent_model ?? "未配置").font(.caption)
+                Text("发送的消息及按问题检索的资料会由后端交给模型。AI 回复可以保留为草稿，由你确认后进入长期记忆。").font(.footnote)
+            } else { Text("连接本机后端后可以开始真实文本对话。模型 Key 仅保存在后端。") }
+        }
+        Section("录音文本分析模型") {
             if store.remote, let capability = store.capabilities {
                 LabeledContent("服务", value: capability.llm_provider)
                 LabeledContent("模型", value: capability.llm_model)

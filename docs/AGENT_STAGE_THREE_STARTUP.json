@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-14",
+  "scope": "syntax/configuration, startup and build only; no software tests or chat/summary model validation",
+  "health": "ok",
+  "docs_http_status": 200,
+  "agent_runtime_version": "agent-runtime@3",
+  "memory_contract": "candid-memory@2-draft",
+  "context_policy": {
+    "automatic_memory": true,
+    "automatic_memory_limit": 4,
+    "summary_mode": "current_text_model",
+    "summary_schema_version": "task-summary@1"
+  },
+  "agent_tools": [
+    "search_memory",
+    "read_evidence",
+    "list_occasions",
+    "list_sessions",
+    "read_session",
+    "run_skill"
+  ],
+  "ios_build": "SUCCEEDED",
+  "model_summary_quality_verified": false,
+  "retrieval_quality_verified": false,
+  "remote_memory_enabled": false,
+  "scraper_runs_submitted": 0,
+  "ios_launch": "SUCCEEDED"
+}

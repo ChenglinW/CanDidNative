@@ -1,0 +1,39 @@
+{
+  "name": "company_research",
+  "title": "了解公司",
+  "description": "通过已接通的公开资料搜索、正文读取和公司信息补全，整理带来源的公司沟通背景。",
+  "version": "1.2.1",
+  "body_sha256": "9069dd04152c654d6b13dc8014f5effa2daeee8d91a4bacd4915edb193b7c8d4",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "company_name": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "question": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "required": [
+      "company_name"
+    ],
+    "additionalProperties": false
+  },
+  "allowed_tools": [
+    "search_company",
+    "read_source",
+    "enrich_company",
+    "request_input",
+    "search_materials",
+    "get_video_transcript",
+    "read_material_part"
+  ],
+  "required_tools": [
+    "search_company",
+    "read_source",
+    "enrich_company"
+  ],
+  "output": "带来源的公司背景、沟通相关信息与资料缺口；未接通时不执行或编造报告。"
+}

@@ -32,7 +32,11 @@ struct Session: Codable, Identifiable {
     var recording_source: String?; var device_file_id: Int?
     var pipeline_error_message: String?; var llm_model: String?
 }
-struct Capabilities: Decodable { var llm_configured: Bool; var llm_provider: String; var llm_model: String; var asr_configured: Bool }
+struct Capabilities: Decodable {
+    var llm_configured: Bool; var llm_provider: String; var llm_model: String; var asr_configured: Bool
+    var recording_mode: String?; var tts_configured: Bool?; var monid_research_configured: Bool?
+    var agent_configured: Bool?; var agent_provider: String?; var agent_model: String?
+}
 struct Diagnosis: Codable, Identifiable {
     var id: String; var session_id: String; var dimension: String; var finding: String
     var suggestion: String; var evidence_refs: [Evidence]; var rubric_version: String; var producer: String

@@ -13,8 +13,8 @@ enum SoundcoreAudio {
         let input = try FileHandle(forReadingFrom: raw)
         defer { try? input.close() }
         let size = try input.seekToEnd()
-        guard size > 0, size % UInt64(packetBytes) == 0, size <= 25 * 1024 * 1024 else {
-            throw PrototypeError.message("设备音频为空、不完整或超过 25MB，保留设备原文件以便重新同步。")
+        guard size > 0, size % UInt64(packetBytes) == 0, size <= 2_000_000_000 else {
+            throw PrototypeError.message("设备音频为空、不完整或超过 2GB，保留设备原文件以便重新同步。")
         }
         try input.seek(toOffset: 0)
         var code: Int32 = 0
@@ -42,6 +42,7 @@ enum SoundcoreAudio {
             }
             let chunk = pcm.withUnsafeBytes { Data($0) }
             try output.write(contentsOf: chunk)
+            guard UInt64(bytes)+UInt64(chunk.count)<UInt64(UInt32.max)-36 else { throw PrototypeError.message("设备文件解码超出WAV单文件范围，请按设备分段文件同步。") }
             bytes += UInt32(chunk.count)
         }
         try output.seek(toOffset: 0)

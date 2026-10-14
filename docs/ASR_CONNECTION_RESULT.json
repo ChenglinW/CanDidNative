@@ -1,0 +1,82 @@
+{
+  "date": "2026-10-13",
+  "scope": "Minimal API calls using public vendor sample; no app integration or quality evaluation",
+  "credential_file": ".env.dashscope.local",
+  "credential_permissions": "0600",
+  "credential_git_ignored": true,
+  "sample_url": "https://dashscope.oss-cn-beijing.aliyuncs.com/audios/welcome.mp3",
+  "realtime": {
+    "model": "qwen-audio-3.1-asr-flash-streaming",
+    "status": "SUCCEEDED",
+    "handshake_status": "HTTP/1.1 101 Switching Protocols",
+    "audio_seconds": 1.698,
+    "task_id": "4062b29f32b84c45970aba85ed6dc044",
+    "intermediate_result_count": 3,
+    "final_sentences": [
+      {
+        "sentence_id": 1,
+        "text": "欢迎使用阿里云。",
+        "begin_time": 160,
+        "end_time": 1560,
+        "sentence_end": true
+      }
+    ],
+    "usage": {
+      "duration": 2,
+      "input_tokens": 88,
+      "output_tokens": 4,
+      "total_tokens": 92
+    }
+  },
+  "offline": {
+    "model": "qwen-audio-3.1-asr-flash-filetrans",
+    "http_status": 200,
+    "status": "SUCCEEDED",
+    "task_id": "8ab8ca80-d9bf-470b-8635-a6b9e160653a",
+    "usage": {
+      "duration": 1,
+      "total_tokens": 91,
+      "output_tokens": 4,
+      "input_tokens": 87
+    },
+    "transcripts": [
+      {
+        "channel_id": 0,
+        "content_duration_in_milliseconds": 1360,
+        "text": "欢迎使用阿里云。",
+        "sentences": [
+          {
+            "begin_time": 160,
+            "end_time": 1520,
+            "text": "欢迎使用阿里云。",
+            "sentence_id": 1,
+            "speaker_id": 0,
+            "words": [
+              {
+                "begin_time": 160,
+                "end_time": 520,
+                "text": "欢迎",
+                "punctuation": "",
+                "confidence": 1.0
+              },
+              {
+                "begin_time": 520,
+                "end_time": 880,
+                "text": "使用",
+                "punctuation": "",
+                "confidence": 1.0
+              },
+              {
+                "begin_time": 880,
+                "end_time": 1520,
+                "text": "阿里云",
+                "punctuation": "。",
+                "confidence": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

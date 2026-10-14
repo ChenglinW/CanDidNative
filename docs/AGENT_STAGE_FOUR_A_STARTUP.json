@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-14",
+  "timezone": "Asia/Hong_Kong",
+  "scope": "source_build_launch_and_migration_audit_only",
+  "runtime_version": "agent-runtime@4A",
+  "memory_contract": "candid-memory@3-draft",
+  "source_syntax": "passed",
+  "skill_hashes": "passed",
+  "ios_build": "BUILD SUCCEEDED",
+  "ios_build_log": "/tmp/candid-stage4A-ios-build.log",
+  "backend_startup": "complete",
+  "backend_pid": 40192,
+  "app_launch_receipt": "com.candid.memory.prototype: 39829",
+  "read_only_startup": {
+    "/health": 200,
+    "/docs": 200,
+    "/v1/capabilities": 200,
+    "capabilities": {
+      "agent_runtime_version": "agent-runtime@4A",
+      "agent_memory_contract": "candid-memory@3-draft",
+      "project_spaces_configured": true,
+      "project_space_memory_policy": "explicit_scope_only",
+      "project_archive_analysis_configured": false,
+      "recording_knowledge_configured": false
+    },
+    "/v1/project-spaces": 200,
+    "/openapi.json": 200,
+    "migration": {
+      "original_thread_count": 1,
+      "current_thread_count": 1,
+      "space_count": 1,
+      "unbound_thread_count": 0,
+      "original_message_count": 10,
+      "current_message_count": 10
+    }
+  },
+  "software_tests_run": false,
+  "test_spaces_created": 0,
+  "agent_messages_sent": 0,
+  "paid_model_calls_in_verification": 0,
+  "archive_analysis_implemented": false,
+  "recording_knowledge_implemented": false,
+  "functional_acceptance": "pending_test_team"
+}
