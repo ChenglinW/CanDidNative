@@ -1,5 +1,10 @@
 {
-  "version": "agent-runtime@9-demo",
+  "version": "agent-runtime@10-recovery",
+  "task_limits": {
+    "max_rounds": 8,
+    "max_tool_calls": 20,
+    "timeout_seconds": 600
+  },
   "profiles": {
     "chat": {
       "max_rounds": 4,

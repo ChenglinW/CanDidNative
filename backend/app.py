@@ -764,7 +764,7 @@ def recording_library(tag:str|None=None,uid=Depends(owner)):
         if session.get('fixture'):continue
         tags=[t for t in store.rows('recording_tags',uid,session_id=session['id']) if t.get('active')]
         if tag and not any(tag.lower() in t['label'].lower() for t in tags):continue
-        rows.append({**session,'tags':tags})
+        rows.append({**session,'tags':tags,'jobs':store.rows('business_jobs',uid,object_id=session['id'])})
     return {'data':rows,'next_cursor':None}
 
 @app.get('/v1/recordings/{id}')

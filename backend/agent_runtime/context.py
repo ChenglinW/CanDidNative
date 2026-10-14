@@ -26,6 +26,8 @@ class RunContext:
     cancellation: object | None = None
     attempt: int = 1
     workspace_id: str | None = None
+    budget_profiles: tuple[tuple[str, Budget], ...] = ()
+    budget_ceiling: Budget | None = None
 
     def remaining(self):
         if self.cancellation:

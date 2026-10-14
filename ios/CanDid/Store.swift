@@ -38,6 +38,14 @@ import AVFoundation
     private var player: AVPlayer?
     let soundcore = Soundcore()
     let speech = SpeechController()
+    let recordingNavigation = RecordingNavigation()
+    @Published var recordingPlaybackID: String?
+    @Published var recordingPlaybackPlaying = false
+    @Published var recordingPlaybackPositionMS = 0
+    @Published var recordingPlaybackStartMS = 0
+    @Published var recordingPlaybackEndMS = 0
+    private var recordingPlaybackObserver: Any?
+    private var recordingPlaybackEndObserver: NSObjectProtocol?
     private var localFiles: [String: String] = UserDefaults.standard.dictionary(forKey: "local-recordings") as? [String: String] ?? [:]
     let demoURL: URL
     init() {
@@ -210,7 +218,14 @@ import AVFoundation
         try AVAudioSession.sharedInstance().setCategory(.playback); try AVAudioSession.sharedInstance().setActive(true)
         player?.play()
     }
-    func stopPlayback() { player?.pause() }
+    func stopPlayback() {
+        player?.pause()
+        if let observer=recordingPlaybackObserver { player?.removeTimeObserver(observer) }
+        recordingPlaybackObserver=nil
+        if let observer=recordingPlaybackEndObserver { NotificationCenter.default.removeObserver(observer) }
+        recordingPlaybackEndObserver=nil;player=nil
+        recordingPlaybackID=nil;recordingPlaybackPlaying=false
+    }
     func purge(_ session: Session) async throws {
         stopPlayback()
         if remote { _ = try await api.raw("/v1/sessions/"+session.id+"/audio", method: "DELETE"); try await reload() }
@@ -254,7 +269,10 @@ import AVFoundation
 
 extension Store {
     func playRecording(_ id:String,startMS:Int=0,endMS:Int?=nil) async throws {
-        speech.stopPlayback()
+        guard !speech.activeMeeting,soundcore.recordStatus==0 else { throw PrototypeError.message("请先暂停回听，完成本场录音后再播放。") }
+        speech.stopPlayback();stopPlayback()
+        let api=self.api
+        let playbackIdentity=DeviceRecordingMap.identity(api)
         let link:Link=try await api.call("/v1/sessions/"+id+"/audio?start_ms="+String(startMS))
         guard let path=link.url else { throw PrototypeError.message("原音频不可用") }
         let item=AVPlayerItem(url:try api.url(path))
@@ -262,6 +280,32 @@ extension Store {
         player=AVPlayer(playerItem:item)
         try AVAudioSession.sharedInstance().setCategory(.playback,mode:.spokenAudio);try AVAudioSession.sharedInstance().setActive(true)
         await player?.seek(to:CMTime(seconds:Double(startMS)/1000,preferredTimescale:1000),toleranceBefore:.zero,toleranceAfter:.zero)
+        guard DeviceRecordingMap.identity(api)==playbackIdentity else { stopPlayback();throw PrototypeError.message("后端连接已变化，请重新打开录音。") }
+        recordingPlaybackID=id;recordingPlaybackStartMS=startMS;recordingPlaybackEndMS=endMS ?? 0
+        recordingPlaybackPositionMS=startMS;recordingPlaybackPlaying=true
+        recordingPlaybackObserver=player?.addPeriodicTimeObserver(forInterval:CMTime(seconds:0.25,preferredTimescale:1000),queue:.main) { [weak self] time in
+            Task { @MainActor in
+                guard let self,self.recordingPlaybackID==id else { return }
+                if time.seconds.isFinite { self.recordingPlaybackPositionMS=max(0,Int(time.seconds*1000)) }
+                if endMS==nil,let duration=self.player?.currentItem?.duration.seconds,duration.isFinite,duration>0 { self.recordingPlaybackEndMS=Int(duration*1000) }
+                self.recordingPlaybackPlaying=self.player?.rate != 0
+            }
+        }
+        recordingPlaybackEndObserver=NotificationCenter.default.addObserver(forName:.AVPlayerItemDidPlayToEndTime,object:item,queue:.main) { [weak self] _ in
+            Task { @MainActor in self?.recordingPlaybackPlaying=false }
+        }
         player?.play()
+    }
+    func toggleRecordingPlayback() {
+        if recordingPlaybackPlaying { player?.pause();recordingPlaybackPlaying=false }
+        else {
+            if recordingPlaybackEndMS>0 && recordingPlaybackPositionMS>=recordingPlaybackEndMS-200 { player?.seek(to:CMTime(seconds:Double(recordingPlaybackStartMS)/1000,preferredTimescale:1000)) }
+            player?.play();recordingPlaybackPlaying=true
+        }
+    }
+    func seekRecordingPlayback(_ milliseconds: Double) {
+        let value=max(recordingPlaybackStartMS,min(Int(milliseconds),recordingPlaybackEndMS))
+        player?.seek(to:CMTime(seconds:Double(value)/1000,preferredTimescale:1000),toleranceBefore:.zero,toleranceAfter:.zero)
+        recordingPlaybackPositionMS=value
     }
 }

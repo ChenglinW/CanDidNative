@@ -432,12 +432,12 @@ struct ChatView: View {
                 Text("空间已归档，Candid 会自动整理有依据的个人资料；历史仍可查看。").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 22)
                 Button("恢复这个空间") { Task { await store.archiveProjectSpace(restore: true) } }.frame(minHeight: 44)
             }
-            DeviceLiveBanner(device:store.soundcore,speech:store.speech)
+            RecordingStatusBar(speech:store.speech,device:store.soundcore).environmentObject(store)
             SpeechToolbar(speech:store.speech).environmentObject(store)
             composer
         }
         .background(Warm.paper.ignoresSafeArea()).toolbar(.hidden, for: .navigationBar)
-        .task { await store.observeDeviceActions() }
+
         .sheet(isPresented: $history) { historySheet }
         .sheet(isPresented: $editingSpace) { if let space = store.currentProjectSpace { WorkspaceEditor(space: space).environmentObject(store) } }
         .sheet(isPresented: $materials) { if let space = store.currentProjectSpace { WorkspaceMaterials(space: space).environmentObject(store) } }

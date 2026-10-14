@@ -224,7 +224,7 @@ struct SoundcoreFile: Identifiable {
         case .connectionError:
             connectionTimeout?.cancel(); connectionTimeout = nil
             realtimeReady=false;onLiveAudio=nil;onRecordingEnded?()
-            connected = nil; candidate = nil; connecting = false; status = "设备连接失败"
+            connected = nil; candidate = nil; connecting = false; recordStatus=0;currentFileID=nil;status = "设备连接失败"
             error = "无法连接 soundcore，请检查设备和蓝牙权限后重试。"
             finishTransfer(.failure(PrototypeError.message("设备连接失败，请重新同步。")))
         case .synced(let mac, let uuid, let success):

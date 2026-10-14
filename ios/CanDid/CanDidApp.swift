@@ -47,12 +47,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if store.onboarding {
-                TabView {
-                    NavigationStack { ChatView(onSettings: { settings = true }) }.tabItem { Label("Candid", systemImage: "bubble.left.and.bubble.right") }
-                    NavigationStack { MemoryView() }.tabItem { Label("记忆库", systemImage: "book.closed") }
-                    NavigationStack { OccasionsView() }.tabItem { Label("场合", systemImage: "rectangle.stack") }
-                    NavigationStack { SessionsView() }.tabItem { Label("录音", systemImage: "mic") }
-                }.toolbarBackground(Warm.white, for: .tabBar)
+                RecordingShell(navigation:store.recordingNavigation,speech:store.speech,device:store.soundcore,onSettings:{settings=true})
             } else { WelcomeView() }
         }
         .fontDesign(.rounded).foregroundStyle(Warm.ink)
@@ -199,7 +194,11 @@ struct OccasionDetailView: View {
                 if context.sections.allSatisfy({ $0.items.isEmpty }) { Text("还没有可用于准备的已确认记忆。先到记忆库确认一条素材。") }
                 if !context.truncated.isEmpty { Text("低优先级内容已截断："+context.truncated.joined(separator: "、")).font(.caption) }
             }
-            Button("练习或记录这一场", systemImage: "mic") { recording = true }.buttonStyle(PrimaryButton())
+            Button("开始沟通录音", systemImage: "mic") {
+                store.recordingNavigation.newMeeting = !store.speech.activeMeeting && store.soundcore.recordStatus==0
+                store.recordingNavigation.showRecorder=true
+            }.buttonStyle(PrimaryButton())
+            Button("练习与口述复盘") {recording=true}.frame(minHeight:44)
             Button("运行预处理示例闭环", systemImage: "sparkles") { Task { await store.perform { try await store.fixture(occasion) } } }
             Text("此按钮只产生单独的示例场次，不分析你的实际录音。").font(.caption).foregroundStyle(.secondary)
             if store.remote {
@@ -312,7 +311,7 @@ struct SettingsView: View {
             Text("删除后会停止读取与处理，清理当前后端用户的全部记忆。离线示例数据独立保存。").font(.footnote)
         }
         Section("录音设备") { NavigationLink("soundcore 连接与授权") { SoundcoreDeviceView(device: store.soundcore) } }
-        Section("原型范围") { Text("原生 SwiftUI，soundcore 设备录音同步与音频回放。设备录音由硬件按键开始和结束；SDK 授权及蓝牙连接需要真机验证。后端使用 SQLite，已接入 DeepSeek 文本诊断。ASR 与 Supabase 云端尚未配置。").font(.footnote) }
+        Section("原型范围") { Text("设备录音由硬件按键开始和结束；App 可以暂停、继续、查看实时字幕和同步完整文件。录音与资料由当前连接的后端管理。").font(.footnote) }
     }.navigationTitle("设置与隐私").toolbar { Button("完成") { dismiss() } }
         .confirmationDialog("永久删除当前模式的全部记忆？", isPresented: $deleting) { Button("删除全部记忆", role: .destructive) { Task { await store.perform { try await store.deleteMemory(); dismiss() } } } }
     } }

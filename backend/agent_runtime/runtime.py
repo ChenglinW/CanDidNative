@@ -118,6 +118,8 @@ class TextAgent:
         preferences = {k: v[:1000] for k, v in preferences.items()}
         prompt = compose_prompt(soul, index, preferences)
         return {**dependencies, 'runtime_digest': self.config.digest, 'budget': asdict(budget),
+                'budget_profiles': {name: asdict(value) for name, value in self.config.profiles.items()},
+                'budget_ceiling': asdict(self.config.task_budget),
                 'workspace_snapshot':{k:workspace[k] for k in ('id','name','goal','context_version')},
                 'context_policy':dict(self.config.context_policy), 'base_rules_body':BASE_RULES,
                 'soul': soul, 'skill_index': index, 'user_preferences': preferences,
@@ -136,7 +138,20 @@ class TextAgent:
         registered = set(self.registry.names)
         if not set(snapshot['required_tools']) <= registered or not allowed <= registered:
             raise Fault('AGENT_DEPENDENCY_CHANGED', '原沟通流程的工具依赖已不可用，请新建一条消息', 409)
-        return replace(context, task_kind=snapshot['name'], allowed_tools=frozenset(allowed))
+        profiles = dict(context.budget_profiles)
+        profile = profiles.get(snapshot['name'], profiles.get('chat', context.budget))
+        ceiling = asdict(context.budget_ceiling or context.budget)
+        budget = Budget(**{key: min(value, ceiling[key]) for key, value in asdict(profile).items()})
+        return replace(context, task_kind=snapshot['name'], allowed_tools=frozenset(allowed), budget=budget)
+
+    def _budget_usage(self, context, rounds, calls):
+        # Reserve before a billed operation. A failed/uncertain call still consumes allowance.
+        with self.memory.transaction(context.owner_id):
+            context.remaining()
+            self.tasks.require_running(context.owner_id, context.task_id, context.attempt)
+            self.tasks.update(context.owner_id, context.task_id, {
+                'budget_usage': {'model_rounds': rounds, 'tool_calls': calls},
+                'effective_budget': asdict(context.budget)})
 
     def tool(self, owner, name, args, sources, occasion_id=None, workspace_id=None):
         """Compatibility seam for existing callers; the runtime uses the registry."""
@@ -159,20 +174,24 @@ class TextAgent:
     def _run(self, context, messages, active_skill=None, initial_sources=None, input_references=None, checkpoint=None):
         sources, steps, total_calls = list(initial_sources or []), [], 0
         input_references = input_references or []
-        budget = context.budget
         if checkpoint:
             steps = checkpoint['steps']; total_calls = checkpoint['total_calls']
         if active_skill:
             context = self._skill_context(context, active_skill)
-        for turn in range(checkpoint['round'] if checkpoint else 0,budget.max_rounds):
+        usage = self.tasks.require_running(context.owner_id, context.task_id, context.attempt).get('budget_usage', {})
+        total_calls = max(total_calls, usage.get('tool_calls', 0))
+        turn = max(checkpoint['round'] if checkpoint else 0, usage.get('model_rounds', 0))
+        while turn < context.budget.max_rounds:
+            budget = context.budget
             self.memory.check_owner(context.owner_id)
             self.context_manager.validate(context.owner_id, [*input_references,*reference_set(sources)], context.workspace_id)
             remaining = context.remaining()
             if len(json.dumps(messages, ensure_ascii=False)) > budget.max_context_chars:
                 raise Fault('AGENT_CONTEXT_LIMIT', '这次任务资料较多，请缩小问题范围', 422)
-            enabled = turn < budget.max_rounds - 1
+            enabled = turn < budget.max_rounds - 1 and total_calls < budget.max_tool_calls
             schemas = [s.schema() for s in self.registry.available(context)]
             self.tasks.emit(context,'text.reset',{'phase':'answer'}, {'partial_text':'','phase':'answer'})
+            self._budget_usage(context, turn + 1, total_calls)
             result = self.gateway.complete(messages, tools=enabled and bool(schemas), schemas=schemas,
                                            timeout_seconds=min(remaining, budget.model_timeout_seconds),
                                            cancellation=context.cancellation,
@@ -191,7 +210,10 @@ class TextAgent:
             pending_skill_prompt = None
             input_request = None
             for call in calls:
+                if total_calls >= context.budget.max_tool_calls:
+                    raise Fault('AGENT_TOOL_LIMIT', '本次查询步骤过多，请缩小问题范围', 502)
                 total_calls += 1
+                self._budget_usage(context, turn + 1, total_calls)
                 if not isinstance(call, dict) or not isinstance(call.get('function'), dict) or not isinstance(call.get('id'), str):
                     raise Fault('AGENT_INVALID_OUTPUT', '模型工具调用不完整，可以重试', 502)
                 name = call['function'].get('name', '')
@@ -215,12 +237,15 @@ class TextAgent:
                                          'options':output.data['options'],'tool_call_id':call['id']}
                 if name == 'run_skill' and not output.error:
                     skill = output.data['skill_snapshot']
+                    active_skill = skill
                     context = self._skill_context(context, skill)
+                    budget = context.budget
                     with self.memory.transaction(context.owner_id):
                         context.remaining()
                         task = self.tasks.require_running(context.owner_id,context.task_id,context.attempt)
                         self.tasks.update(context.owner_id, context.task_id, {
                             'task_kind': skill['name'], 'active_skill_snapshot': skill,
+                            'effective_budget': asdict(budget),
                             'active_skill_source_refs':reference_set([*sources,*input_references]),
                             'skill_load_history': [*task.get('skill_load_history', []), skill]})
                     self.tasks.emit(context,'skill.loaded',{'name':skill['name'],'version':skill['version']})
@@ -251,11 +276,13 @@ class TextAgent:
             if pending_skill_prompt:
                 messages.append({'role': 'system', 'content': pending_skill_prompt})
             saved = {'messages':messages,'sources':sources,'references':input_references,'steps':steps,
-                     'total_calls':total_calls,'round':turn+1}
+                     'total_calls':total_calls,'round':turn+1,'effective_budget':asdict(context.budget),
+                     'active_skill_digest':fingerprint(active_skill) if active_skill else None}
             if input_request:
                 self.tasks.pause(context,input_request,saved)
                 return None
             self.tasks.emit(context,'phase',{'phase':'answer'},{'checkpoint':saved})
+            turn += 1
         raise Fault('AGENT_TOOL_LIMIT', '本次查询步骤过多，请缩小问题范围', 502)
 
     def _schedule(self, owner, task):
@@ -440,6 +467,8 @@ class TextAgent:
                 self._validate_retry_dependencies(snapshot,self.dependency_snapshot())
                 self._validate_workspace(owner,task)
                 budget = Budget(**snapshot['budget'])
+                ceiling = Budget(**snapshot.get('budget_ceiling', snapshot['budget']))
+                profiles = tuple((name, Budget(**value)) for name, value in snapshot.get('budget_profiles', {}).items())
                 thread_id = task['thread_id']
                 occasion_id = task.get('occasion_id')
                 if occasion_id and not self.workspaces.allowed(owner,'occasion',self.memory_adapter.get('occasions',owner,occasion_id),task['workspace_id']):
@@ -447,8 +476,11 @@ class TextAgent:
                 context = RunContext(owner,thread_id,task_id,task['turn_id'],snapshot['model_digest'],
                     snapshot['runtime_version'],budget,occasion_id=occasion_id,
                     task_kind=task.get('task_kind','chat'),skill_index_snapshot=tuple(snapshot['skill_index']),
-                    deadline=time.monotonic()+budget.timeout_seconds,cancellation=cancellation,attempt=attempt,workspace_id=task['workspace_id'])
+                    deadline=time.monotonic()+ceiling.timeout_seconds,cancellation=cancellation,attempt=attempt,workspace_id=task['workspace_id'],
+                    budget_profiles=profiles,budget_ceiling=ceiling)
                 active_skill = task.get('active_skill_snapshot')
+                if active_skill:
+                    context = self._skill_context(context, active_skill)
                 bound_refs = task.get('active_skill_source_refs',[])
                 if active_skill and bound_refs and any(s['status']!='current' for s in self.memory_adapter.references_status(owner,bound_refs,context.workspace_id)):
                     active_skill = {**active_skill,'inputs':{}}
@@ -456,8 +488,14 @@ class TextAgent:
                         'active_skill_source_refs':[],'active_skill_inputs_invalidated':True})
                 checkpoint = task.get('checkpoint')
                 if checkpoint:
-                    messages,sources,references = checkpoint['messages'],checkpoint['sources'],checkpoint['references']
+                    messages,sources,references = list(checkpoint['messages']),checkpoint['sources'],checkpoint['references']
                     self.context_manager.validate(owner,[*references,*reference_set(sources)],context.workspace_id)
+                    # A Skill may have loaded just before an interrupted round was checkpointed.
+                    if active_skill and checkpoint.get('active_skill_digest')!=fingerprint(active_skill):
+                        body=skill_prompt(active_skill)
+                        if len(body)>context.budget.context_skill_chars:
+                            raise Fault('AGENT_CONTEXT_LIMIT','沟通流程超过上下文预算，请缩小任务',422)
+                        messages.append({'role':'system','content':body})
                 else:
                     orders = {t['id']:t.get('queue_order',0) for t in self.tasks.list(owner,thread_id)}
                     history = [m for m in self.detail(owner,thread_id)['messages']
@@ -465,7 +503,7 @@ class TextAgent:
                     prepared = self.context_manager.prepare(context,snapshot,history,task['input']['content'],active_skill)
                     messages,sources,references = prepared.messages,prepared.sources,prepared.references
                     checkpoint = {'messages':messages,'sources':sources,'references':references,'steps':[],
-                                  'total_calls':0,'round':0}
+                                  'total_calls':0,'round':0,'active_skill_digest':fingerprint(active_skill) if active_skill else None}
                     self.tasks.emit(context,'phase',{'phase':'answer'},{'context_snapshot':prepared.metadata,
                         'checkpoint':checkpoint,'phase':'answer'})
                 self.tasks.emit(context,'sources.updated',{'sources':sources})

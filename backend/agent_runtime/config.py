@@ -96,6 +96,13 @@ class RuntimeConfig:
             raw = json.loads(self.path.read_text('utf8'))
             self.version = raw['version']
             self.profiles = {name: Budget(**value) for name, value in raw['profiles'].items()}
+            # This envelope applies to the whole task, including Skill switches and resumes.
+            limits = raw.get('task_limits', {})
+            if not set(limits) <= {'max_rounds', 'max_tool_calls', 'timeout_seconds'}:
+                raise ValueError('Invalid task limits')
+            envelope = {key: max(asdict(profile)[key] for profile in self.profiles.values())
+                        for key in asdict(self.profiles['chat'])}
+            self.task_budget = Budget(**(envelope | limits))
             self.digest = fingerprint(raw)
             self.context_policy = raw.get('context_policy', {})
             if self.context_policy.get('summary_mode') not in {'current_text_model'}:
@@ -112,4 +119,6 @@ class RuntimeConfig:
     def budget(self, kind='chat'):
         if kind not in self.profiles:
             raise Fault('AGENT_TASK_UNSUPPORTED', '该任务类型尚未配置', 422)
-        return self.profiles[kind]
+        ceiling = asdict(self.task_budget)
+        return Budget(**{key: min(value, ceiling[key])
+                         for key, value in asdict(self.profiles[kind]).items()})

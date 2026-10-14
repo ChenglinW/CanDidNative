@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-14",
+  "scope": "native recording UI integration",
+  "branch": "fix/agent-runtime-recovery",
+  "software_tests_executed": false,
+  "paid_provider_verification": false,
+  "build_log": "/tmp/candid-recording-native-build-final.log",
+  "build_result": "BUILD SUCCEEDED",
+  "backend_pid": 85585,
+  "backend_start_log": "/tmp/candid-recording-native-backend.log",
+  "startup_http": {
+    "/health": 200,
+    "/v1/capabilities": 200,
+    "/openapi.json": 200
+  },
+  "visual_review": "Final native recording library and recorder idle page inspected after Mac unlock; no visible overlap or overflow. Startup/layout inspection only.",
+  "hardware_verification": false,
+  "source_sha256": {
+    "ios/CanDid/RecordingUI.swift": "289c8cec5eaac8ac919a0c11b631b7b0a7f6f1763d6b9e437c68ccfbb7e7cfef",
+    "ios/CanDid/SpeechUI.swift": "c32205ff59f64f84afd308677d9d0ebcb4c0f691bd6f03d4e5c5346ca2d1ce01",
+    "ios/CanDid/Soundcore.swift": "b1a5bf2ac5122f7ae2eca05f8e902cc71d748d8aa7b6bf41d5613844794b44c2",
+    "ios/CanDid/SoundcoreViews.swift": "fcec3aafee58ce6e7c8f04a05b033541454f36336875c06d2045a2b36a1c4798",
+    "ios/CanDid/Store.swift": "079bf9f35d0e69d2d292fbcafdb8df82852e87e04f0ae2ba2b42587947b3f05f",
+    "ios/CanDid/CanDidApp.swift": "a03ffe2e27514f874c2279da2be2121752fc85d0c42f958b5f8422345c3f9424",
+    "ios/CanDid/ChatView.swift": "c7784d8dbb109ee9ede96113e39ee9b49ce48cb7cc999e5b9d7fc1e5a93773d4",
+    "ios/CanDid.xcodeproj/project.pbxproj": "f6d43c954863ec0f6c4a74e1b9f2270e9dcfaa32554fa347ab889c42b0149b18",
+    "backend/app.py": "a36ab086fd1463c68756237bd9cb170ef1f7910a2cab80f1f2f764baa64284b0",
+    "backend/tasks/recordings.py": "21c4e22fc8f7846f83e685ec04943d0a1d44c508fbcbe9b820c593e76b3c232a"
+  },
+  "app_startup": {
+    "library_pid": 86143,
+    "recorder_pid": 86329,
+    "library_log": "/tmp/candid-recording-native-launch-library.log",
+    "recorder_log": "/tmp/candid-recording-native-launch-recorder.log",
+    "navigation_only": true,
+    "microphone_started": false,
+    "final_library_pid": 90209
+  },
+  "screenshots": [
+    "docs/recording-native/library.png",
+    "docs/recording-native/recorder.png"
+  ]
+}

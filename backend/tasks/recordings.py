@@ -128,7 +128,7 @@ class Recordings:
             self.business.guard(owner,job)
             prior=next((k for k in self.store.rows('recording_knowledge',owner,session_id=sid) if k.get('revision')==job['revision'] and k.get('part')==number),None)
             if prior:saved.append(prior);continue
-            result=self.business.structured('整理全场沟通，不猜谁是用户。保留粤语原文引用，复盘可用普通话。输出 {"summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
+            result=self.business.structured('整理全场沟通，不猜谁是用户。保留粤语原文引用，复盘可用普通话。输出 {"title":"简短沟通主题","summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"next_steps":[],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。next_steps只提取原文中明确讨论的后续行动，不凭空安排任务，各数组条目为字符串。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
                 {'segments':[{'id':s['id'],'start_ms':s['start_ms'],'end_ms':s['end_ms'],'speaker':s.get('speaker_id'),'text':s['text']} for s in group],
                  'project_spaces':spaces,'part':number+1,'parts':len(groups)})
             summary=result.get('summary','')
@@ -138,9 +138,13 @@ class Recordings:
                 self.business.guard(owner,job)
                 if str(self.store.get('sessions',owner,sid).get('transcript_revision',1))!=job['revision']:raise Fault('TRANSCRIPT_CHANGED','转写已修订',409)
                 knowledge=self.store.put('recording_knowledge',owner,{'session_id':sid,'revision':job['revision'],'part':number,
-                    'title':'录音资料 · '+str(number+1),'text':summary[:12000],'review':{k:result.get(k,[]) for k in ['strengths','improvements','open_questions']},
+                    'title':'录音资料 · '+str(number+1),'text':summary[:12000],'review':{k:result.get(k,[]) for k in ['strengths','improvements','open_questions','next_steps']},
                     'evidence_refs':refs,'producer':'anker/'+self.business.gateway.model,'rubric_version':'recording-knowledge@1',
                     'status':'active','personal_identity_confirmed':False},L2,source='ai')
+                if number==0 and isinstance(result.get('title'),str) and result['title'].strip():
+                    latest=self.store.get('sessions',owner,sid)
+                    if not latest.get('title'):
+                        self.store.update('sessions',owner,sid,{'title':result['title'].strip()[:60],'title_source':'ai'})
                 valid_spaces={s['id'] for s in spaces}
                 for tag in result.get('tags',[])[:12]:
                     if not isinstance(tag,dict) or not isinstance(tag.get('label'),str) or not 1<=len(tag['label'])<=100:continue
