@@ -4,6 +4,7 @@ struct ProductHome:View {
     @EnvironmentObject var store:Store
     let onSettings:()->Void
     @State private var scenario="all"
+    @State private var scenarioInitialized=false
     @State private var create=false
     @State private var ask=false
     private var projects:[ProductProject] {store.products.filter{$0.status=="active" && (scenario=="all" || $0.scenario==scenario)}}
@@ -13,7 +14,7 @@ struct ProductHome:View {
             VStack(alignment:.leading,spacing:24) {
                 HStack {
                     Button(action:onSettings) {Image(systemName:"person.crop.circle.fill").font(.system(size:38)).foregroundStyle(Warm.purple).frame(width:44,height:44)}.accessibilityLabel("个人与设置")
-                    VStack(alignment:.leading,spacing:3) {Text("一起准备下一次").font(.title2.bold());Text("销售与面试，把每场沟通连起来").font(.caption).foregroundStyle(RecordingFormat.secondary)}
+                    VStack(alignment:.leading,spacing:3) {Text(store.personalState.profile.display_name.isEmpty ? "一起准备下一次" : store.personalState.profile.display_name+"，一起准备下一次").font(.title2.bold());Text("销售与面试，把每场沟通连起来").font(.caption).foregroundStyle(RecordingFormat.secondary)}
                     Spacer()
                     Button {store.recordingNavigation.newMeeting=true;store.recordingNavigation.showRecorder=true} label:{Image(systemName:"record.circle").font(.title2).frame(width:44,height:44)}.accessibilityLabel("开始新录音")
                 }
@@ -41,6 +42,7 @@ struct ProductHome:View {
             .safeAreaInset(edge:.bottom) {ProductInput(scope:["mode":"all"],ask:$ask)}
             .sheet(isPresented:$create) {ProductCreator()}
             .sheet(isPresented:$ask) {NavigationStack {ChatView(onSettings:onSettings).toolbar(.visible,for:.navigationBar).toolbar {ToolbarItem(placement:.topBarLeading){Button("返回") {ask=false}}}}}
+            .onAppear {if !scenarioInitialized {let preferred=store.personalState.profile.scenarios;if preferred.count==1 {scenario=preferred[0]};scenarioInitialized=true}}
             .task {if !store.remote {store.seedProducts()} else{await store.perform {try await store.reloadProducts()}}}
             .refreshable {await store.perform {try await store.reloadProducts()}}
     }
@@ -310,12 +312,12 @@ struct ProductMemory:View {
     @State private var edit:PersonalDiscovery?
     var body:some View {ScrollView {VStack(alignment:.leading,spacing:20) {
         Picker("记忆内容",selection:$tab){Text("我").tag("me");Text("素材").tag("materials");Text("跨场发现").tag("discoveries")}.pickerStyle(.segmented)
-        if tab=="me" {Text("属于你的资料，逐渐积累").font(.title3.bold());if let p=progress {Text("\(p.sample_count) 场真实沟通样本").font(.headline);ProductCoverageRadar(metrics:p.metrics);ForEach(p.metrics,id:\.name){metric in Text(metric.name+"：\(metric.count) / \(metric.total)");ProductEvidenceLinks(refs:metric.evidence_refs)};Text(p.note).font(.caption).foregroundStyle(RecordingFormat.secondary)} else {Text("暂无可核对的真实场次统计。").font(.subheadline)}
+        if tab=="me" {NavigationLink("我的介绍与资料") {PersonalProfilePage()}.frame(minHeight:44);Text("属于你的资料，逐渐积累").font(.title3.bold());if let p=progress {Text("\(p.sample_count) 场真实沟通样本").font(.headline);ProductCoverageRadar(metrics:p.metrics);ForEach(p.metrics,id:\.name){metric in Text(metric.name+"：\(metric.count) / \(metric.total)");ProductEvidenceLinks(refs:metric.evidence_refs)};Text(p.note).font(.caption).foregroundStyle(RecordingFormat.secondary)} else {Text("暂无可核对的真实场次统计。").font(.subheadline)}
             ForEach(store.personalDiscoveries.filter{$0.status=="confirmed"}){d in discoveryRow(d)}
             NavigationLink("查看已确认素材与自我介绍版本") {MemoryView()}
             NavigationLink("历史归档个人记忆") {PersonalMemories()}
         }
-        if tab=="materials" {NavigationLink("自我介绍、故事与 FAQ") {MemoryView()}.frame(minHeight:44);ForEach(store.assets.filter{$0.status=="confirmed"}){a in NavigationLink {AssetDetailView(asset:a)} label:{VStack(alignment:.leading,spacing:7){Text(a.title).font(.headline);Text(a.body.text).lineLimit(3)}}.buttonStyle(.plain)}}
+        if tab=="materials" {NavigationLink("带入的资料与个人介绍") {PersonalProfilePage()}.frame(minHeight:44);NavigationLink("自我介绍、故事与 FAQ") {MemoryView()}.frame(minHeight:44);ForEach(store.assets.filter{$0.status=="confirmed"}){a in NavigationLink {AssetDetailView(asset:a)} label:{VStack(alignment:.leading,spacing:7){Text(a.title).font(.headline);Text(a.body.text).lineLimit(3)}}.buttonStyle(.plain)}}
         if tab=="discoveries" {
             Text("跨场综合的新结论集中核对一次；已有事实复用不再问。").font(.subheadline)
             if store.personalDiscoveries.isEmpty {ContentUnavailableView("发现会在资料积累后出现",systemImage:"sparkles",description:Text("归档项目会自动整理，也可在下方整理当前项目。"))}

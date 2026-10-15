@@ -1,3 +1,5 @@
+> 2026-10-15：完整 onboarding 已接入原生 App，支持可跳过的用途选择、个人介绍、语音转文字和资料导入；后续在记忆库编辑。见 [onboarding 交付说明](docs/ONBOARDING_DELIVERY.md)。
+
 > 2026-10-15 首轮场景改造：销售 BD 与面试采用「我 → 场景 → 项目 → 业务场次」；首页、项目、录音、记忆库统一导航。会前准备、录后结构化资料、客户跟进、内部纪要、项目追踪、本地提醒和 PDF / Word / 图片 / 文字导出已接入。跨场新个人结论集中确认。先看 [首轮交付记录](docs/PRODUCT_REFACTOR_DELIVERY.md)、[已确认计划](docs/PRODUCT_REFACTOR_PLAN.md)与 [队友接入](docs/TEAM_SETUP.md)。飞书下一阶段，真机安装保持暂停。
 
 > 2026-10-14 Agent demo 更新：项目空间、资料/调研、录音/ASR、标签、归档学习与TTS已接入代码；本轮只构建和启动，功能与设备待测开验收。先看[交付说明](docs/AGENT_DELIVERY.md)、[队友接入](docs/TEAM_SETUP.md)及[迁移准备](docs/MIGRATION.md)。团队服务密钥通过加密配置包导入，不需要写进App。

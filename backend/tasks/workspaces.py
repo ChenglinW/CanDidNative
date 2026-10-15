@@ -168,6 +168,9 @@ class WorkspaceStore:
 
     def _scope_allowed(self, owner, kind, row, context):
         scope=context['query_scope']; mode=scope['mode']
+        if kind in PERSONAL_KINDS:
+            explicit=self.scope(owner,kind+':'+row['id'])
+            if explicit and explicit['mode']=='personal':return True
         if kind=='message':
             if self.store.get('chat_threads',owner,row['thread_id']).get('workspace_id')==context['id']:return True
             explicit=self.scope(owner,'message:'+row['id'])

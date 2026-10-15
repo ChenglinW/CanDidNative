@@ -116,7 +116,12 @@ class TextAgent:
         dependencies = self.dependency_snapshot()
         soul = load_soul()
         index = self.catalog.index(self.registry.names)
-        preferences = self.memory_adapter.profile(owner).get('agent_preferences', {})
+        profile = self.memory_adapter.profile(owner)
+        preferences = dict(profile.get('agent_preferences', {}))
+        if 'onboarding_profile' in profile:
+            preferences.pop('display_name', None)
+            if profile['onboarding_profile'].get('display_name'):
+                preferences['display_name'] = profile['onboarding_profile']['display_name']
         preferences = {k: v for k, v in preferences.items()
                        if k in {'display_name', 'answer_style'} and isinstance(v, str)}
         preferences = {k: v[:1000] for k, v in preferences.items()}
@@ -127,6 +132,7 @@ class TextAgent:
                 'workspace_snapshot':{k:workspace[k] for k in ('id','name','goal','context_version')},
                 'query_scope':workspace.get('query_scope',{'mode':'project','project_id':workspace['id']}), 'context_policy':dict(self.config.context_policy), 'base_rules_body':BASE_RULES,
                 'soul': soul, 'skill_index': index, 'user_preferences': preferences,
+                'personal_profile': self.memory_adapter.profile(owner).get('onboarding_profile', {}),
                 'prompt': {'version': 'candid-files@2', 'body': prompt, 'digest': fingerprint(prompt)}}
 
     def _validate_retry_dependencies(self, snapshot, current):

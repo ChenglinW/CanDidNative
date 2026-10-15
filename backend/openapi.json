@@ -4760,6 +4760,169 @@
           }
         }
       }
+    },
+    "/v1/onboarding": {
+      "get": {
+        "summary": "Get",
+        "operationId": "get_v1_onboarding_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Save",
+        "operationId": "save_v1_onboarding_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/documents": {
+      "post": {
+        "summary": "Upload",
+        "operationId": "upload_v1_onboarding_documents_post",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/documents/{id}/retry": {
+      "post": {
+        "summary": "Retry",
+        "operationId": "retry_v1_onboarding_documents__id__retry_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/documents/{id}": {
+      "delete": {
+        "summary": "Remove",
+        "operationId": "remove_v1_onboarding_documents__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5890,6 +6053,48 @@
         ],
         "title": "OccasionIn"
       },
+      "OnboardingIn": {
+        "properties": {
+          "client_request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Client Request Id"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          },
+          "completed": {
+            "type": "boolean",
+            "title": "Completed",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "client_request_id"
+        ],
+        "title": "OnboardingIn"
+      },
       "OutcomeIn": {
         "properties": {
           "session_id": {
@@ -6011,6 +6216,37 @@
           "expected_version"
         ],
         "title": "PersonalMemoryEdit"
+      },
+      "PersonalProfile": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Display Name",
+            "default": ""
+          },
+          "introduction": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Introduction",
+            "default": ""
+          },
+          "scenarios": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "sales",
+                "interview"
+              ]
+            },
+            "type": "array",
+            "maxItems": 2,
+            "title": "Scenarios"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PersonalProfile"
       },
       "ProfileIn": {
         "properties": {

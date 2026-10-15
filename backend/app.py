@@ -914,3 +914,13 @@ def upload_state(id:str,uid=Depends(owner)):
 import sys
 from product_routes import router as product_router
 app.include_router(product_router(sys.modules[__name__]))
+
+from onboarding import Onboarding, install as install_onboarding
+# Resolve current services at request time so test stores and future adapters stay aligned.
+def onboarding_service():
+    service = getattr(business, 'onboarding_service', None)
+    if service is None:
+        service = Onboarding(store, business); business.onboarding_service = service
+    return service
+onboarding_service()
+install_onboarding(app, owner, onboarding_service)

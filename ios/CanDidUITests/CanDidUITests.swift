@@ -1,16 +1,89 @@
 import XCTest
 
 final class CanDidUITests: XCTestCase {
+    private func capture(_ app: XCUIApplication, _ name: String) {
+        if name == "onboarding-introduction" { app.scrollViews.firstMatch.swipeDown() }
+        // Accessibility geometry can settle before the simulator compositor finishes keyboard motion.
+        if name == "onboarding-keyboard" { print("Waiting for stable keyboard capture"); Thread.sleep(forTimeInterval: 10) }
+        else { Thread.sleep(forTimeInterval: 0.8) }
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = name; shot.lifetime = .keepAlways; add(shot)
+    }
+    func testCompleteOnboardingPersistsProfileAndAllowsLaterEditing() {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-candid-ui-testing"]
+        app.launchEnvironment = ["CANDID_ONBOARDING_TEST_ID": UUID().uuidString]
+        app.launch()
+        XCTAssertTrue(app.buttons["认识一下"].waitForExistence(timeout: 15))
+        capture(app, "onboarding-welcome")
+        app.buttons["onboarding-next"].tap()
+        XCTAssertTrue(app.buttons["销售 BD"].waitForExistence(timeout: 10))
+        app.buttons["销售 BD"].tap(); app.buttons["面试"].tap()
+        XCTAssertEqual(app.buttons["销售 BD"].value as? String, "已选择")
+        XCTAssertEqual(app.buttons["面试"].value as? String, "已选择")
+        capture(app, "onboarding-purposes")
+        app.buttons["onboarding-next"].tap()
+        let name = app.textFields["onboarding-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10)); name.tap(); name.typeText("Lin")
+        let intro = app.descendants(matching: .any)["onboarding-introduction"].firstMatch
+        intro.tap(); intro.typeText("I design products and prepare for interviews.")
+        let next = app.buttons["onboarding-next"]
+        XCTAssertTrue(next.isHittable)
+        XCTAssertGreaterThan(intro.frame.height, 80)
+        XCTAssertLessThanOrEqual(intro.frame.maxY, next.frame.minY + 1, "底部操作不能覆盖正在输入的介绍")
+        if app.keyboards.firstMatch.exists {
+            XCTAssertLessThanOrEqual(next.frame.maxY, app.keyboards.firstMatch.frame.minY + 1)
+            XCTAssertGreaterThanOrEqual(intro.frame.minY, app.navigationBars.firstMatch.frame.maxY - 1, "当前编辑框必须滚入可见区域")
+            capture(app, "onboarding-keyboard")
+        }
+        if app.buttons["收起键盘"].exists { app.buttons["收起键盘"].tap() }
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        capture(app, "onboarding-introduction")
+        XCTAssertTrue(next.isHittable)
+        app.buttons["返回上一步"].tap()
+        XCTAssertEqual(app.buttons["销售 BD"].value as? String, "已选择")
+        app.buttons["onboarding-next"].tap()
+        XCTAssertEqual(app.textFields["onboarding-name"].value as? String, "Lin")
+        app.buttons["onboarding-next"].tap()
+        XCTAssertTrue(app.buttons["添加资料"].waitForExistence(timeout: 10))
+        capture(app, "onboarding-materials")
+        app.buttons["资料稍后再补"].tap()
+        XCTAssertTrue(app.staticTexts["Lin，一起准备下一次"].waitForExistence(timeout: 10))
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["项目"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["认识一下"].exists)
+        app.buttons["记忆库"].firstMatch.tap()
+        app.buttons["我的介绍与资料"].tap()
+        let savedIntroduction = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "I design products and prepare for interviews.")).firstMatch
+        XCTAssertTrue(savedIntroduction.waitForExistence(timeout: 10))
+        XCTAssertEqual(savedIntroduction.label.trimmingCharacters(in: .whitespacesAndNewlines), "I design products and prepare for interviews.")
+        capture(app, "onboarding-personal-profile")
+        app.buttons["编辑我的介绍与资料"].tap()
+        XCTAssertTrue(app.textFields["onboarding-name"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.textFields["onboarding-name"].value as? String, "Lin")
+    }
+    func testEachOnboardingStepCanBeSkippedWithoutInventingUserData() {
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launchArguments = ["-candid-ui-testing"]; app.launchEnvironment = [:]; app.launch()
+        XCTAssertTrue(app.buttons["认识一下"].waitForExistence(timeout: 15)); app.buttons["认识一下"].tap()
+        app.buttons["这一步先跳过"].tap()
+        XCTAssertTrue(app.textFields["onboarding-name"].waitForExistence(timeout: 10))
+        app.buttons["这一步先跳过"].tap()
+        XCTAssertTrue(app.buttons["添加资料"].waitForExistence(timeout: 10))
+        app.buttons["资料稍后再补"].tap()
+        XCTAssertTrue(app.staticTexts["一起准备下一次"].waitForExistence(timeout: 10))
+        app.buttons["记忆库"].firstMatch.tap(); app.buttons["我的介绍与资料"].tap()
+        XCTAssertTrue(app.staticTexts["慢慢认识你"].waitForExistence(timeout: 10))
+    }
     private func enterApp() -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchEnvironment=[:]
         app.launchArguments = ["-candid-ui-testing"]
         app.launch()
-        let start = app.buttons["进入原生 App 示例"]
+        let start = app.buttons["直接开始，之后再介绍"]
         XCTAssertTrue(start.waitForExistence(timeout: 15))
-        app.scrollViews.firstMatch.swipeUp()
-        app.switches["同意本机保存我主动提供的资料与录音"].tap()
         start.tap()
         XCTAssertTrue(app.buttons["项目"].firstMatch.waitForExistence(timeout: 10))
         return app
@@ -54,7 +127,7 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.buttons["开始自由对话"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["静音"].exists)
         app.buttons["返回"].tap()
-        XCTAssertTrue(app.buttons["进入原生 App 示例"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["直接开始，之后再介绍"].waitForExistence(timeout: 10))
     }
     func testOralDebriefCanSaveWithoutCloudAnalysis() {
         let app = enterApp()

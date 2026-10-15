@@ -9,6 +9,13 @@ import UserNotifications
     @Published var sessions: [Session] = []
     @Published var diagnoses: [Diagnosis] = []
     @Published var onboarding = false
+    @Published var personalState = OnboardingState()
+    @Published var personalSaveError: String?
+    @Published var personalSyncError: String?
+    @Published var personalSyncing = false
+    var personalEditing = false
+    @Published var personalRemoteProfile: PersonalProfile?
+    var personalRemoteVersion = 0
     @Published var remote = false
     @Published var capabilities: Capabilities?
     var productScopeGeneration=UUID()
@@ -56,13 +63,23 @@ import UserNotifications
     private var recordingPlaybackEndObserver: NSObjectProtocol?
     private var localFiles: [String: String] = UserDefaults.standard.dictionary(forKey: "local-recordings") as? [String: String] ?? [:]
     let demoURL: URL
-    init() {
-        if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") {
-            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CanDidUITests/" + UUID().uuidString)
+    static var isolatedTestRun: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") || NSClassFromString("XCTestCase") != nil
+        #else
+        return false
+        #endif
+    }
+    init(localDirectory: URL? = nil) {
+        if let localDirectory {
+            try? FileManager.default.createDirectory(at: localDirectory, withIntermediateDirectories: true)
+            demoURL = localDirectory.appendingPathComponent("candid-demo.json")
+        } else if Self.isolatedTestRun {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CanDidUITests/" + (ProcessInfo.processInfo.environment["CANDID_ONBOARDING_TEST_ID"].flatMap { UUID(uuidString:$0)?.uuidString } ?? UUID().uuidString))
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             demoURL = folder.appendingPathComponent("candid-demo.json")
         } else { demoURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("candid-demo.json") }
-        retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90; loadDemo(); purgeLocalExpired();loadProductCache()
+        retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90; loadDemo(); loadOnboarding(); purgeLocalExpired();loadProductCache()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") && ProcessInfo.processInfo.arguments.contains("-candid-surface-review") {onboarding=true;seedProducts()}
         #endif
@@ -86,7 +103,7 @@ import UserNotifications
         remote = false; capabilities = nil
         chatThread = nil; chatThreads = []; chatMessages = []; chatError = nil
         if let data = try? Data(contentsOf: demoURL), let snapshot = try? JSONDecoder().decode(LocalSnapshot.self, from: data) {
-            assets = snapshot.assets; occasions = snapshot.occasions; sessions = snapshot.sessions; diagnoses = snapshot.diagnoses; onboarding = snapshot.onboarding
+            assets = snapshot.assets; occasions = snapshot.occasions; sessions = snapshot.sessions; diagnoses = snapshot.diagnoses
         } else { seed() }
     }
     func seed() {
@@ -110,16 +127,22 @@ import UserNotifications
         busy = true; defer { busy = false }
         do { try await operation() } catch { self.error = error.localizedDescription }
     }
-    func connect(token: String) async throws {
-        pauseChatObservation()
+    func connect(token: String, backend: String? = nil) async throws {
+        let address = backend ?? base
         #if !DEBUG
-        guard URL(string: base)?.scheme == "https" else { throw PrototypeError.message("发布构建只允许 HTTPS 后端") }
+        guard URL(string: address)?.scheme == "https" else { throw PrototypeError.message("发布构建只允许 HTTPS 后端") }
         #endif
-        try TokenVault.save(token); UserDefaults.standard.set(base, forKey: "api-base")
-        _ = try await api.raw("/v1/profile")
-        _ = try await api.raw("/v1/profile", method: "PATCH", body: ["product_use_consent": true])
-        remote = true; onboarding = true
+        // Validate the candidate before replacing a working connection or its credential.
+        let candidate = API(base: address, token: token)
+        _ = try await candidate.raw("/v1/profile")
+        _ = try await candidate.raw("/v1/profile", method: "PATCH", body: ["product_use_consent": true])
+        pauseChatObservation()
+        let oldToken = TokenVault.read(); let draft = personalState
+        try TokenVault.save(token); base = address; UserDefaults.standard.set(base, forKey: "api-base")
+        loadOnboarding(migrating: oldToken.isEmpty ? draft : nil)
+        remote = true
         UserDefaults.standard.set(true, forKey: "remote-enabled")
+        await restorePersonalProfile()
         try await reload()
         try await reloadChats(); try await restoreWorkspaceSelection()
         message = "已连接持久化记忆后端"
@@ -282,6 +305,8 @@ import UserNotifications
         }
         if remote { for path in localFiles.values { try? FileManager.default.removeItem(atPath: path) }; localFiles = [:]; UserDefaults.standard.removeObject(forKey: "local-recordings") }
         clearChatRecovery(); projectSpaces = []; chatReadPosition = nil; chatTask = nil; chatTasks = []; chatBusy = false; chatPartial = ""; chatDraft = ""
+        for item in personalState.documents { if let path = item.localPath { try? FileManager.default.removeItem(atPath: path) } }
+        personalState = OnboardingState(); persistOnboarding()
         assets = []; occasions = []; sessions = []; diagnoses = []; onboarding = false
         chatThread = nil; chatMessages = []; chatThreads = []; chatPending = nil
         if !remote { persist() }; message = "记忆已删除"

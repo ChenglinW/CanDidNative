@@ -2,7 +2,108 @@ import XCTest
 import AVFoundation
 @testable import CanDid
 
+private final class OnboardingStubProtocol: URLProtocol {
+    static var handler: ((URLRequest) throws -> Data)?
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "onboarding-test.invalid" }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        do {
+            let data = try Self.handler!(request)
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type":"application/json"])!, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
+    }
+    override func stopLoading() {}
+}
+
 final class SoundcoreAudioTests: XCTestCase {
+    @MainActor func testFailedConnectionDoesNotReplaceCredentialsOrPersonalDraft() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder); URLProtocol.unregisterClass(OnboardingStubProtocol.self); OnboardingStubProtocol.handler = nil }
+        URLProtocol.registerClass(OnboardingStubProtocol.self)
+        let store = Store(localDirectory: folder)
+        let previousBase = store.base, previousToken = TokenVault.read()
+        store.changePersonalProfile(PersonalProfile(introduction: "未同步的介绍"))
+        OnboardingStubProtocol.handler = { _ in throw URLError(.cannotConnectToHost) }
+        do { try await store.connect(token: "mock-candidate-token", backend: "http://onboarding-test.invalid"); XCTFail("Expected connection rejection") }
+        catch { }
+        XCTAssertEqual(store.base, previousBase)
+        XCTAssertEqual(TokenVault.read(), previousToken)
+        XCTAssertEqual(store.personalState.profile.introduction, "未同步的介绍")
+        XCTAssertFalse(store.remote)
+        store.base = "http://onboarding-test.invalid"; store.remote = true
+        OnboardingStubProtocol.handler = { _ in Data("{\"profile\":{\"display_name\":\"Other device\",\"introduction\":\"新的后端资料\",\"scenarios\":[]},\"version\":4,\"completed\":true,\"documents\":[]}".utf8) }
+        await store.readLatestPersonalProfile()
+        XCTAssertEqual(store.personalState.version, 0)
+        XCTAssertEqual(store.personalRemoteVersion, 4)
+        await store.syncPersonalProfile()
+        XCTAssertTrue(store.personalState.profileDirty)
+        XCTAssertEqual(store.personalState.profile.introduction, "未同步的介绍")
+        store.remote = false
+    }
+    func testOnboardingCacheMigrationKeepsProfileWhenOptionalStateIsMissing() throws {
+        var state = OnboardingState(); state.profile.introduction = "已有个人介绍"; state.completed = true
+        var value = try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as! [String: Any]
+        value.removeValue(forKey: "removedDocumentIDs")
+        let restored = try OnboardingState.restore(JSONSerialization.data(withJSONObject: value))
+        XCTAssertEqual(restored.profile.introduction, state.profile.introduction)
+        XCTAssertTrue(restored.completed)
+        XCTAssertTrue(restored.removedDocumentIDs.isEmpty)
+    }
+    @MainActor func testBackendRestoreCannotSkipOpenOnboardingAndExplicitSaveUsesFreshRequest() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder); URLProtocol.unregisterClass(OnboardingStubProtocol.self); OnboardingStubProtocol.handler = nil }
+        URLProtocol.registerClass(OnboardingStubProtocol.self)
+        let store = Store(localDirectory: folder); store.base = "http://onboarding-test.invalid"; store.remote = true
+        let response = Data("{\"profile\":{\"display_name\":\"Lin\",\"introduction\":\"本人背景\",\"scenarios\":[\"sales\"]},\"version\":2,\"completed\":true,\"documents\":[]}".utf8)
+        OnboardingStubProtocol.handler = { _ in response }
+        await store.restorePersonalProfile()
+        XCTAssertFalse(store.onboarding)
+        XCTAssertEqual(store.personalState.profile.display_name, "Lin")
+        store.personalEditing = true
+        store.changePersonalProfile(PersonalProfile(introduction: "正在编辑的草稿"))
+        await store.syncPersonalProfile()
+        XCTAssertTrue(store.personalState.profileDirty)
+        let oldRequest = store.personalState.requestID
+        store.completeOnboarding()
+        XCTAssertNotEqual(store.personalState.requestID, oldRequest)
+        await store.syncPersonalProfile()
+        for _ in 0..<20 where store.personalSyncing { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(store.onboarding)
+        XCTAssertFalse(store.personalState.completionPending)
+    }
+    @MainActor func testOnboardingCompletionAndDraftSurviveStoreReloadOffline() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = Store(localDirectory: folder)
+        XCTAssertFalse(store.onboarding)
+        let profile = PersonalProfile(display_name: "Lin", introduction: "我做产品设计。", scenarios: ["sales", "interview"])
+        store.changePersonalProfile(profile)
+        store.personalState.step = 2; store.persistOnboarding()
+        let restored = Store(localDirectory: folder)
+        XCTAssertEqual(restored.personalState.profile, profile)
+        XCTAssertEqual(restored.personalState.step, 2)
+        XCTAssertFalse(restored.onboarding)
+        restored.completeOnboarding()
+        let completed = Store(localDirectory: folder)
+        XCTAssertTrue(completed.onboarding)
+        XCTAssertTrue(completed.personalState.completionPending)
+        XCTAssertTrue(completed.personalState.profileDirty)
+        XCTAssertEqual(completed.personalState.profile, profile)
+    }
+    @MainActor func testSkipDoesNotInventProfileAndLegacyCompletedUserIsNotForcedBack() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = Store(localDirectory: folder)
+        store.completeOnboarding()
+        XCTAssertTrue(store.personalState.profile.isEmpty)
+        XCTAssertTrue(Store(localDirectory: folder).onboarding)
+        try FileManager.default.removeItem(at: store.personalStateURL)
+        store.onboarding = true; store.persist()
+        let migrated = Store(localDirectory: folder)
+        XCTAssertTrue(migrated.onboarding)
+        XCTAssertTrue(migrated.personalState.profile.isEmpty)
+    }
     @MainActor func testAudioLeaseSharesCaptureAndRejectsPlaybackConflict() throws {
         let resources=AudioResources();let voice=try resources.acquire(.voice)
         let meeting=try resources.acquire(.meeting)

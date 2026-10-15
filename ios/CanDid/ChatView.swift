@@ -103,7 +103,7 @@ extension Store {
     }
     func restoreConnection() async {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") { return }
+        if Self.isolatedTestRun { return }
         #endif
         var token = TokenVault.read()
         var shouldConnect = UserDefaults.standard.bool(forKey: "remote-enabled")
@@ -119,7 +119,8 @@ extension Store {
         guard shouldConnect, !token.isEmpty else { return }
         do {
             _ = try await api.raw("/v1/profile")
-            remote = true; onboarding = true
+            remote = true
+            await restorePersonalProfile()
             UserDefaults.standard.set(true, forKey: "remote-enabled")
             try await reload(); try await reloadChats()
             var requestedID: String?

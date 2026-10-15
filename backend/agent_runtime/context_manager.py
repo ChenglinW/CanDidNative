@@ -103,6 +103,7 @@ class ContextManager:
         index = [{k:e[k] for k in ('name','description','available')} for e in snapshot['skill_index']]
         section('固定后台流程索引', json.dumps(index, ensure_ascii=False), budget.context_index_chars)
         section('用户偏好', json.dumps(snapshot['user_preferences'], ensure_ascii=False), budget.context_preferences_chars, True)
+        section('用户主动提供的个人背景', json.dumps(snapshot.get('personal_profile', {}), ensure_ascii=False), 3000, True)
         section('当前任务', json.dumps({'task_kind':context.task_kind, 'occasion_id':context.occasion_id,
                                       'request_time':now(), 'timezone':'Asia/Hong_Kong', 'session_id':context.session_id, 'query_scope':snapshot.get('query_scope'), 'project_space':snapshot.get('workspace_snapshot'), 'goal_message_id':recent[-1]['id'] if recent else None,
                                       'active_skill':active_skill['name'] if active_skill else None,

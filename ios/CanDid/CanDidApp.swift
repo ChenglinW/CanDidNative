@@ -48,17 +48,12 @@ struct RootView: View {
         Group {
             if store.onboarding {
                 RecordingShell(navigation:store.recordingNavigation,speech:store.speech,device:store.soundcore,onSettings:{settings=true})
-            } else { WelcomeView() }
+            } else { OnboardingView() }
         }
         .fontDesign(.rounded).foregroundStyle(Warm.ink)
         .sheet(isPresented: $settings) { SettingsView() }
         .alert("需要留意", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("知道了") { store.error = nil } } message: { Text(store.error ?? "") }
         .alert("Candid", isPresented: Binding(get: { store.message != nil }, set: { if !$0 { store.message = nil } })) { Button("好") { store.message = nil } } message: { Text(store.message ?? "") }
-        .overlay(alignment: .topTrailing) {
-            if !store.onboarding {
-                Button { settings = true } label: { Image(systemName: "gearshape").padding(12).background(Warm.paper, in: Circle()) }.padding(.trailing, 12).accessibilityLabel("设置与后端连接")
-            }
-        }
         .overlay { if store.busy { ProgressView().padding(22).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
         .onChange(of: phase) { _, value in
             store.chatSceneChanged(active: value == .active)
@@ -67,22 +62,6 @@ struct RootView: View {
         }
         .task { await store.restoreConnection() }
         .modifier(VoicePresentation(voice:store.voice))
-    }
-}
-struct WelcomeView: View {
-    @EnvironmentObject var store: Store
-    @State private var consent = false
-    var body: some View {
-        ScrollView { VStack(spacing: 24) {
-            Mascot(size: 180).padding(.top, 60)
-            Text("下一次开口，\n从上次的终点开始。").font(.largeTitle.bold()).multilineTextAlignment(.center)
-            Text("资料、场合、每次沟通，\n慢慢变成用得上的记忆。").foregroundStyle(.secondary).multilineTextAlignment(.center)
-            WarmCard { Text("你来决定，哪些成为事实。").font(.headline); Text("AI 只能提出草稿。确认后的素材才会作为事实用于下一次准备；原始证据保持不变。").font(.subheadline) }
-            WarmCard(color: Warm.sage) { Text("原音频默认保留 90 天").font(.headline); Text("用于同一机会周期内回听。可改为处理后删除、7／30／90／180 天，也可以随时删除。选择 DeepSeek 分析时，本次本人原文会由后端发送给 DeepSeek。").font(.subheadline) }
-            Toggle("同意本机保存我主动提供的资料与录音", isOn: $consent).font(.subheadline)
-            Button("进入原生 App 示例") { store.onboarding = true; store.persist() }.buttonStyle(PrimaryButton()).disabled(!consent)
-            Text("原生 SwiftUI · 示例与真实记录分别标识\n后端连接在右上角设置中配置").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-        }.padding(24) }.background(Warm.paper.ignoresSafeArea())
     }
 }
 struct CompanionView: View {
@@ -276,15 +255,16 @@ struct SessionDetailView: View {
 }
 struct SettingsView: View {
     @EnvironmentObject var store: Store; @Environment(\.dismiss) var dismiss
-    @State var token = ""; @State var exportURL: URL?; @State var deleting = false; @State var allowBackend = false
+    @State var token = ""; @State private var backendAddress = ""; @State var exportURL: URL?; @State var deleting = false; @State var allowBackend = false
     var body: some View { NavigationStack { Form {
+        Section("个人资料") { NavigationLink("我的介绍与资料") { PersonalProfilePage() } }
         Section("运行模式") { Text(store.remote ? "已连接持久化 FastAPI 后端" : "离线示例 · 本机保存"); Button("切回离线示例") { UserDefaults.standard.set(false, forKey: "remote-enabled"); store.loadDemo() }.disabled(store.chatBusy) }
         Section("连接后端") {
-            TextField("后端地址", text: $store.base).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+            TextField("后端地址", text: $backendAddress).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
             SecureField("本机令牌或 Supabase 用户 JWT", text: $token).textInputAutocapitalization(.never).autocorrectionDisabled()
             Toggle("同意在填写的后端地址保存我的资料与音频", isOn: $allowBackend)
             Text("模拟器连接 http://127.0.0.1:8000。真机填写电脑局域网地址。默认本机令牌由后端生成，不包含服务端密钥。跨境云端部署需要另行同意流程。").font(.footnote)
-            Button("连接并读取真实后端数据") { Task { await store.perform { try await store.connect(token: token); dismiss() } } }.disabled(token.isEmpty || !allowBackend)
+            Button("连接并读取真实后端数据") { Task { await store.perform { try await store.connect(token: token, backend: backendAddress); dismiss() } } }.disabled(token.isEmpty || !allowBackend)
         }
         Section("文本 Agent") {
             if store.remote, let capability = store.capabilities {
@@ -313,7 +293,7 @@ struct SettingsView: View {
         }
         Section("录音设备") { NavigationLink("soundcore 连接与授权") { SoundcoreDeviceView(device: store.soundcore) } }
         Section("原型范围") { Text("设备录音由硬件按键开始和结束；App 可以暂停、继续、查看实时字幕和同步完整文件。录音与资料由当前连接的后端管理。").font(.footnote) }
-    }.navigationTitle("设置与隐私").toolbar { Button("完成") { dismiss() } }
+    }.onAppear { if backendAddress.isEmpty { backendAddress = store.base } }.navigationTitle("设置与隐私").toolbar { Button("完成") { dismiss() } }
         .confirmationDialog("永久删除当前模式的全部记忆？", isPresented: $deleting) { Button("删除全部记忆", role: .destructive) { Task { await store.perform { try await store.deleteMemory(); dismiss() } } } }
     } }
 }

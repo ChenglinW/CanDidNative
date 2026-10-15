@@ -14,3 +14,6 @@ ios/Vendor/
 # Plaintext team credentials and out-of-band decryption password
 .secrets/
 *.password
+
+# Local visual review captures may contain private App data
+.impeccable/review/
