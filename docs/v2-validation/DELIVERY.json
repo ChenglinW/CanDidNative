@@ -1,0 +1,63 @@
+{
+  "completed_at": "2026-10-15T19:58:21.377018+00:00",
+  "application_source_commit": "b3d8ebc4dba5943c8a1b48e6d6b3993251ec1698",
+  "application_source_url": "https://github.com/ChenglinW/CanDidNative/commit/b3d8ebc4dba5943c8a1b48e6d6b3993251ec1698",
+  "master_push": {
+    "source_commit_pushed": true,
+    "branch": "master",
+    "remote": "origin",
+    "note": "This receipt is published in a following documentation-only commit; its parent is the verified application source commit."
+  },
+  "backend": {
+    "base": "https://47.129.137.212",
+    "release": "/opt/candid/releases/20261016-v2-3c3136c414a3",
+    "application_source_commit": "b3d8ebc4dba5943c8a1b48e6d6b3993251ec1698",
+    "files_verified": 87,
+    "hash_mismatches": [],
+    "service": "active",
+    "health": "ok",
+    "tests_passed": 157,
+    "optional_eval_modules_skipped": 1,
+    "backup": "/var/backups/candid-before-v2.sqlite3"
+  },
+  "acceptance": {
+    "backend_local_passed": 165,
+    "native_unit_passed": 19,
+    "native_ui_passed": 8,
+    "native_real_cloud": "passed",
+    "native_real_cloud_seconds": 86.713,
+    "ui_review_disposition": "ship",
+    "ui_review_scope": "original four material fixes resolved; valid phone/tablet captures",
+    "release_iphoneos_build": "passed unsigned"
+  },
+  "simulators": {
+    "iPhone17": "final Debug installed; normal app relaunched against cloud backend",
+    "iPhone15Pro": "final Debug installed; full viewport reviewed with isolated synthetic fixture",
+    "iPad13M5": "final Debug installed; normal and accessibility large/system-dark captures reviewed"
+  },
+  "physical_iPhone15Pro": {
+    "updated_this_run": false,
+    "reason": "Mac locked; signing keychain waited. iPhone passcode required. Unsigned final Release built; prior signed app left in place.",
+    "next_condition": "Unlock Mac/keychain and iPhone to sign and install under existing bundle ID; real speech needed for acoustic acceptance."
+  },
+  "hardware_pending": [
+    "Real microphone and echo/VAD/barge-in/background lifecycle",
+    "Soundcore recording device buttons, Bluetooth sync and real-time PCM support"
+  ],
+  "known_model_limitations": [
+    "Fully overlapped synthetic English was lost beneath Mandarin",
+    "Small synthetic set is not a human speech or diarization benchmark"
+  ],
+  "ui_reductions": [
+    "Old project/multi-chat navigation and project archive forms retired",
+    "Old project follow-up/internal sync/tracking/practice screens not part of V2 navigation",
+    "Standalone recording tag-edit/project-link/report-file-export entrances not ported into V2; backend/data retained"
+  ],
+  "secrets": {
+    "plaintext_credentials_added_to_git": false,
+    "existing_private_configuration_reused": true
+  },
+  "local_baseline_preserved": [
+    "ios/.DS_Store remains untracked and excluded from commits"
+  ]
+}
