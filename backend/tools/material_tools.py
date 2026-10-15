@@ -20,9 +20,10 @@ class MaterialPart(BaseModel):
     page:int|None=Field(default=None,ge=1,le=300)
 
 def register_material_reader(registry, adapter):
-    from adapters.sources import source,collect,text_of
+    from adapters.sources import source,collect,text_of,state_of
     def handle(context,args,sources):
         kind,row=adapter.resolve(context.owner_id,args['source_id'],context.workspace_id)
+        if state_of(row)!='current':raise Fault('SOURCE_SUPERSEDED','依据已变化，请重新核对',409)
         text=text_of(kind,row)
         page=args.get('page')
         if page is not None:

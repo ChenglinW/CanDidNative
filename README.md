@@ -1,16 +1,18 @@
+> 2026-10-16 V2：当前界面为 Candid／记忆库／录音三个原生目的地，同一持续 Chat 串起准备与复盘，会议录音改为浅色，保留手机会议录音备用入口。以 [产品约定](PRODUCT.md)、[方向约定](docs/v2-validation/SURFACE.md)及 [V2 验证报告](docs/v2-validation/REPORT.md)为当前入口；下列旧交付记录仅保留历史范围。
+
 > 2026-10-15 录音入口更新：所有版本（含 Release）保留「手机录音（备用）」；录音豆继续作为主入口。云端已允许手机与录音豆两种来源。
 
 > 2026-10-16 云端接入：App 默认固定连接新加坡 `https://47.129.137.212`，自动申请并保存设备独立凭证。设置中无需填写后端地址或令牌。旧地址的设备身份与待上传录音可迁移；见 [云端接入说明](docs/CLOUD_CONNECTION.md)。
 
 > 2026-10-15：完整 onboarding 已接入原生 App，支持可跳过的用途选择、个人介绍、语音转文字和资料导入；后续在记忆库编辑。见 [onboarding 交付说明](docs/ONBOARDING_DELIVERY.md)。
 
-> 2026-10-15 首轮场景改造：销售 BD 与面试采用「我 → 场景 → 项目 → 业务场次」；首页、项目、录音、记忆库统一导航。会前准备、录后结构化资料、客户跟进、内部纪要、项目追踪、本地提醒和 PDF / Word / 图片 / 文字导出已接入。跨场新个人结论集中确认。先看 [首轮交付记录](docs/PRODUCT_REFACTOR_DELIVERY.md)、[已确认计划](docs/PRODUCT_REFACTOR_PLAN.md)与 [队友接入](docs/TEAM_SETUP.md)。飞书下一阶段，真机安装保持暂停。
+> 历史版本（已由 V2 结构替代）：2026-10-15 首轮场景改造：销售 BD 与面试采用「我 → 场景 → 项目 → 业务场次」；首页、项目、录音、记忆库统一导航。会前准备、录后结构化资料、客户跟进、内部纪要、项目追踪、本地提醒和 PDF / Word / 图片 / 文字导出已接入。跨场新个人结论集中确认。先看 [首轮交付记录](docs/PRODUCT_REFACTOR_DELIVERY.md)、[已确认计划](docs/PRODUCT_REFACTOR_PLAN.md)与 [队友接入](docs/TEAM_SETUP.md)。飞书同步仍后置；当前设备安装状态见 V2 验收报告。
 
-> 2026-10-14 Agent demo 更新：项目空间、资料/调研、录音/ASR、标签、归档学习与TTS已接入代码；本轮只构建和启动，功能与设备待测开验收。先看[交付说明](docs/AGENT_DELIVERY.md)、[队友接入](docs/TEAM_SETUP.md)及[迁移准备](docs/MIGRATION.md)。团队服务密钥通过加密配置包导入，不需要写进App。
+> 历史版本：2026-10-14 Agent demo 更新：项目空间、资料/调研、录音/ASR、标签、归档学习与TTS已接入代码；本轮只构建和启动，功能与设备待测开验收。先看[交付说明](docs/AGENT_DELIVERY.md)、[队友接入](docs/TEAM_SETUP.md)及[迁移准备](docs/MIGRATION.md)。团队服务密钥通过加密配置包导入，不需要写进App。
 
 # CanDid 原生 iOS 动态记忆库原型
 
-这是 SwiftUI 原生 iOS 客户端与 FastAPI 后端工程，不是 HTML 或 WebView 包装。产品结构以最新场景流程草图及已确认改造计划为准，沿用此前温暖版视觉。
+这是 SwiftUI 原生 iOS 客户端与 FastAPI 后端工程，不是 HTML 或 WebView 包装。当前产品结构以 V2 产品约定为准，沿用 Warm 视觉。
 
 **当前开发环境为 macOS、Xcode 27.0 与 iOS 27.0 模拟器。** soundcore SDK 已完成原生链接构建，并执行音频转换与页面测试；后端已接入 `deepseek-v4-pro`，本人文字复盘可生成带证据的诊断与待确认素材。详细结果与尚未执行的项目见 [验证记录](验证记录.md)。
 
@@ -21,9 +23,9 @@
 需要 Mac、Xcode 26 或更新版本（资料包 SDK 使用 Xcode 26 构建），iOS 17 或更新的模拟器／iPhone。本机使用 Xcode 26.6。
 
 1. 在 Mac 安装并首次打开完整 Xcode，完成组件安装，在 Settings → Components 中安装 iOS 模拟器运行时；随后双击 `ios/CanDid.xcodeproj`。
-2. 在项目根目录运行 `sh scripts/prepare-soundcore.sh` 和 `sh scripts/build-opus.sh` 准备本地依赖，再选择 **CanDid** scheme 与一个 iPhone 模拟器，点击 Run（⌘R）。无需后端即可进入明确标识的离线示例。
+2. 在项目根目录运行 `sh scripts/prepare-soundcore.sh` 和 `sh scripts/build-opus.sh` 准备本地依赖，再选择 **CanDid** scheme 与一个 iPhone 模拟器，点击 Run（⌘R）。正常启动连接已配置后端；离线状态显示连接说明。合成演示数据只由 Debug 验收参数注入，不用于真实新用户。
 3. 真机：连接 iPhone，在 Xcode 的 Signing & Capabilities 选择你自己的 Team，并将 Bundle Identifier 改成自己的唯一名称。
-4. 选择已连接的 iPhone，启用设备 Developer Mode 后点击 Run。soundcore 连接需要蓝牙权限与有效 SDK 授权；App 不再调用 iPhone 麦克风录音。
+4. 选择已连接的 iPhone，启用设备 Developer Mode 后点击 Run。soundcore 连接需要蓝牙权限与有效 SDK 授权；iPhone 麦克风用于语音输入、连续对话和次要的手机备用会议录音；安克录音豆仍是主要会议来源。
 
 在项目根目录执行构建检查（Mac）：
 
@@ -118,7 +120,7 @@ SQLite 是**本地原型存储**，不是生产 Supabase。`backend/supabase/sch
 
 ## 5 未接入及验证边界
 
-- 没有 ASR、TTS、联网背调、Supabase 实际项目或云端部署。DeepSeek 当前用于本人文本诊断和原文素材摘录，未生成完整准备包或实时语音对话。soundcore SDK 已链接，尚无硬件、token 或 license，真机接口未执行；云端 token 签发请求格式待供应商完整文档补充。
+- V2 已接入文本 Agent、DashScope 流式与文件 ASR、TTS、Monid 和云端后端，准备包与录后处理可持久化。实际通过的链路、服务延迟、硬件待验证项见 [V2 验收报告](docs/v2-validation/REPORT.md)。soundcore SDK 的模拟器限制与设备实测边界仍须区分。
 - 本次接入 BLE 离线录音同步。边录边传、设备标记导入、WiFi/MFi、OTA 等功能未接入；资料包 MFi 协议文本与截图不一致，当前未开启该通道。
 - 未完整实现四类准备包生成、讲稿 AI 版本生成、CV 解析、五场跨场景表达基线算法、模型版本全量重算、旧 stories 数据迁移、模型调用性能与成本监测。
 - 表结构预留这些记录；当前示例基线只是同场景字符数指标，不能当成完整 PRD 表达评分。短板状态机可验证，示例数据不能证明真实用户短板。

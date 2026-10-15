@@ -220,7 +220,7 @@ struct ProductEvidenceLinks:View {
     let refs:[ProductEvidence]
     var body:some View {HStack {ForEach(refs.prefix(4),id:\.source_id) {ref in
         if ref.source_id.hasPrefix("message:"),let quote=ref.quote {Text("用户原话："+quote).font(.caption).foregroundStyle(RecordingFormat.secondary).textSelection(.enabled)}
-        if let sid=ref.session_id {NavigationLink {RecordingDetail(recordID:sid,focusMS:ref.start_ms)} label:{Label("原文 "+RecordingFormat.clock((ref.start_ms ?? 0)/1000),systemImage:"quote.bubble").font(.caption).frame(minHeight:44)}}
+        if let sid=ref.session_id {NavigationLink {CompanionRecordingPage(id:sid,focusMS:ref.start_ms)} label:{Label("原文 "+RecordingFormat.clock((ref.start_ms ?? 0)/1000),systemImage:"quote.bubble").font(.caption).frame(minHeight:44)}}
     }} }
 }
 struct ProductInput:View {

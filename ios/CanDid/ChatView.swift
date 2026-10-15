@@ -19,6 +19,7 @@ struct ChatThread: Codable, Identifiable {
 struct ChatMessage: Codable, Identifiable {
     var id: String; var role: String; var content: String
     var sources: [ChatSource]; var tool_steps: [ChatToolStep]; var created_at: String
+    var preparation_package_id:String?;var recording_id:String?
     var model: String?
     var incomplete: Bool?; var task_id: String?
 }
@@ -111,6 +112,9 @@ extension Store {
             var localOverride = false
             #if DEBUG && targetEnvironment(simulator)
             let env = ProcessInfo.processInfo.environment
+            if Self.acceptanceDirectory != nil,env["CANDID_CLOUD_ACCEPTANCE"]=="1",let supplied=env["CANDID_BACKEND_TOKEN"],!supplied.isEmpty {
+                token=supplied;localOverride=true
+            }
             if env["CANDID_LOCAL_BACKEND"] == "1", let supplied = env["CANDID_BACKEND_TOKEN"], !supplied.isEmpty {
                 address = "http://127.0.0.1:" + (env["CANDID_BACKEND_PORT"] ?? "8000")
                 token = supplied; localOverride = true
@@ -127,7 +131,11 @@ extension Store {
                 token = registration.access_token
             }
             let candidate = API(base: address, token: token)
-            let profile = try await candidate.raw("/v1/profile")
+            var profile = try await candidate.raw("/v1/profile")
+            let savedZone=((try? JSONSerialization.jsonObject(with:profile)) as? [String:Any])?["timezone"] as? String
+            if savedZone != TimeZone.current.identifier {
+                profile=try await candidate.raw("/v1/profile",method:"PATCH",body:["timezone":TimeZone.current.identifier])
+            }
             let previous = TokenVault.read(); let draft = personalState
             if !localOverride {speech.migrateCloudReferences(to:candidate,previousToken:previous)}
             try TokenVault.save(token)
@@ -142,7 +150,7 @@ extension Store {
             requestedID = ProcessInfo.processInfo.environment["CANDID_CHAT_THREAD_ID"]
             #endif
             if let id = requestedID { try await loadChat(id) }
-            else if chatThread == nil { try await openScope(["mode":"all"]) }
+            else {let snapshot:CompanionSnapshot=try await api.call("/v1/companion");companion=snapshot;try await reloadProjectSpaces();if chatThread?.id != snapshot.thread.id {try await loadChat(snapshot.thread.id)}}
             connectionReady = true
             #if DEBUG && targetEnvironment(simulator)
             if let message = ProcessInfo.processInfo.environment["CANDID_CHAT_MESSAGE"], !message.isEmpty { sendChat(message) }
@@ -166,8 +174,20 @@ extension Store {
         defer { if generation == chatObserverGeneration { chatLoading = false } }
         let detail: ChatDetail = try await api.call("/v1/chat/threads/" + id)
         guard generation == chatObserverGeneration, remote else { return }
+        try Task.checkCancellation()
         applyChatDetail(detail)
         if observe { observeChat(id) }
+    }
+    func refreshCompanionChat(_ id:String) async throws {
+        let connection=api;let currentTask=chatTask?.id;let lastMessage=chatMessages.last?.id
+        let detail:ChatDetail=try await connection.call("/v1/chat/threads/"+id)
+        try Task.checkCancellation()
+        guard chatThread?.id==id,!chatBusy,!chatControlBusy,!chatLoading,chatRequest==nil,
+              chatTask?.id==currentTask,chatMessages.last?.id==lastMessage,
+              DeviceRecordingMap.identity(connection)==DeviceRecordingMap.identity(api) else{return}
+        // Idle publication refresh must not disable/recreate a focused composer.
+        applyChatDetail(detail)
+        observeChat(id)
     }
     private func applyChatDetail(_ detail: ChatDetail) {
         let id = detail.thread.id
@@ -357,23 +377,25 @@ struct ChatView: View {
     @State private var source: ChatSource?
     @State private var saved: Set<String> = []
     var onSettings: () -> Void
+    var embedded=false
+    var focusComposer=false
 
     private var followsLatest: Bool { store.chatReadPosition == nil || store.chatReadPosition == "chat-bottom" || store.chatReadPosition == store.chatMessages.last?.id }
     private var available: Bool { store.remote && store.capabilities?.agent_configured == true }
     var body: some View {
         VStack(spacing: 0) {
-            header
+            if !embedded {header
             HStack {
                 Text(store.currentProjectSpace?.name ?? "选择一个沟通方向")
                     .lineLimit(1)
                 Spacer()
                 Label(available ? "已连接" : "待连接", systemImage: available ? "circle.fill" : "circle")
                     .foregroundStyle(available ? Warm.purple : .secondary)
-            }.font(.caption).padding(.horizontal, 22).padding(.bottom, 12)
+            }.font(.caption).padding(.horizontal, 22).padding(.bottom, 12)}
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 18) {
-                        if store.chatMessages.isEmpty { emptyState }
+                        if store.chatMessages.isEmpty && !embedded { emptyState }
                         ForEach(store.chatMessages) { message in messageView(message).id(message.id) }
                         if store.chatBusy {
                             VStack(alignment: .leading, spacing: 8) {
@@ -452,12 +474,14 @@ struct ChatView: View {
                 Button("恢复这个空间") { Task { await store.archiveProjectSpace(restore: true) } }.frame(minHeight: 44)
             }
             RecordingStatusBar(speech:store.speech,device:store.soundcore).environmentObject(store)
-            SpeechToolbar(speech:store.speech).environmentObject(store)
+            if !embedded {SpeechToolbar(speech:store.speech).environmentObject(store)}
             VoiceInputStatus(voice:store.voice).environmentObject(store)
+            if embedded {HStack {Button("连续对话",systemImage:"waveform"){focused=false;store.voice.enter(store:store)};Spacer();if focused {Button("收起键盘"){focused=false}}}.font(.caption).frame(minHeight:44).padding(.horizontal,22)}
             composer
         }
         .background(Warm.paper.ignoresSafeArea()).toolbar(.hidden, for: .navigationBar)
 
+        .onChange(of:focusComposer){_,value in focused=value}
         .sheet(isPresented: $history) { historySheet }
         .sheet(isPresented: $editingSpace) { if let space = store.currentProjectSpace { WorkspaceEditor(space: space).environmentObject(store) } }
         .sheet(isPresented: $materials) { if let space = store.currentProjectSpace { WorkspaceMaterials(space: space).environmentObject(store) } }
@@ -519,6 +543,8 @@ struct ChatView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     if message.incomplete != true { Button("播报",systemImage:"speaker.wave.2") { store.stopPlayback();store.speech.speak(message,api:store.api,resources:store.audio) }.font(.caption).frame(minHeight:44) }
                     if message.incomplete == true { Label("未完成 · 已停止", systemImage: "stop.circle").font(.caption).foregroundStyle(.secondary) }
+                    if let id=message.preparation_package_id {NavigationLink{CompanionPreparationPage(id:id)}label:{Label("查看会前准备包",systemImage:"doc.text")}.frame(minHeight:44).accessibilityIdentifier("chat-preparation-"+id)}
+                    if let id=message.recording_id {NavigationLink{CompanionRecordingPage(id:id)}label:{Label("查看这场复盘",systemImage:"waveform")}.frame(minHeight:44).accessibilityIdentifier("chat-recording-"+id)}
                     Text(LocalizedStringKey(message.content)).font(.body).lineSpacing(6).textSelection(.enabled)
                     if !message.tool_steps.isEmpty {
                         HStack(spacing: 5) {
@@ -564,10 +590,10 @@ struct ChatView: View {
     }
     private var composer: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 8) {
+            if !embedded {HStack(spacing: 8) {
                 quickAction("准备下一场", icon: "scope", prompt: "帮我准备下一场沟通。请先问我最关键的背景。")
                 quickAction("复盘上一场", icon: "headphones", prompt: "帮我复盘上一场真实沟通。请先查找已有记忆和本人原文，没有资料就告诉我。")
-            }
+            }}
             VoiceComposer(voice:store.voice,focused:$focused,send:send).environmentObject(store)
         }.padding(.horizontal, 18).padding(.top, 10).padding(.bottom, 12)
     }
@@ -602,10 +628,10 @@ struct ChatView: View {
                     Text(value.confirmation_mode == "archive_auto" ? "归档自动确认":trustLabel(value.trust)).font(.caption).foregroundStyle(Warm.purple)
                     Text(value.text).textSelection(.enabled).lineSpacing(6)
                     if let start = value.start_ms { Text("原文位置：\(start / 1000) 秒起").font(.caption).foregroundStyle(.secondary) }
-                    if let page=value.page { Text("PDF第\(page)页").font(.caption).foregroundStyle(.secondary) }
+                    if let page=value.page { Text("资料第\(page)页 / 幻灯片").font(.caption).foregroundStyle(.secondary) }
                     if let offset=value.offset { Text("片段位置：第\(offset)字符起").font(.caption).foregroundStyle(.secondary) }
                     if let address=value.url,let url=URL(string:address),["http","https"].contains(url.scheme ?? "") { SwiftUI.Link("打开原始来源",destination:url) }
-                    if let sid=value.session_id { NavigationLink("打开录音与原文") { RecordingDetail(recordID:sid).environmentObject(store) } }
+                    if let sid=value.session_id { NavigationLink("打开录音与原文") { CompanionRecordingPage(id:sid,focusMS:value.start_ms).environmentObject(store) } }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(22)
             }.background(Warm.paper).navigationTitle(value.title)
                 .toolbar { Button("完成") { source = nil } }

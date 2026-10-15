@@ -1,6 +1,6 @@
 ---
 name: CanDid Native
-description: 沿用 Warm 配色、系统圆角字体和原生 SwiftUI 组件的沟通工作界面。
+description: Warm 浅色、系统圆角文字与原生三目的地构成的持续沟通界面。
 colors:
   warm-paper: "rgb(96.9% 95.3% 91.4%)"
   warm-white: "rgb(100% 99.6% 98.4%)"
@@ -10,9 +10,6 @@ colors:
   warm-orange: "rgb(100% 75.3% 47.1%)"
   warm-sage: "rgb(91% 94.1% 84.3%)"
   secondary-text: "rgb(44% 44% 40%)"
-  recorder-background: "rgb(9% 8% 12%)"
-  recorder-panel: "rgb(15% 13% 20%)"
-  recorder-secondary: "rgb(78% 75% 84%)"
   recorder-white: "#FFFFFF"
 typography:
   body:
@@ -37,10 +34,10 @@ rounded:
 spacing:
   composer: "8pt"
   card-content-gap: "12pt"
-  project-vertical: "16pt"
+  row-content: "16pt"
   warm-card-padding: "18pt"
   page: "22pt"
-  home-section: "24pt"
+  home-section: "14pt"
 components:
   recording-primary:
     backgroundColor: "{colors.warm-orange}"
@@ -59,16 +56,16 @@ components:
     textColor: "{colors.warm-ink}"
     rounded: "{rounded.warm-card}"
     padding: "{spacing.warm-card-padding}"
-  next-meeting-card:
+  preparation-card:
     backgroundColor: "{colors.warm-lavender}"
     textColor: "{colors.warm-ink}"
     rounded: "{rounded.warm-card}"
-    padding: "{spacing.warm-card-padding}"
-  project-row:
+    padding: "16pt"
+  recording-row:
     backgroundColor: "{colors.warm-white}"
     textColor: "{colors.warm-ink}"
     rounded: "{rounded.action-and-project}"
-    padding: "16pt 18pt"
+    padding: "12pt"
   voice-composer:
     backgroundColor: "{colors.warm-white}"
     textColor: "{colors.warm-ink}"
@@ -86,10 +83,15 @@ components:
     padding: "0pt 14pt"
     height: "46pt"
   recorder-transcript:
-    backgroundColor: "{colors.recorder-panel}"
-    textColor: "{colors.recorder-white}"
+    backgroundColor: "{colors.warm-white}"
+    textColor: "{colors.warm-ink}"
     rounded: "{rounded.warm-card}"
     padding: "{spacing.warm-card-padding}"
+  expression-filter-selected:
+    backgroundColor: "{colors.warm-sage}"
+    textColor: "{colors.warm-ink}"
+    height: "44pt"
+    padding: "0pt 12pt"
 ---
 
 # Design System: CanDid Native
@@ -98,125 +100,120 @@ components:
 
 **Creative North Star: "Warm 原生沟通界面"**
 
-本文件是当前实现的提取记录。用户已固定的米白、紫色、橙色与系统圆角风格继续作为视觉依据；名称仅描述已有界面。业务表面约定见 `docs/PRODUCT_SURFACES.md`。
+本文件提取已批准 V2 的原生实现，沿用已有 Warm 配色、系统圆角字体和紫色双气泡 Mascot。少量信息、清楚的正文层级、浅色圆角容器与原生控件构成持续的沟通界面；页面策略以 `PRODUCT.md` 与 `docs/v2-validation/SURFACE.md` 为准。
 
-应用主体是浅色 SwiftUI 界面，内容通过留白、圆角卡片和轻微描边组织。录音全屏页使用已确认的局部深色配色，连续语音对话仍使用 Warm 浅色。导航、选择器、表单、弹窗和图标依赖原生 SwiftUI 与 SF Symbols。
+应用主体、会议录音全屏页与连续语音页均使用 Warm 浅色世界。深度主要通过色面、留白与轻描边表达，导航、安全区、sheet、系统材料和 SF Symbols 由平台提供。动效解释同一内容层的展开与状态变化，并尊重 Reduce Motion。
 
 **Key Characteristics:**
 
-- 米白页面、近白卡片、紫色交互和橙色主按钮。
-- 系统圆角文字与原生导航，保留 Dynamic Type 的语义文字样式。
-- 深色录音页以原文、时间戳和状态为主要内容。
+- 米白页面、近白内容、淡紫准备色面、紫色交互与暖橙主要动作。
+- 系统圆角语义文字、原生三目的地和可访问的安全区布局。
+- 同一对话层、清晰的原文时间戳与可追溯依据。
 
-提取依据：`ios/CanDid/CanDidApp.swift` 的 `Warm`、`WarmCard`、`PrimaryButton`；`ProductViews.swift` 的产品页；`RecordingUI.swift` 的 `RecordingPrimary`、`RecordingShell`、`LiveRecordingView`；`VoiceViews.swift` 的语音界面与输入。前置 RGB 值以百分比保留 SwiftUI 源码精度。几何单位为原生逻辑点，前置 `pt` 不表示网页 CSS 的物理点；sidecar 的网页预览以同数值 CSS px 展示结构，原生实现是最终依据。
+提取依据：`ios/CanDid/CanDidApp.swift` 的 Warm、WarmCard；`CompanionUI.swift` 的 V2 表面；`RecordingUI.swift` 的浅色录音与三目的地；`VoiceViews.swift`、`ChatView.swift` 与 `Onboarding.swift` 的输入和状态。前置 RGB 百分比保留 SwiftUI 源码精度；几何单位为原生逻辑点，前置 pt 不表示网页 CSS 物理点。sidecar 的同数值 CSS px 仅展示组件结构，原生实现是最终依据。
 
 ## Colors
 
 ### Primary
 
-- `warm-purple`：全局 tint、项目阶段、证据入口和发送按钮。
-- `warm-orange`：当前 `RecordingPrimary` 与既有 `PrimaryButton` 的主要操作背景。
+- `warm-purple`：全局 tint、来源入口、发送与状态文字；淡紫准备卡日期也使用该前景，保持小字清晰。
+- `warm-orange`：RecordingPrimary、准备报告入口和连续语音结束动作的暖色强调。
 
 ### Secondary
 
-- `warm-lavender`：下一场卡片、录音状态条、语音圆形底色，以及录音中尚未稳定的原文文字。
-- `warm-sage`：既有事实确认徽标和保留说明卡片。
+- `warm-lavender`：准备卡、录音状态条、录音图标与连续语音圆背景。
+- `warm-sage`：表达筛选的选中面、说明卡片和既有事实徽标。
 
 ### Neutral
 
-- `warm-paper`：浅色页面背景与固定输入区背景。
-- `warm-white`：卡片、输入框和 TabView 的指定工具栏背景。
-- `warm-ink`：浅色正文与橙色按钮文字；卡片和输入框的描边由其透明度构成。
-- `secondary-text`：`RecordingFormat.secondary`，用于浅色界面的辅助文字。
-- `recorder-background`、`recorder-panel`：仅对应 `LiveRecordingView` 的全屏背景与原文容器。
-- `recorder-secondary`：深色录音页的辅助文字、时间戳、状态与录后说明。
-- `recorder-white`：深色主文字及发送箭头。
+- `warm-paper`：页面和固定输入区背景。
+- `warm-white`：卡片、录音行、实时原文容器、输入框与系统 tab 工具栏背景。
+- `warm-ink`：正文和橙色按钮文字，透明度描边以其构成。
+- `secondary-text`：RecordingFormat.secondary，用于纸色、近白底上的辅助文字。
+- `recorder-white`：保留的白色 token，仅对应发送箭头等白色控件前景；不再表示深色录音世界。
 
-系统语义颜色 `.secondary`、`.green`、`.red`、`.brown` 与材料样式继续由平台提供；没有把它们伪装成固定 RGB。录音状态的小圆点也保留源代码的状态用色，不能单靠圆点代替文字状态。
+系统 `.secondary`、`.green`、`.red`、`.brown` 和材料继续由平台提供，不记录为虚构固定 RGB。状态圆点同时配文字说明。
 
-**The Recorder Scope Rule.** 全局仍是浅色；深色方案局限于录音全屏页，其 presentation 指定 `.preferredColorScheme(.dark)`，状态栏采用浅色文字。
+**The Light Surface Rule.** 主体、录音全屏与连续语音共享浅色 Warm 世界；系统深色设置不切换当前 App 的色彩方案。
 
 ## Typography
 
-全局 `RootView` 使用 `.fontDesign(.rounded)`，录音与连续语音 presentation 同样声明系统圆角字体。中文由系统字体回退处理；没有新增字体文件或下载依赖。
+全局 RootView 使用 `.fontDesign(.rounded)`；录音及连续语音保持同一系统圆角风格。中文由平台回退，没有新增字体依赖。
 
 | 实际样式 | 当前用途 |
 | --- | --- |
-| `.largeTitle.bold()` | 既有欢迎页主标题 |
-| `.title2.bold()` | 首页主标题、连续语音状态 |
-| `.title3.bold()` / `.title3` | 下一场标题、项目目标 |
-| `.headline` | 分区标题、项目和场次标题 |
-| `.body` / `.body.weight(.semibold)` | 正文、实时原文、主要按钮 |
-| `.subheadline` | 项目描述、会前说明、原文容器标题 |
-| `.caption` / `.caption2` | 日期、阶段、范围、状态和时间戳 |
+| `.largeTitle.bold()` / `.title.bold()` | 准备报告、记忆详情和引导标题 |
+| `.title2.bold()` | 固定 Candid 标题、空态、录音复盘标题与连续语音状态 |
+| `.title3.bold()` / `.headline` | 发现摘要、准备包客户、分区与资料标题 |
+| `.body` / `.body.weight(.semibold)` | 消息、实时原文、正文与主要按钮 |
+| `.subheadline` | 录音行标题、说明和报告入口 |
+| `.caption` / `.caption2` | 日期、来源、状态、筛选与时间戳 |
 | `recorder-title` / `recorder-timer` | 录音标题与固定数值计时器 |
 
-语义样式保持系统字号与 Dynamic Type 缩放，不记录虚构的固定字号、行高或字距。录音标题与计时器是源码明确指定的固定尺寸，计时器使用 `.monospacedDigit()`。产品正文通常有 (5pt) 行间距，实时原文为 (6pt)；首页下一场目标为 (4pt)。
+语义文字保留 Dynamic Type，不添加虚构固定字号或行高。录音标题和计时器是前置 token 中源码明确的固定字号；计时器使用 `.monospacedDigit()`。正文行间距通常为 (5–6pt)，消息与实时原文保留文字选择。
 
 ## Layout
 
-产品页以可滚动单列和原生安全区组织。常见页面内边距为 `page`，首页分区间距为 `home-section`。首页内容居中且最大宽度为 (700pt)；当前项目和场次详情沿可用宽度排布，没有统一 (700pt) 限宽，也没有定义网页式断点。
+页面以单列、原生安全区和可滚动详情组织。Candid、录音库、记忆库、报告及消息内容最大宽 (700pt)；设备引导与个人资料最大宽 (600pt)。主要水平边距采用 `page`，详情间距常见 (20–22pt)，首页内容间距采用 `home-section`。没有自定义网页断点。
 
-项目场次使用水平滚动时间线：普通卡片内容宽 (180pt)，内边距 (16pt)；新增场次块为 (150 × 100pt)。移动端的右侧部分卡片是水平滚动内容。固定 `ProductInput` 通过 `.safeAreaInset(edge:.bottom)` 位于系统导航区域旁，范围标签允许按内容换行，输入区设置 `.fixedSize(horizontal:false,vertical:true)`。文本输入为 (1–5) 行。
+V2 首页是固定顶部、状态内容区和底部 dock；准备卡、最近录音数量属于表面约定而非全局卡片规则。辅助字号时中部改为 ScrollView，dock 的并排动作可由 ViewThatFits 换为竖排。驻留 Chat 从内容区底部展开，顶部留出 (48pt) 收起动作区域；键盘沿原生布局抬起输入，消息区可滚动。
 
-首页头像与录音入口、输入麦克风与发送按钮的框为 (44 × 44pt)。主要产品文字操作使用最小 (44pt) 高度；`RecordingPrimary` 最小高度见前置 token。连续语音的静音、切文字、结束三个圆形控件为 (54 × 54pt)。
-
-iPhone 与 iPad 由同一 SwiftUI `TabView` / `NavigationStack` 适配。当前 iPhone 使用底部系统 tab，iPad 截图为顶部系统 tab；没有手工绘制替代导航。截图审查覆盖与局限见 `docs/PRODUCT_UI_REVIEW.md`。
+头像旁动作、输入麦克风、发送与收起控件使用 (44 × 44pt) 框，文字动作通常最小高度 (44pt)。RecordingPrimary 的最小高度见前置 token。连续语音三个圆形控件为 (54 × 54pt)。iPhone 底部与 iPad 顶部 tab 由系统 TabView 安排，不绘制网页状态栏或 Dynamic Island。
 
 ## Elevation & Depth
 
-产品页面以色面层次、留白和薄描边为主。`WarmCard` 为 ink (0.08) 透明度描边；输入框为 ink (0.15)，按住语音时改为 purple。录音状态条为 purple (0.22) 描边。原文容器的分隔线叠加 white (0.12)。
+色面层次、留白与轻描边是当前 V2 的主要深度手段。WarmCard 和实时原文容器采用 ink (0.08) 描边；VoiceComposer 使用 ink (0.15)，按住收音改为 purple。首页输入预览为 ink (0.12)，录音状态条为 purple (0.22)，浅色原文分隔为 ink (0.12)。系统 tab、sheet 与材料由平台绘制，没有新增阴影 token。
 
-既有 `PrimaryButton` 保留棕色 (0.3) 透明度的硬边底影，模糊半径 (0pt)、默认下移 (4pt)，按下时影下移 (1pt) 且内容下移 (2pt)。产品扩展使用的 `RecordingPrimary` 没有这层阴影。系统 tab、工具栏、sheet 与材料层由平台绘制；这里没有新增全局阴影 token。
+既有 PrimaryButton 源码仍有棕色硬边底影；这是未在本轮重写的遗留样式，不是 V2 的可复用深度规范。RecordingPrimary、准备卡与录音行均不继承这层影子。
 
 ## Shapes
 
-主要圆角以源码值为准：卡片与录音原文容器使用 `warm-card`；产品项目行、时间线和主要按钮使用 `action-and-project`；输入区使用 `composer`；发送按钮使用 `recorder-note`。徽标使用 `Capsule()`，头像与连续语音控件使用 `Circle()`。图标沿用 SF Symbols。
+卡片与实时原文容器使用 `warm-card`；录音行和主要按钮沿用 (16pt) 圆角，对应历史 token 名 `action-and-project`。输入使用 `composer`，发送及准备卡按钮使用 `recorder-note`。筛选与徽标采用 Capsule，头像底与连续语音控件采用 Circle，图标沿用 SF Symbols。
 
 ## Components
 
 ### Buttons
 
-`RecordingPrimary` 是产品页和录音页当前主按钮：橙底、ink 字、语义正文半粗体、圆角 (16pt)，最小高度 (50pt)，按下 opacity (0.8)，禁用时整体 opacity (0.45)，两个状态修饰按源码叠加。既有 `PrimaryButton` 仍用于欢迎和素材页，保留 (15pt) 内边距与硬边按下反馈；不把这两个 ButtonStyle 的状态混为一套。
+RecordingPrimary 使用暖橙底、ink 字、语义正文半粗体；最小高度与圆角见前置 token。按下 opacity (0.8)，禁用 opacity (0.45)，两个 modifier 按源码依次叠加。准备卡中的报告 CTA 使用同色、(12pt) 圆角、水平内边距 (14pt)，最小高度 (44pt)。文字次要动作使用 purple tint 和原生交互。
 
 ### Chips
 
-既有 `TrustBadge` 使用 capsule，水平内边距 (10pt)、竖直 (6pt)，事实状态为 sage 背景与系统 green 文字，待确认状态为 lavender 背景与 purple 文字，并同时显示文字和图标。场景与场次阶段采用原生 segmented picker。
+表达标签筛选为 capsule，水平内边距 (12pt)、最小高度 (44pt)，选中为 sage，未选中近白。记忆分区与录音复盘／原文使用系统 segmented Picker。既有 TrustBadge 仍用文字、图标和 sage／lavender 区分事实与推断。
 
 ### Cards / Containers
 
-`WarmCard` 默认近白，内部纵向间距 `card-content-gap`，内边距 `warm-card-padding`，ink 轻描边。下一场仅替换为 lavender 背景。`ProductProjectRow` 为近白圆角行，竖直内边距 (16pt)、水平 (18pt)，描述限制两行并显示场景、阶段和示例标识。场次时间线卡片遵循 Layout 中的独立尺寸。
+WarmCard 内部间距、内边距和圆角见前置 token。CompanionPreparationCard 为 lavender、(16pt) 内边距与 (10pt) 内容间距，日期为 purple。CompanionRecordingRow 为近白、(12pt) 内边距与间距，图标放在淡紫圆角底，内容包含单行标题、时间／时长／处理状态。记忆表达行使用近白、(16pt) 内边距，保留原文依据或待重核标记。组件预览中的业务文字均为示例。
 
 ### Inputs / Fields
 
-`VoiceComposer` 包含麦克风、垂直可增长 TextField 和发送按钮。容器内边距、间距均为 (8pt)；TextField 竖直内边距 (9pt)。发送箭头为白色，空输入时 opacity (0.45)；禁用条件还包含聊天控制忙碌、加载中和连续语音活跃，不能由颜色推断全部禁用原因。整个输入在项目非 active 或聊天加载中时禁用。表单编辑器继续使用原生 `Form`、`TextEditor` 与工具栏动作；本轮截图未验证键盘展开。
+首页输入是进入同一 Chat 的按钮预览，显示保留草稿或提示语，支持长按语音；展开后的 VoiceComposer 包含麦克风、(1–5) 行 TextField 与发送动作。容器间距及内边距均为 (8pt)，TextField 竖直内边距 (9pt)。空草稿发送箭头 opacity (0.45)；禁用条件还包含聊天控制忙碌、加载或连续语音活跃。未编辑输入区由透明覆盖层分别处理普通点按与长按：普通点按进入编辑；只有长按 (0.35s) 成立后的 sequenced second 阶段开始收音，上滑超过 (60pt) 标示取消。发送按钮不注册该输入区的长按手势；键盘编辑保留原生选字。独立麦克风按钮仍支持点击开始、再次点击发送。焦点、取消手势和输入保持由原生实现处理。资料编辑继续使用 Form、TextEditor 和原生工具栏。
 
 ### Navigation
 
-四个系统导航目的地为首页、项目、录音、记忆库。深入页面使用 `NavigationStack` 与原生返回。录音使用深色 `fullScreenCover`，保留收起和更多菜单；连续语音也是全屏，但继续使用浅色 Warm 背景。系统 hover、focus 与导航装饰没有被重写为网页样式。
+三个系统目的地是 Candid、记忆库、录音，深入内容使用 NavigationStack。首页菜单进入个人与设置、全部准备包；持续对话直接在首页内容区上推，右上收起或顶部下拉收起，不提供项目或会话选择器。录音与连续语音使用 fullScreenCover，保持浅色 Warm 世界。系统 hover、focus 和导航装饰不由网页预览替代。
 
 ### Recorder transcript
 
-深色原文容器在页面中占据可用滚动空间，稳定文字为 white，尚未稳定文字为 lavender，辅助状态与时间戳用 `recorder-secondary`。时间戳位于每条原文上方，支持文字选择。用户向上查看时暂停跟随，提供 capsule「回到最新」，按钮最小高度 (44pt)。容器内边距为 (18pt)，外侧水平边距为 (16pt)。
+实时原文容器为近白，稳定文字为 ink，临时识别为 purple，时间戳与辅助说明使用 secondary-text。每条时间戳在文字上方，支持文字选择；用户上翻时暂停跟随，提供最小 (44pt) 高度的淡紫 capsule「回到最新」。容器内边距为 (18pt)，外侧水平边距为 (16pt)，录后原文通过带来源入口进入。
 
 ### Voice motion and imagery
 
-连续语音的 lavender 圆背景大小为 (152pt)，Mascot 为 (106pt)，按音量放大系数为 `1 + level × 0.12`，使用 `.easeOut(duration:0.12)`；Reduce Motion 开启时关闭该显式动画。没有新增运动规则。
+Chat 使用 `.easeOut(duration:0.3)` 从内容区底部上推；Reduce Motion 关闭显式动画及大幅位移，并保留同一层状态。连续语音 lavender 圆为 (152pt)，Mascot 为 (106pt)，音量缩放为 `1 + level × 0.12`，`.easeOut(duration:0.12)`；Reduce Motion 关闭该显式动画。未连接时有「重新连接 Candid」及连接中反馈。
 
-唯一保留的品牌位图是 `ios/CanDid/Assets.xcassets/Mascot.imageset/mascot.png`，由既有 `Mascot` 组件缩放显示，accessibility label 为「Candid 紫色双气泡」。本轮没有生成、下载或替换它。可核实来源是任务开始前已存在的仓库资产；原作者、最初生成方式与授权资料未随本轮提供，不能补写推测来源。资产审计记录见 `docs/PRODUCT_UI_REVIEW.md`。
+唯一保留的品牌位图是 `ios/CanDid/Assets.xcassets/Mascot.imageset/mascot.png`，由既有 Mascot 缩放显示，accessibility label 为「Candid 紫色双气泡」。本轮没有生成、下载或替换它。可核实来源是任务开始前已存在的仓库资产；原作者、最初生成方式与授权资料未提供，不能补写推测来源。原有 SHA-256 与字节记录保留于 sidecar。当前验收证据见 `docs/v2-validation/REPORT.md`。
 
 ## Do's and Don'ts
 
 ### Do:
 
 - Do 沿用 Warm 源码配色、系统圆角文字和 SF Symbols。
-- Do 为录音全屏页保留局部深色 scheme 与浅色状态文字。
-- Do 保留原生导航、安全区输入、Dynamic Type 语义样式与已实现的禁用反馈。
-- Do 用文字与图标共同表达状态，并保留示例、草稿、待确认和原文依据标记。
+- Do 为主体、全屏录音与连续语音保留浅色 scheme。
+- Do 保留原生导航、安全区、Dynamic Type 与 Reduce Motion 降级。
+- Do 用文字与图标共同表达状态，保留原文、待确认、依据已更新与示例标记。
 
 ### Don't:
 
-- Don't 把局部深色录音方案扩展为整个应用的新视觉方向。
 - Don't 新增字体或替换现有 Mascot 来改变已固定的视觉体系。
-- Don't 把系统动态字体、语义颜色或原生导航伪装成已定义的固定网页 token。
+- Don't 把旧项目页面、四 tab 或深色录音记录作为新表面的依据。
+- Don't 把系统动态字体、语义颜色或原生导航伪装成固定网页 token。
 - Don't 用示例截图推断真实数据、外部发送、ASR 或硬件已经通过验收。

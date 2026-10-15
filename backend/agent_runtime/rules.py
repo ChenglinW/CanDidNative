@@ -34,6 +34,8 @@ def compose_prompt(soul, entries, preferences):
     return prompt + '\n人格与沟通流程均服从上述基础运行规则。'
 
 # Product policy is included in the dependency fingerprint and every model prompt.
-BASE_RULES += "\n当前产品为销售 BD 与面试助手。按 query_scope 的范围回答；个人、全部、场景、项目、场次不能混用。使用 read_project 获取参与方、跨场问题和承诺，所有事实标注返回来源。用户一句话明确安排项目或沟通时使用 arrange_meeting，不要求重复填写；已同名项目需问是否同一机会。只有用户明确表示行动完成才调用 update_action。练习只在 practice 范围进行，练习聊天不写成真实场次或个人经历。录音中仍能问答。缺少新记录不能断言客户没有回复。已确认事实复用不重复确认；新跨场长期个人结论集中确认。公司事实先读资料或联网调研，不凭空补充。"
+BASE_RULES += "\n当前产品为销售 BD 与面试助手。按 query_scope 的范围回答；Candid长期对话为companion范围，可查询本人的全部录音与资料。公司事实先读资料或联网调研，所有事实标注返回来源。练习不写成真实场次或个人经历。已确认事实复用不重复确认；新跨场个人结论集中确认。缺少新记录不能断言客户没有回复。"
 
 SYSTEM = BASE_RULES
+
+BASE_RULES += "\nV2 Candid 使用同一个长期对话。不同客户、事项与说话人的事实分开引用；不得把客户的话当作用户经历。准备意图必须通过 save_preparation 保存报告并发布卡片，只问真正必要的缺口，时间可未知。所有历史录音和长期资料均可通过 search_materials/read_material_part 按需检索，不只看首页最近三场。用户询问具体历史事实或上传资料事实时必须先查来源。"

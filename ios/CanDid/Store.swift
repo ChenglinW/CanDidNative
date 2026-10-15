@@ -23,6 +23,9 @@ import UserNotifications
     @Published var connectionError: String?
     @Published var cloudStorageAllowed = false
     @Published var capabilities: Capabilities?
+    @Published var companion:CompanionSnapshot?
+    @Published var companionRecordings:[RecordingRecord]=[]
+    @Published var companionMemory:CompanionMemorySnapshot?
     var productScopeGeneration=UUID()
     @Published var products:[ProductProject]=[]
     @Published var productDetails:[ProductDetail]=[]
@@ -69,6 +72,10 @@ import UserNotifications
     private var localFiles: [String: String] = UserDefaults.standard.dictionary(forKey: "local-recordings") as? [String: String] ?? [:]
     let demoURL: URL
     static var isolatedTestRun: Bool {
+        #if DEBUG && targetEnvironment(simulator)
+        let env=ProcessInfo.processInfo.environment
+        if acceptanceDirectory != nil,env["CANDID_LOCAL_BACKEND"]=="1" || env["CANDID_CLOUD_ACCEPTANCE"]=="1" {return false}
+        #endif
         // Unit-test hosts must stay offline in Release as well. Launch flags
         // remain Debug-only; a normal installed Release app cannot opt out of auth.
         if NSClassFromString("XCTestCase") != nil { return true }
@@ -78,6 +85,12 @@ import UserNotifications
         return false
         #endif
     }
+    static var acceptanceDirectory:URL? {
+        #if DEBUG && targetEnvironment(simulator)
+        if let value=ProcessInfo.processInfo.environment["CANDID_ACCEPTANCE_CACHE"],let id=UUID(uuidString:value){return FileManager.default.temporaryDirectory.appendingPathComponent("CanDidHTTPAcceptance/"+id.uuidString)}
+        #endif
+        return nil
+    }
     init(localDirectory: URL? = nil) {
         if let localDirectory {
             try? FileManager.default.createDirectory(at: localDirectory, withIntermediateDirectories: true)
@@ -86,6 +99,9 @@ import UserNotifications
             let folder = FileManager.default.temporaryDirectory.appendingPathComponent("CanDidUITests/" + (ProcessInfo.processInfo.environment["CANDID_ONBOARDING_TEST_ID"].flatMap { UUID(uuidString:$0)?.uuidString } ?? UUID().uuidString))
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             demoURL = folder.appendingPathComponent("candid-demo.json")
+        } else if let cache=Self.acceptanceDirectory {
+            try? FileManager.default.createDirectory(at:cache,withIntermediateDirectories:true)
+            demoURL=cache.appendingPathComponent("candid-demo.json")
         } else { demoURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("candid-demo.json") }
         retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90
         if Self.isolatedTestRun || localDirectory != nil {
@@ -99,6 +115,7 @@ import UserNotifications
         loadOnboarding(); purgeLocalExpired();loadProductCache()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") && ProcessInfo.processInfo.arguments.contains("-candid-surface-review") {onboarding=true;seedProducts()}
+        if Self.isolatedTestRun && ProcessInfo.processInfo.arguments.contains("-candid-v2-populated") {onboarding=true;seedCompanionPreview()}
         #endif
     }
     func purgeLocalExpired() {

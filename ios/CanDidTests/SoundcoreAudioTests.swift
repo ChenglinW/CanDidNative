@@ -77,7 +77,7 @@ final class SoundcoreAudioTests: XCTestCase {
         store.voice.enter(store:store)
         XCTAssertTrue(store.voice.showContinuous,"Continuous conversation must also open in Release")
         XCTAssertEqual(store.voice.phase,.failed)
-        XCTAssertEqual(store.voice.notice,"请先连接后端并选择可用项目空间。")
+        XCTAssertEqual(store.voice.notice,"请先连接 Candid，再开始语音对话。")
         XCTAssertFalse(store.voice.active)
         XCTAssertFalse(store.audio.voiceActive,"Unavailable prerequisites must not acquire the microphone")
         store.voice.exit()

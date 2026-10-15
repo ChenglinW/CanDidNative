@@ -120,7 +120,7 @@ private final class VoiceInput {
     func beginHold(store:Store) {guard !holding,!active else{return};holding=true;cancelling=false;begin(store:store,continuous:false)}
     private func begin(store:Store,continuous:Bool) {
         guard !active || (mode == .continuous && microphonePaused) else{notice="请先结束当前语音。";return}
-        guard store.remote,store.capabilities?.asr_configured==true,let thread=store.chatThread?.id,let space=store.currentProjectSpace,space.status=="active" else{holding=false;phase = .failed;notice="请先连接后端并选择可用项目空间。";return}
+        guard store.remote,store.capabilities?.asr_configured==true,let thread=store.chatThread?.id,let space=store.currentProjectSpace,space.status=="active" else{holding=false;phase = .failed;notice="请先连接 Candid，再开始语音对话。";return}
 
         self.store=store;self.api=store.api;self.thread=thread;workspace=space.id;backend=identity(store.api)
         epoch=UUID();session=UUID();reply=nil;waitingQuestion=nil;timing=[:];onsets=[:];let stamp=epoch

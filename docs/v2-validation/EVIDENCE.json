@@ -1,0 +1,327 @@
+{
+  "synthetic_data_only": true,
+  "backend_local": {
+    "passed": 165,
+    "warnings": 2
+  },
+  "native_full_before_finish_fixes": {
+    "unit_passed": 19,
+    "ui_passed": 8,
+    "mock_model_actual_http": true,
+    "result_bundle": ".build/TestResults/CompanionV2-Final.xcresult"
+  },
+  "documents": {
+    "status": "passed",
+    "documents": [
+      {
+        "file": "客户甲-服务范围.txt",
+        "id": "807dba9b-ee55-40ba-91df-b417295ac675",
+        "status": "completed",
+        "error": null
+      },
+      {
+        "file": "客户乙-需求.md",
+        "id": "9cddb4b3-afc3-4ca3-91c0-e8effc89c0e7",
+        "status": "completed",
+        "error": null
+      },
+      {
+        "file": "面试-JD.txt",
+        "id": "979b7997-9ea0-4c27-b917-19752692957a",
+        "status": "completed",
+        "error": null
+      },
+      {
+        "file": "报价与服务范围.pdf",
+        "id": "a82359e9-ac92-415b-87b7-053e8f4b5d8a",
+        "status": "completed",
+        "error": null
+      },
+      {
+        "file": "产品介绍.docx",
+        "id": "ffe0e8f6-607b-4c84-b3bc-6f690f60701e",
+        "status": "completed",
+        "error": null
+      },
+      {
+        "file": "试点方案.pptx",
+        "id": "0ff13eb4-b9e5-4617-8385-8eac7ff268b7",
+        "status": "completed",
+        "error": null
+      },
+      {
+        "file": "扫描件无文字.pdf",
+        "id": "6d72cea0-f724-40d4-94fd-ecd5c6fe1aa2",
+        "status": "failed",
+        "error": "PDF 没有可提取文字，可能是扫描件；请上传可选中文字的 PDF 或粘贴原文"
+      },
+      {
+        "file": "损坏.pdf",
+        "id": "161c476f-8255-4bb4-a955-f608404da19f",
+        "status": "failed",
+        "error": "PDF 损坏或无法解析，请重新导出后再试"
+      }
+    ]
+  },
+  "preparation": {
+    "status": "completed",
+    "seconds": 22.032,
+    "package_id": "1bb8a97e-a9ae-48a6-8b5f-8c856ac24696",
+    "version": 1,
+    "sections": [
+      {
+        "title": "沟通目标",
+        "text": "与采购王总确认华味餐饮三家门店试点的接口清单和服务范围；同时就两周上线的要求对齐真实可行的排期口径，不做出资料未承诺的交期承诺。"
+      },
+      {
+        "title": "对象与背景",
+        "text": "客户甲为华味餐饮，产品代号 CANDID-A73，预算18万元，试点三家门店。[1] 基础服务包含一次培训，不承诺两周上线；接口清单由王总提供。[1] 试点范围以接口清单为准，交付日期尚未核实。[2]"
+      },
+      {
+        "title": "沟通提纲",
+        "text": "1. 开场确认试点目标：三家门店、以接口清单为范围边界。\n2. 请王总提供/确认接口清单，逐项对齐哪些接口在试点范围内。\n3. 明确服务范围：基础服务含一次培训，不含其他未写入范围的项目。\n4. 就两周上线的要求说明排期口径，区分'客户期望'与'我方可承诺'。\n5. 约定下一步：接口清单交付时间、上线排期评估节点。"
+      },
+      {
+        "title": "关键问题",
+        "text": "1. 接口清单是否可以现在提供或明确交付时间？\n2. 三家门店的接口是否完全一致，还是门店间有差异？\n3. 对方提出两周上线的依据是什么，是否已有内部排期或验收节点？\n4. 除一次培训外，是否还有额外实施或驻场需求需要单独评估？"
+      },
+      {
+        "title": "表达建议",
+        "text": "建议话术（示例）：'目前我们基础服务包含一次培训，接口和服务范围以您提供的接口清单为准。关于两周上线，我需要先和内部确认接口联调与交付的可行排期，不能在没有确认清单前直接承诺时间。' 注意：不要主动报出超出资料的交期；对两周上线可表达'先确认清单、再评估排期'，而非当场答应或拒绝。"
+      },
+      {
+        "title": "待核实事项",
+        "text": "1. 交付/上线日期：现有资料标注'交付日期尚未核实'，需内部确认。[2]\n2. 接口清单具体内容：资料仅说明由王总提供，尚未见实际清单内容。[1]\n3. 两周上线的可行性：无资料支持，需评估后回复，不能在本次沟通中承诺。"
+      }
+    ],
+    "same_chat_and_home_id": true
+  },
+  "grounding": {
+    "status": "completed",
+    "seconds": 70.551,
+    "content": "**客户甲（华味餐饮）**\n- 预算：18万元 [3][4]\n- 产品/验收代号：CANDID-A73（报价资料中写作 PDF-A73）[3][4]\n- 其他：试点三家门店，基础服务含一次培训，接口清单由王总提供 [3]\n\n**客户乙（晴川零售）**\n- 预算：80万元 [2][4]\n- 验收代号：CANDID-B29（报价资料中写作 PDF-B29）[2][4]\n- 其他：计划十二家门店，合同与上线日期尚未确定 [2]\n\n**面试岗位（测试公司北辰）**\n- 招聘岗位：产品经理 [1]\n- 要求：Python 和 SQL，关注实验设计 [1]\n- 岗位代号：INTERVIEW-K51 [1]\n\n以上均来自已确认的原始资料，客户和面试信息彼此独立。"
+  },
+  "recording_pipeline": {
+    "status": "passed",
+    "recording_id": "7510f861-be8a-4e71-add2-1a286709ce63",
+    "processing_seconds": 32.807,
+    "speaker_ids": [
+      "part0:0",
+      "part0:1",
+      "part0:2"
+    ],
+    "segments": [
+      {
+        "start_ms": 160,
+        "end_ms": 6000,
+        "text": "我们先确认三家门店的接口和服务范围，再讨论试点排期。",
+        "speaker_id": "part0:0"
+      },
+      {
+        "start_ms": 7980,
+        "end_ms": 11620,
+        "text": "Please confirm the service scope before we discuss the delivery date. ",
+        "speaker_id": "part0:1"
+      },
+      {
+        "start_ms": 13580,
+        "end_ms": 19340,
+        "text": "我哋先确认三间分店嘅服务范围，唔好咁快承诺上线时间。",
+        "speaker_id": "part0:2"
+      }
+    ],
+    "expressions": 3,
+    "one_proactive_message": true
+  },
+  "streaming": {
+    "stream_mandarin.wav": {
+      "status": "passed",
+      "file": "mandarin.wav",
+      "text": "我们先确认三家门店的接口和服务范围，再讨论试点排期。",
+      "ready_seconds": 0.747,
+      "first_caption_after_ready_seconds": 0.718,
+      "complete": true,
+      "audio_bytes": 187000,
+      "reference": "我们先确认三家门店的接口和服务范围，再讨论试点排期。",
+      "character_error_rate": 0.0,
+      "metric_note": "normalized synthetic speech sample, not human benchmark"
+    },
+    "stream_english.wav": {
+      "status": "passed",
+      "file": "english.wav",
+      "text": "Please confirm the service scope before we discuss the delivery date. ",
+      "ready_seconds": 0.666,
+      "first_caption_after_ready_seconds": 0.738,
+      "complete": true,
+      "audio_bytes": 115110,
+      "reference": "Please confirm the service scope before we discuss the delivery date.",
+      "character_error_rate": 0.0,
+      "metric_note": "normalized synthetic speech sample, not human benchmark"
+    },
+    "stream_cantonese.wav": {
+      "status": "passed",
+      "file": "cantonese.wav",
+      "text": "我哋先确认三间分店服务范围，唔好咁快承诺上线时间。",
+      "ready_seconds": 0.689,
+      "first_caption_after_ready_seconds": 0.682,
+      "complete": true,
+      "audio_bytes": 189156,
+      "reference": "我哋先确认三间分店嘅服务范围，唔好咁快承诺上线时间。",
+      "character_error_rate": 0.041666666666666664,
+      "metric_note": "normalized synthetic speech sample, not human benchmark"
+    },
+    "stream_mixed-noise.wav": {
+      "status": "passed",
+      "file": "mixed-noise.wav",
+      "text": "我们先确认3家门店的接口和服务范围，再讨论试点排期。Please confirm the service scope before we discuss the delivery date. 我哋先确认3家分店嘅服务范围，唔好咁快承诺上线时间。",
+      "ready_seconds": 0.666,
+      "first_caption_after_ready_seconds": 0.745,
+      "complete": true,
+      "audio_bytes": 619266,
+      "reference": "我们先确认三家门店的接口和服务范围，再讨论试点排期。 Please confirm the service scope before we discuss the delivery date. 我哋先确认三间分店嘅服务范围，唔好咁快承诺上线时间。",
+      "character_error_rate": 0.02830188679245283,
+      "metric_note": "normalized synthetic speech sample, not human benchmark"
+    },
+    "stream_overlap.wav": {
+      "status": "passed",
+      "file": "overlap.wav",
+      "text": "我们先确认3家门店的接口和服务范围，再讨论试点排期。",
+      "ready_seconds": 0.941,
+      "first_caption_after_ready_seconds": 0.774,
+      "complete": true,
+      "audio_bytes": 187000
+    }
+  },
+  "voice_agent_tts_cancel": {
+    "status": "passed",
+    "text": "你好，很高兴见到你。",
+    "first_text_seconds": 6.625324500026181,
+    "first_audio_seconds": 7.451839499990456,
+    "audio_bytes": 99840,
+    "cancel": "passed",
+    "physical_playback": false
+  },
+  "research": {
+    "status": "completed",
+    "seconds": 94.873,
+    "steps": [
+      {
+        "id": "05f4b9e7-ea01-40d2-83fa-5fa3b356a313",
+        "name": "search_company",
+        "title": "搜索公司资料",
+        "status": "done",
+        "count": 5
+      },
+      {
+        "id": "66bb995d-6fa8-420c-b8b6-9ff79234d37a",
+        "name": "enrich_company",
+        "title": "补全公司档案",
+        "status": "failed",
+        "count": 0,
+        "error": {
+          "code": "TOOL_DATA_UNAVAILABLE",
+          "message": "未找到可访问的资料",
+          "retryable": true
+        }
+      },
+      {
+        "id": "8a556dab-fa22-4d18-b2eb-d92a3169ba94",
+        "name": "read_source",
+        "title": "读取公开正文",
+        "status": "done",
+        "count": 1
+      },
+      {
+        "id": "70485eab-798e-4149-aa21-003df6545a44",
+        "name": "read_source",
+        "title": "读取公开正文",
+        "status": "done",
+        "count": 1
+      }
+    ],
+    "source_urls": [
+      "https://www.anker.com.cn/story",
+      "https://zh.wikipedia.org/zh-hans/%E5%AE%89%E5%85%8B%E5%88%9B%E6%96%B0",
+      "https://www.anker.com.cn/brands",
+      "https://www.moomoo.com/hans/stock/300866-SZ/company",
+      "https://www.anker.com.cn/"
+    ],
+    "control_markup_visible": false,
+    "previous_attempts": [
+      "Internal tool syntax leaked: fixed bounded protocol reissue and SSE filtering",
+      "Subsequent upstream 90 second timeout: kept failed; targeted retest completed"
+    ]
+  },
+  "cleanup": {
+    "audio": {
+      "owner_deleted": true,
+      "access_status": 410
+    },
+    "preparation": {
+      "owner_deleted": true,
+      "access_status": 410
+    },
+    "research": {
+      "owner_deleted": true,
+      "access_status": 410
+    }
+  },
+  "hardware": {
+    "iphone_microphone_acoustics": "pending unlocked physical device",
+    "soundcore": "pending hardware",
+    "release_build": "passed unsigned; keychain signing blocked by Mac lock"
+  },
+  "native_cloud_final": {
+    "base": "https://47.129.137.212",
+    "synthetic_data_only": true,
+    "result_bundle": ".build/TestResults/CompanionV2-Cloud-Final.xcresult",
+    "status": "passed",
+    "exit_code": 0,
+    "seconds": 86.713,
+    "persisted_package_id": "404b57a3-0b08-428b-bd3f-271d7f1b5ee3",
+    "same_chat_and_home_id": true,
+    "cleanup_access_status": 410
+  },
+  "prior_native_cloud_attempts": [
+    {
+      "result": "failed",
+      "reason": "Quick tap started hold input; no text submitted. Corrected second-phase recognition and narrowed gesture scope."
+    },
+    {
+      "result": "failed",
+      "same_chat_and_home_id": true,
+      "reason": "Saved card above long answer was outside materialized LazyVStack rows; actual persisted ID matched. Test now scrolls before tapping."
+    },
+    {
+      "result": "failed",
+      "reason": "Second input lost keyboard focus; removed unfocused hit-test disable and made idle publication refresh nonblocking."
+    }
+  ],
+  "native_full_after_finish_fixes": {
+    "unit_passed": 19,
+    "ui_passed": 8,
+    "failures": 0,
+    "actual_http_mock_model": true,
+    "result_bundle": ".build/TestResults/CompanionV2-Delivered.xcresult",
+    "elapsed_seconds": 246.331
+  },
+  "backend_deployment": {
+    "release": "20261016-v2-3c3136c414a3",
+    "archive_sha256": "3c3136c414a3b5e7233b531fad4169da020da01f42b14c549d82209d10530bf3",
+    "files_checked": 87,
+    "hash_mismatches": [],
+    "server_tests": {
+      "passed": 157,
+      "skipped_modules": 1,
+      "skip_reason": "requirements-eval optional dependencies absent; same 8 cases passed locally"
+    },
+    "service": "active",
+    "health": {
+      "status": "ok",
+      "schema_version": "2.0.0",
+      "storage": "sqlite_prototype",
+      "auth_mode": "local",
+      "ai_provider": "anker"
+    }
+  }
+}

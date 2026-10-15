@@ -13,7 +13,7 @@ from adapters.sources import version
 class Recordings:
     def __init__(self,store,business,speech):
         self.store,self.business,self.speech=store,business,speech
-        business.handlers.update(transcribe=self.transcribe,recording_knowledge=self.knowledge,tts=self.tts)
+        business.handlers.update(transcribe=self.transcribe,recording_knowledge=self.knowledge,tts=self.tts,companion_discovery=self.discover)
 
     def queue(self,owner,sid):
         session=self.store.get('sessions',owner,sid)
@@ -128,7 +128,7 @@ class Recordings:
             self.business.guard(owner,job)
             prior=next((k for k in self.store.rows('recording_knowledge',owner,session_id=sid) if k.get('revision')==job['revision'] and k.get('part')==number),None)
             if prior:saved.append(prior);continue
-            result=self.business.structured('整理全场沟通，不猜谁是用户。保留粤语原文引用，复盘可用普通话。输出 {"title":"简短沟通主题","summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"next_steps":[],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。next_steps只提取原文中明确讨论的后续行动，不凭空安排任务，各数组条目为字符串。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
+            result=self.business.structured('整理全场沟通，不猜谁是用户。保留粤语原文引用，复盘可用普通话。输出 {"title":"简短沟通主题","summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"next_steps":[],"expressions":[{"title":"关键问题","text":"可尝试的表达","quote":"逐字原文","segment_id":"提供的片段id","kind":"客户常问/值得复用/需要改善"}],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。next_steps只提取原文中明确讨论的后续行动，不凭空安排任务，各数组条目为字符串。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
                 {'segments':[{'id':s['id'],'start_ms':s['start_ms'],'end_ms':s['end_ms'],'speaker':s.get('speaker_id'),'text':s['text']} for s in group],
                  'project_spaces':spaces,'part':number+1,'parts':len(groups)})
             summary=result.get('summary','')
@@ -161,12 +161,47 @@ class Recordings:
                     self.store.put('recording_tags',owner,{'session_id':sid,'label':label,'kind':kind,'active':True,'revision':1,
                         'workspace_id':tag.get('workspace_id') if tag.get('workspace_id') in valid_spaces else None,
                         'transcript_revision':job['revision'],'producer':'anker/'+self.business.gateway.model,'rubric_version':'recording-tag@1'},L2,source='ai')
+                from companion import Companion
+                Companion(self.store).save_expressions(owner,sid,job['revision'],result,group,number)
                 saved.append(knowledge)
         with self.store.transaction(owner):
             self.business.guard(owner,job)
             self.store.update('sessions',owner,sid,{'pipeline_status':'done','knowledge_revision':job['revision']})
         self.business.product.sync_recording(owner,sid)
+        from companion import Companion
+        Companion(self.store).publish_recording(owner,sid,job['revision'])
+        self.business.submit(owner,'companion_discovery',sid,job['revision'])
         return {'knowledge_ids':[k['id'] for k in saved],'session_id':sid}
+
+    def discover(self,owner,job):
+        from companion import Companion
+        from product import Product
+        domain=Companion(self.store)
+        evidence=[]
+        for session in self.store.rows('sessions',owner):
+            if session.get('fixture') or session.get('kind')=='practice' or session.get('consent')!='yes':continue
+            evidence.extend(s for s in self.segments(owner,session['id']) if s.get('speaker')=='self')
+        if len({s['session_id'] for s in evidence})<2:return {'discovery_ids':[],'note':'等待至少两场已认领本人原文'}
+        grouped={}
+        for line in evidence:grouped.setdefault(line['session_id'],[]).append(line)
+        groups=list(grouped.values())[:8];quota=max(1,80//len(groups));evidence=[]
+        for lines in groups:
+            if len(lines)<=quota:evidence.extend(lines)
+            else:evidence.extend(lines[round(i*(len(lines)-1)/(quota-1))] for i in range(quota))
+        result=self.business.structured('从多场已认领本人原话中发现可复用的沟通习惯，不猜成交因果，不编经历。返回 {"items":[{"title":"标题","text":"待核对的发现与下一步建议","source_ids":["transcript:id"]}]}。每条至少引用两个不同场次，否则不输出。',{'evidence':[{'source_id':'transcript:'+s['id'],'session_id':s['session_id'],'text':s['text']} for s in evidence]})
+        byid={'transcript:'+s['id']:s for s in evidence};candidates=[]
+        for item in result.get('items',[])[:6]:
+            if not isinstance(item,dict) or not isinstance(item.get('text'),str):continue
+            ids=item.get('source_ids',[])
+            if not isinstance(ids,list) or not ids or any(i not in byid for i in ids):continue
+            refs=[{'source_id':i,'source_version':version(byid[i]),'session_id':byid[i]['session_id'],'start_ms':byid[i]['start_ms'],'end_ms':byid[i]['end_ms']} for i in ids]
+            if len({r['session_id'] for r in refs})<2:continue
+            candidates.append({'title':str(item.get('title','跨场发现'))[:120],'text':item['text'][:1200],'evidence_refs':refs,'companion':True})
+        with self.store.transaction(owner):
+            self.business.guard(owner,job)
+            candidates=[c for c in candidates if domain.current(owner,c['evidence_refs'])]
+            ids=Product(self.store,self.business).discovery_candidates(owner,domain.thread(owner)['workspace_id'],candidates)
+        return {'discovery_ids':ids}
 
     def tts(self,owner,job):
         message=self.store.get('chat_messages',owner,job['object_id'])

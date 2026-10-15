@@ -77,7 +77,7 @@ class Onboarding:
         self.store.check_owner(owner)
         name = Path(filename).name[:180]
         extension = Path(name).suffix.lower()
-        if extension not in {'.pdf', '.docx', '.txt', '.md'}: raise Fault('FILE_TYPE_UNSUPPORTED', '请选择 PDF、DOCX、TXT 或 Markdown 文件', 422)
+        if extension not in {'.pdf', '.docx', '.pptx', '.txt', '.md'}: raise Fault('FILE_TYPE_UNSUPPORTED', '请选择 PDF、DOCX、PPTX、TXT 或 Markdown 文件', 422)
         if not raw: raise Fault('FILE_EMPTY', '文件为空，请重新选择', 422)
         if len(raw) > 25_000_000: raise Fault('UPLOAD_TOO_LARGE', '单份文件最多 25 MB', 413)
         digest = hashlib.sha256(raw).hexdigest()
@@ -105,6 +105,19 @@ class Onboarding:
                 from document_text import pdf_text
                 text, pages = pdf_text(raw)
                 meaningful = True
+            elif original['extension'] == '.pptx':
+                with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                    if sum(i.file_size for i in z.infolist())>40_000_000:raise ValueError()
+                    import re
+                    slides=sorted((i for i in z.infolist() if re.fullmatch(r'ppt/slides/slide[0-9]+.xml',i.filename)),key=lambda i:int(re.search(r'slide([0-9]+)',i.filename).group(1)))
+                    if len(slides)>300:raise ValueError()
+                    for number,part in enumerate(slides,1):
+                        xml=z.read(part)
+                        if b'<!DOCTYPE' in xml or b'<!ENTITY' in xml:raise ValueError()
+                        root=ET.fromstring(xml)
+                        text='\n'.join(t.text or '' for t in root.iter('{http://schemas.openxmlformats.org/drawingml/2006/main}t'))
+                        pages.append({'page':number,'text':text})
+                    text='\n\n'.join(p['text'] for p in pages);meaningful=bool(text.strip())
             elif original['extension'] == '.docx':
                 with zipfile.ZipFile(io.BytesIO(raw)) as z:
                     part = z.getinfo('word/document.xml')

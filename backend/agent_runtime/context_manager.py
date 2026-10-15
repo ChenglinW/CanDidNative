@@ -51,7 +51,7 @@ class ContextManager:
             safe.append(copy)
         return safe, dropped
 
-    def prepare(self, context, snapshot, history, input_text, active_skill=None):
+    def prepare(self, context, snapshot, history, input_text, active_skill=None, live_source_id=None):
         owner, budget = context.owner_id, context.budget
         if not context.workspace_id:
             raise Fault('WORKSPACE_REQUIRED','Agent 上下文必须绑定项目空间',409)
@@ -77,6 +77,20 @@ class ContextManager:
         if policy['automatic_memory']:
             retrieval = self.adapter.search(owner, input_text[:500], occasion_id=context.occasion_id,
                                             limit=policy['automatic_memory_limit'], confirmed_only=True, sources=sources, workspace_id=context.workspace_id)
+        if snapshot.get('query_scope',{}).get('mode')=='companion':
+            from tasks.materials import Materials
+            from tasks.workspaces import WorkspaceStore
+            found=Materials(self.store,WorkspaceStore(self.store)).search(owner,context.workspace_id,input_text[:500],[])
+            retrieval['items']=found['items']+retrieval.get('items',[])
+            retrieval['status']='retrieved'
+        if live_source_id:
+            from adapters.sources import source
+            kind,row=self.adapter.resolve(owner,live_source_id,context.workspace_id)
+            item=source(kind,row,limit=10000)
+            if len(row.get('text',''))>10000:
+                start=len(row['text'])-9500
+                item.update(text='实时字幕快照尾部，未经校准，未认领说话人：\n'+row['text'][start:],offset=start,text_truncated=True)
+            retrieval['items']=[item,*retrieval.get('items',[])]
         # Include only items that fit; source numbering is assigned before the model sees them.
         chosen, used = [], 0
         for item in retrieval.get('items', []):
@@ -105,7 +119,7 @@ class ContextManager:
         section('用户偏好', json.dumps(snapshot['user_preferences'], ensure_ascii=False), budget.context_preferences_chars, True)
         section('用户主动提供的个人背景', json.dumps(snapshot.get('personal_profile', {}), ensure_ascii=False), 3000, True)
         section('当前任务', json.dumps({'task_kind':context.task_kind, 'occasion_id':context.occasion_id,
-                                      'request_time':now(), 'timezone':'Asia/Hong_Kong', 'session_id':context.session_id, 'query_scope':snapshot.get('query_scope'), 'project_space':snapshot.get('workspace_snapshot'), 'goal_message_id':recent[-1]['id'] if recent else None,
+                                      'request_time':now(), 'timezone':snapshot.get('timezone','Asia/Hong_Kong'), 'session_id':context.session_id, 'query_scope':snapshot.get('query_scope'), 'project_space':snapshot.get('workspace_snapshot'), 'goal_message_id':recent[-1]['id'] if recent else None,
                                       'active_skill':active_skill['name'] if active_skill else None,
                                       'note':'原沟通流程已恢复，继续执行，无需重新加载。' if active_skill else '围绕最新用户消息，流程只在需要时后台加载。'}, ensure_ascii=False), budget.context_task_chars, True)
         if context.occasion_id:
@@ -123,10 +137,15 @@ class ContextManager:
         section('相关已确认资料', json.dumps({'status':retrieval['status'], 'items':sources,
                 'note':'只加入本轮相关条目，片段不等于完整原文。'}, ensure_ascii=False), budget.context_memory_chars, True)
         for message in recent:
+            if message['role']=='user' and message.get('task_id')==context.task_id:continue
             text = message['content']
             if message['role'] == 'assistant':
                 text = re.sub(r'\[(\d+)\]', r'[历史引用 \1；需重新读取来源]', text)
             components.append({'role':message['role'],'content':text})
+        # Timeline order and execution order differ when a user queues while a reply is generated.
+        # Keep persisted history stable, but always make the executing user input the final model turn.
+        if not components or components[-1].get('role')!='user' or components[-1].get('content')!=input_text:
+            components.append({'role':'user','content':input_text})
         sizes['近期对话'] = sum(len(m['content']) for m in recent)
         if len(json.dumps(components, ensure_ascii=False)) > budget.max_context_chars:
             raise Fault('AGENT_CONTEXT_LIMIT', '总上下文超过预算，请缩小任务', 422)

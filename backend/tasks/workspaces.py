@@ -168,6 +168,19 @@ class WorkspaceStore:
 
     def _scope_allowed(self, owner, kind, row, context):
         scope=context['query_scope']; mode=scope['mode']
+        if mode=='companion':
+            if row.get('owner_id') != owner:return False
+            if kind=='document':
+                original=row.get('onboarding_original_id') or (row['id'] if row.get('material_kind')=='onboarding_original' else None)
+                if original and self.store.db.execute("SELECT 1 FROM requests WHERE owner_id=? AND request_id=? AND kind='onboarding_document_removed'",(owner,original)).fetchone():return False
+                return bool(row.get('text')) and row.get('status') not in {'withdrawn','superseded'}
+            if kind in {'knowledge','transcript'}:
+                session=self.store.get('sessions',owner,row['session_id'])
+                if session.get('fixture') or session.get('consent')!='yes' or not session.get('llm_consent_at'):return False
+                return str(row.get('revision') if kind=='knowledge' else row.get('transcript_revision',1))==str(session.get('transcript_revision',1))
+            if kind=='message':return self.store.get('chat_threads',owner,row['thread_id']).get('workspace_id')==context['id']
+            if kind in {'personal','discovery'}:return row.get('status')=='confirmed'
+            return not row.get('fixture') and row.get('status') not in {'withdrawn','superseded'}
         if kind in PERSONAL_KINDS:
             explicit=self.scope(owner,kind+':'+row['id'])
             if explicit and explicit['mode']=='personal':return True

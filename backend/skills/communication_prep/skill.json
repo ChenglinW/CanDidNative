@@ -2,8 +2,8 @@
   "name": "communication_prep",
   "title": "准备沟通",
   "description": "根据沟通目标、用户资料及相关记忆，准备提纲、关键问题和有依据的表达。",
-  "version": "1.3.0",
-  "body_sha256": "92132f69d5a9c1861f309109f1b13c7802627b4630e8ccfebf953c6e8df7649d",
+  "version": "2.0.0",
+  "body_sha256": "e17a961c4a75140b2f6dffefb30321aeaf9ce6f0daaf7414d01a4cde9cb22e99",
   "inputs": {
     "type": "object",
     "properties": {
@@ -32,7 +32,8 @@
     "update_action",
     "arrange_meeting",
     "update_participant",
-    "record_project_update"
+    "record_project_update",
+    "save_preparation"
   ],
   "required_tools": [],
   "output": "自然回答；按需提供目标、提纲、关键问题及表达示例，缺少信息时只追问一两项。"

@@ -105,19 +105,17 @@ struct RecordingShell: View {
     let onSettings: () -> Void
     var body: some View {
         TabView(selection:$navigation.section) {
-            NavigationStack { ProductHome(onSettings:onSettings) }
-                .tabItem { Label("首页",systemImage:"house") }.tag(CandidSection.chat)
-            NavigationStack { ProductProjects() }
-                .tabItem { Label("项目",systemImage:"rectangle.stack") }.tag(CandidSection.occasions)
-            NavigationStack { RecordingLibrary(speech:speech,device:device).safeAreaInset(edge:.bottom) { ProductRecordingInput() } }
-                .tabItem { Label("录音",systemImage:"mic") }.tag(CandidSection.recordings)
-            NavigationStack { ProductMemory() }
+            NavigationStack { CompanionHome(onSettings:onSettings) }
+                .tabItem { Label("Candid",systemImage:"bubble.left") }.tag(CandidSection.chat)
+            NavigationStack { CompanionMemory() }
                 .tabItem { Label("记忆库",systemImage:"book.closed") }.tag(CandidSection.memory)
+            NavigationStack { CompanionRecordings() }
+                .tabItem { Label("录音",systemImage:"mic") }.tag(CandidSection.recordings)
         }
         .toolbarBackground(Warm.white,for:.tabBar)
         .fullScreenCover(isPresented:$navigation.showRecorder) {
             NavigationStack { LiveRecordingView(speech:speech,device:device,navigation:navigation).environmentObject(store) }
-                .preferredColorScheme(.dark).tint(Warm.lavender).fontDesign(.rounded).foregroundStyle(Color.white)
+                .preferredColorScheme(.light).tint(Warm.purple).fontDesign(.rounded).foregroundStyle(Warm.ink)
         }
         .onChange(of:device.recordStatus) { old,value in
             speech.devicePaused=value==2
@@ -195,6 +193,11 @@ struct LiveRecordingView: View {
     @State private var consentForDevice=false
     @State private var consentIdentity=""
     @State private var askedDeviceConsent=false
+    @State private var liveQuestion=""
+    @State private var askingLive=false
+    @State private var liveAnswer=""
+    @State private var liveRequestID=UUID().uuidString
+    @State private var liveBody:[String:Any]?
     @State private var captionPreview=false
     @State private var record:RecordingRecord?
     @State private var detailID:String?
@@ -236,12 +239,12 @@ struct LiveRecordingView: View {
             VStack(alignment:.leading,spacing:8) {
                 Text(title).font(.system(size:27,weight:.bold,design:.rounded)).lineLimit(2)
                 Text(record.map(RecordingFormat.timestamp) ?? (hasLiveMeeting ? "沟通录音 · 全局录音库":"每一场沟通，都可以变成用得上的资料"))
-                    .font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
+                    .font(.caption).foregroundStyle(RecordingFormat.secondary)
                 HStack {
                     HStack(spacing:6) {
                         Circle().fill(isPaused ? Color.brown:hasLiveMeeting ? Color(red:0.28,green:0.42,blue:0.27):Warm.purple).frame(width:7,height:7)
                         Text(sameConnection && speech.deviceRecordingUncertain ? "设备状态待重新连接核对":deviceActive ? "安克录音豆 · \(isPaused ? "已暂停":"正在录音")" : phoneActive ? "手机录音 · 备用":"\(sameConnection && speech.meetingID != nil ? "录音已结束":"安克录音豆")")
-                    }.font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
+                    }.font(.caption).foregroundStyle(RecordingFormat.secondary)
                     Spacer()
                     Text(RecordingFormat.clock(duration,hours:true)).font(.system(size:23,weight:.semibold,design:.rounded)).monospacedDigit()
                 }.padding(.top,8)
@@ -255,17 +258,26 @@ struct LiveRecordingView: View {
                 }.foregroundStyle(Warm.ink).padding(13).background(Warm.sage,in:RoundedRectangle(cornerRadius:12)).padding(.horizontal,16).padding(.bottom,12)
             }
             transcript
+            if hasLiveMeeting && store.remote {
+                VStack(alignment:.leading,spacing:8){
+                    HStack {TextField("问问 Candid，录音会继续",text:$liveQuestion).textFieldStyle(.roundedBorder)
+                        Button("发送"){Task{await askDuringRecording()}}.frame(minHeight:44).disabled(askingLive || liveQuestion.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}
+                    Text("结合已有资料与当前收到的字幕；实时原文尚未校准。").font(.caption2).foregroundStyle(RecordingFormat.secondary)
+                    if askingLive {ProgressView("Candid 正在思考…")}
+                    if !liveAnswer.isEmpty {ScrollView{Text(liveAnswer).font(.subheadline).textSelection(.enabled).lineSpacing(4)}.frame(maxHeight:100)}
+                }.padding(.horizontal,22).padding(.top,12)
+            }
             VStack(spacing:10) {
                 Label(captionText,systemImage:speech.captionState == .reconnecting ? "wifi":"checkmark.shield")
-                    .font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84)).frame(maxWidth:.infinity,alignment:.leading).fixedSize(horizontal:false,vertical:true)
+                    .font(.caption2).foregroundStyle(RecordingFormat.secondary).frame(maxWidth:.infinity,alignment:.leading).fixedSize(horizontal:false,vertical:true)
                 if let text=issue ?? (sameConnection ? speech.notice:nil) {
-                    Text(text).font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84)).frame(maxWidth:.infinity,alignment:.leading).lineLimit(3)
+                    Text(text).font(.caption).foregroundStyle(RecordingFormat.secondary).frame(maxWidth:.infinity,alignment:.leading).lineLimit(3)
                 }
                 if hasLiveMeeting {Button("标记这一刻",systemImage:"bookmark.fill") {Task {await speech.markCurrent(store:store,device:device)}}.frame(minHeight:44).disabled(!store.remote)}
                 if deviceActive {
                     Button { device.pauseOrResume() } label: { Label(isPaused ? "继续录音":"暂停录音",systemImage:isPaused ? "play.fill":"pause.fill") }
                         .buttonStyle(RecordingPrimary()).disabled(device.transferring || device.connected==nil)
-                    Text("按设备按钮结束本场录音").font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
+                    Text("按设备按钮结束本场录音").font(.caption2).foregroundStyle(RecordingFormat.secondary)
                 } else if phoneActive {
                     HStack(spacing:10) {
                         Button { Task { await speech.togglePhonePause() } } label: { Label(isPaused ? "继续":"暂停",systemImage:isPaused ? "play.fill":"pause.fill") }
@@ -282,7 +294,7 @@ struct LiveRecordingView: View {
                 } else {
                     if store.remote {
                         Button { deviceSheet=true } label: { Label("\(device.connected==nil ? "连接录音豆":"查看设备")",systemImage:"waveform") }.buttonStyle(RecordingPrimary())
-                        Text("连接后，按录音豆按钮开始本场沟通").font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
+                        Text("连接后，按录音豆按钮开始本场沟通").font(.caption2).foregroundStyle(RecordingFormat.secondary)
                         Button("手机录音（备用）") { beginPhone() }.font(.subheadline.weight(.semibold)).frame(minHeight:44).accessibilityIdentifier("phone-recording-fallback").disabled(speech.meetingPreparing || speech.finishing || speech.uploading || speech.meetingSyncing)
                     } else { Button("连接后端") { connectionSheet=true }.buttonStyle(RecordingPrimary()) }
                 }
@@ -293,7 +305,7 @@ struct LiveRecordingView: View {
             if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") && ProcessInfo.processInfo.arguments.contains("-candid-surface-review") && ProcessInfo.processInfo.environment["CANDID_CAPTION_PREVIEW"]=="1" {speech.prepareCaptionPreview(api:store.api);captionPreview=true}
             #endif
         }
-        .foregroundStyle(Color.white).background(Color(red:0.09,green:0.08,blue:0.12).ignoresSafeArea()).toolbar(.hidden,for:.navigationBar)
+        .foregroundStyle(Warm.ink).background(Warm.paper.ignoresSafeArea()).toolbar(.hidden,for:.navigationBar)
         .sheet(isPresented:$deviceSheet) { NavigationStack { RecordingDeviceLibrary(speech:speech,device:device).environmentObject(store) } }
         .sheet(isPresented:$connectionSheet) { SettingsView().environmentObject(store) }
         .alert(consentForDevice ? "开启本场转写":"开始沟通录音",isPresented:$consent) {
@@ -313,7 +325,7 @@ struct LiveRecordingView: View {
         .task(id:String(describing:device.currentFileID)+String(device.recordStatus)+String(store.remote)) {
             if deviceActive && store.remote && !askedDeviceConsent && !speech.hasMeetingConsent(store.api) {askDeviceConsent()}
         }
-        .navigationDestination(item:$detailID) { id in RecordingDetail(recordID:id).environmentObject(store) }
+        .navigationDestination(item:$detailID) { id in CompanionRecordingPage(id:id).environmentObject(store) }
         .task(id:DeviceRecordingMap.identity(store.api)+String(store.remote)+String(describing:speech.meetingID)+String(navigation.newMeeting)) {
             record=nil
             while !Task.isCancelled { await reloadRecord();do {try await Task.sleep(for:.seconds(3))} catch {break} }
@@ -321,9 +333,9 @@ struct LiveRecordingView: View {
     }
     private var transcript: some View {
         VStack(spacing:0) {
-            HStack { Text("实时原文").font(.subheadline.weight(.semibold));Spacer();Text("录后校准与分人").font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84)) }
+            HStack { Text("实时原文").font(.subheadline.weight(.semibold));Spacer();Text("录后校准与分人").font(.caption2).foregroundStyle(RecordingFormat.secondary) }
                 .padding(.horizontal,18).padding(.vertical,15)
-            Divider().overlay(Color.white.opacity(0.12))
+            Divider().overlay(Warm.ink.opacity(0.12))
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -331,17 +343,17 @@ struct LiveRecordingView: View {
                             if (sameConnection || captionPreview) && !speech.liveSentences.isEmpty {
                                 ForEach(speech.liveSentences) { line in
                                     VStack(alignment:.leading,spacing:7) {
-                                        Text(RecordingFormat.clock(line.startMS/1000)).font(.caption2).monospacedDigit().foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
-                                        Text(line.text+(line.stable ? "":" ▏")).font(.body).lineSpacing(6).foregroundStyle(line.stable ? Color.white:Warm.lavender)
+                                        Text(RecordingFormat.clock(line.startMS/1000)).font(.caption2).monospacedDigit().foregroundStyle(RecordingFormat.secondary)
+                                        Text(line.text+(line.stable ? "":" ▏")).font(.body).lineSpacing(6).foregroundStyle(line.stable ? Warm.ink:Warm.purple)
                                             .textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)
                                     }.id(line.id)
                                 }
-                                if speech.hasCaptionGap { Text("实时字幕曾有缺段，录后会使用完整音频补齐。").font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84)).padding(.vertical,8) }
+                                if speech.hasCaptionGap { Text("实时字幕曾有缺段，录后会使用完整音频补齐。").font(.caption).foregroundStyle(RecordingFormat.secondary).padding(.vertical,8) }
                             } else {
                                 VStack(alignment:.leading,spacing:12) {
                                     Text(hasLiveMeeting ? "在这里，慢慢记下每一句。":"从一场沟通开始。").font(.headline)
                                     Text(hasLiveMeeting ? "收到实际音频后会显示实时字幕；录后再校准时间戳和说话人。":"录音开始后，这里会显示实时原文。结束后自动整理，不需要先填写客户或项目。")
-                                        .font(.subheadline).lineSpacing(6).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
+                                        .font(.subheadline).lineSpacing(6).foregroundStyle(RecordingFormat.secondary)
                                 }.padding(.top,25)
                             }
                             Color.clear.frame(height:1).id("live-bottom")
@@ -360,8 +372,28 @@ struct LiveRecordingView: View {
                         .onAppear { if followsLatest {proxy.scrollTo("live-bottom",anchor:.bottom)} }
                 }
             }
-        }.background(Color(red:0.15,green:0.13,blue:0.20),in:RoundedRectangle(cornerRadius:22))
+        }.background(Warm.white,in:RoundedRectangle(cornerRadius:22))
             .overlay(RoundedRectangle(cornerRadius:22).stroke(Warm.ink.opacity(0.08))).padding(.horizontal,16)
+    }
+    private func askDuringRecording() async {
+        guard let sid=speech.meetingID,!askingLive else{return}
+        askingLive=true;defer{askingLive=false}
+        if liveBody==nil {liveBody=["question":liveQuestion,"client_request_id":liveRequestID,"recording_id":sid,"sentences":speech.liveSentences.suffix(30).map{["text":$0.text,"start_ms":$0.startMS] as [String:Any]}]}
+        do {
+            let task:AgentTask=try await store.api.call("/v1/companion/live-ask",method:"POST",body:liveBody!)
+            liveQuestion="";liveBody=nil;liveRequestID=UUID().uuidString
+            for _ in 0..<180 {
+                try Task.checkCancellation()
+                let state:AgentTask=try await store.api.call("/v1/agent/tasks/"+task.id)
+                if let text=state.partial_text,!text.isEmpty{liveAnswer=text}
+                if !state.active {
+                    if state.status=="completed"{let detail:ChatDetail=try await store.api.call("/v1/chat/threads/"+task.thread_id);liveAnswer=detail.messages.last(where:{$0.task_id==task.id && $0.role=="assistant"})?.content ?? liveAnswer}
+                    else{liveAnswer=state.error?.message ?? "本次问答尚未完成，可回到 Candid 对话继续。"}
+                    break
+                }
+                try await Task.sleep(for:.seconds(1))
+            }
+        } catch{liveAnswer=error.localizedDescription}
     }
     private func beginPhone() {
         if speech.hasMeetingConsent(store.api) && store.cloudStorageAllowed {startPhone()}

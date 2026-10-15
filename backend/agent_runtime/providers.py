@@ -5,6 +5,22 @@ import time
 import httpx
 from memory import Fault
 
+def has_control_markup(text):
+    return '<｜' in text or '<|DSML|' in text or '<|tool_calls' in text
+
+def visible_prefix(text):
+    """Hold incomplete control tokens across SSE fragments; never display model wire syntax."""
+    stop=len(text)
+    for marker in ('<｜','<|DSML|','<|tool_calls'):
+        at=text.find(marker)
+        if at>=0:stop=min(stop,at)
+    # A chunk can finish halfway through the opening marker.
+    if stop==len(text):
+        for marker in ('<｜','<|DSML|','<|tool_calls'):
+            for n in range(1,len(marker)):
+                if text.endswith(marker[:n]):stop=min(stop,len(text)-n)
+    return text[:stop]
+
 class Gateway:
     def __init__(self):
         self._key = os.environ.get('ANKER_AI_API_KEY', '')
@@ -85,6 +101,7 @@ class Gateway:
 
     def _stream(self, client, payload, on_delta, cancellation):
         content, calls, finish, buffer = '', {}, None, ''
+        delivered=0
         last_flush = time.monotonic()
         with client.stream('POST', self.base + '/chat/completions', json=payload,
                            headers={'Authorization': 'Bearer ' + self._key}) as response:
@@ -113,11 +130,12 @@ class Gateway:
                         if not isinstance(text, str):
                             raise ValueError('invalid content')
                         content += text
-                        buffer += text
+                        safe=visible_prefix(content)
+                        buffer=safe[delivered:]
                         if len(content) > 64000:
                             raise ValueError('oversized content')
                         if buffer and (len(buffer) >= 80 or time.monotonic() - last_flush >= .1):
-                            on_delta(buffer); buffer = ''; last_flush = time.monotonic()
+                            on_delta(buffer); delivered=len(safe); buffer = ''; last_flush = time.monotonic()
                         for fragment in delta.get('tool_calls') or []:
                             index = fragment['index']
                             if not isinstance(index, int) or not 0 <= index < 12:

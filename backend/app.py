@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import jwt
 from fastapi import FastAPI, Depends, Request, Response
@@ -138,6 +139,7 @@ class AgentPreferencesIn(Input):
     answer_style:Literal['natural','concise','detailed']|None=None
     communication_goal:str|None=Field(default=None,max_length=1000)
 class ProfileIn(Input):
+    timezone:str|None=Field(default=None,max_length=80)
     target_roles:list[str]|None=None
     concerns:list[str]|None=None
     preferences:dict|None=None
@@ -235,6 +237,9 @@ def register_device(body:DeviceRegistrationIn,response:Response):
 @app.patch('/v1/profile')
 def patch_profile(body:ProfileIn,uid=Depends(owner)):
     patch=data(body);preferences=patch.pop('preferences',None)
+    if body.timezone is not None:
+        try:ZoneInfo(body.timezone)
+        except (ZoneInfoNotFoundError,ValueError):raise Fault('TIMEZONE_INVALID','请选择有效的设备时区',422)
     agent_preferences=patch.pop('agent_preferences',None)
     if preferences is not None:
         if set(preferences)-{'audio_retention_days'}:raise Fault('BAD_REQUEST','该原型只支持音频保留设置')
@@ -931,3 +936,7 @@ def onboarding_service():
     return service
 onboarding_service()
 install_onboarding(app, owner, onboarding_service)
+
+from companion_routes import router as companion_router
+import sys as _sys
+app.include_router(companion_router(_sys.modules[__name__]))

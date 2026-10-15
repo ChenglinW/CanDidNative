@@ -67,6 +67,11 @@ struct VoiceConversationView:View {
                 .background(Warm.white,in:RoundedRectangle(cornerRadius:22)).overlay(RoundedRectangle(cornerRadius:22).stroke(Warm.ink.opacity(0.07)))
                 .padding(.horizontal,22)
             if !voice.active {
+                if !store.remote || !store.connectionReady {
+                    Button(store.connecting ? "正在连接 Candid…":"重新连接 Candid") {Task{await store.restoreConnection(force:true)}}
+                        .frame(minHeight:44).disabled(store.connecting)
+                    if let issue=store.connectionError {Text(issue).font(.caption).foregroundStyle(RecordingFormat.secondary).padding(.horizontal,22)}
+                }
                 Button("开始自由对话") {voice.enter(store:store)}.buttonStyle(RecordingPrimary()).padding(22)
             } else {
                 HStack(spacing:28) {
@@ -76,7 +81,7 @@ struct VoiceConversationView:View {
                 }.foregroundStyle(Warm.ink).padding(.top,25).padding(.bottom,25)
             }
             Button("查看聊天记录",systemImage:"text.bubble") {voice.pause(reason:"查看文字时已暂停收音，点击继续后再说。");history=true}.font(.caption).frame(minHeight:44)
-            Text("当前空间的上下文会继续保留").font(.caption2).foregroundStyle(RecordingFormat.secondary).padding(.bottom,16)
+            Text("这段对话的上下文会继续保留").font(.caption2).foregroundStyle(RecordingFormat.secondary).padding(.bottom,16)
         }.background(Warm.paper.ignoresSafeArea()).fontDesign(.rounded).foregroundStyle(Warm.ink)
             .onChange(of:voice.preview) {_,_ in voice.captionObserved()}
             .sheet(isPresented:$history) {
@@ -101,7 +106,6 @@ struct VoiceHoldGesture:ViewModifier {
             .onChanged {value in
                 guard enabled else{return}
                 switch value {
-                case .first(true):if !began {began=true;voice.beginHold(store:store)}
                 case .second(true,let drag):
                     if !began {began=true;voice.beginHold(store:store)}
                     voice.cancelling=(drag?.translation.height ?? 0)<(-60)
@@ -129,8 +133,16 @@ struct VoiceComposer:View {
                 .accessibilityLabel(voice.holding ? "结束并发送语音":"开始语音输入，再次点击发送")
                 .modifier(VoiceHoldGesture(voice:voice))
             TextField(store.chatBusy ? "补充内容，会排队处理":"长按说话，或点这里输入",text:Binding(get:{store.chatDraft},set:{store.saveChatDraft($0)}),axis:.vertical)
-                .lineLimit(1...5).focused(focused).font(.body).padding(.vertical,9).allowsHitTesting(focused.wrappedValue)
+                .lineLimit(1...5).focused(focused).font(.body).padding(.vertical,9)
                 .accessibilityLabel("给 Candid 的消息")
+                .overlay {
+                    if !focused.wrappedValue {
+                        Color.clear.contentShape(Rectangle())
+                            .onTapGesture {if !voice.justEndedGesture {focused.wrappedValue=true}}
+                            .modifier(VoiceHoldGesture(voice:voice))
+                            .accessibilityHidden(true)
+                    }
+                }
             Button(action:send) {Image(systemName:"arrow.up").font(.headline).foregroundStyle(.white).frame(width:44,height:44).background(Warm.purple,in:RoundedRectangle(cornerRadius:12))}
                 .disabled(store.chatDraft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || store.chatControlBusy || store.chatLoading || voice.active)
                 .opacity(store.chatDraft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty ? 0.45:1)
@@ -139,8 +151,7 @@ struct VoiceComposer:View {
             .overlay(RoundedRectangle(cornerRadius:18).stroke(voice.holding ? Warm.purple:Warm.ink.opacity(0.15)))
             .contentShape(RoundedRectangle(cornerRadius:18))
             .onTapGesture {if !voice.holding && !voice.justEndedGesture {focused.wrappedValue=true}}
-            .modifier(VoiceHoldGesture(voice:voice,enabled:!focused.wrappedValue))
-            .disabled(store.currentProjectSpace?.status != "active" || store.chatLoading)
+            .disabled((store.remote && store.currentProjectSpace?.status != "active") || store.chatLoading)
     }
 }
 

@@ -18,7 +18,7 @@ from .context import RunContext
 from .cancellation import Cancellation
 from tasks.events import ACTIVE, TERMINAL
 from .context_manager import ContextManager, reference_set
-from .providers import Gateway
+from .providers import Gateway, has_control_markup
 from .rules import BASE_RULES, compose_prompt
 from .skills import SkillCatalog, load_soul, skill_prompt
 from .tools import ToolResult
@@ -54,6 +54,8 @@ class TextAgent:
         register_product_tools(self.registry,memory)
         register_product_writes(self.registry,memory)
         register_progress_tool(self.registry,memory)
+        from tools.companion_tools import register_companion_tools
+        register_companion_tools(self.registry, memory)
         self.catalog.index(self.registry.names)
         self.tasks = TaskStore(memory)
         self.workspaces = WorkspaceStore(memory)
@@ -100,7 +102,7 @@ class TextAgent:
         tasks = sorted(self.tasks.list(owner,thread_id),key=lambda t:t.get('queue_order',0))
         orders = {t['id']:t.get('queue_order',0) for t in tasks}
         messages = sorted(self.memory.rows('chat_messages',owner,thread_id=thread_id),
-                          key=lambda m:(orders.get(m.get('task_id'),0),m['created_at'],m['id']))
+                          key=lambda m:(m['created_at'],m['id']))
         return {'thread':thread,'messages':[self.memory_adapter.decorate_message(owner,m,thread.get('workspace_id')) for m in messages],
                 'tasks':[self.tasks.public(t) for t in tasks]}
 
@@ -133,6 +135,7 @@ class TextAgent:
                 'query_scope':workspace.get('query_scope',{'mode':'project','project_id':workspace['id']}), 'context_policy':dict(self.config.context_policy), 'base_rules_body':BASE_RULES,
                 'soul': soul, 'skill_index': index, 'user_preferences': preferences,
                 'personal_profile': self.memory_adapter.profile(owner).get('onboarding_profile', {}),
+                'timezone': self.memory_adapter.profile(owner).get('timezone','Asia/Hong_Kong'),
                 'prompt': {'version': 'candid-files@2', 'body': prompt, 'digest': fingerprint(prompt)}}
 
     def _validate_retry_dependencies(self, snapshot, current):
@@ -152,6 +155,8 @@ class TextAgent:
         profile = profiles.get(snapshot['name'], profiles.get('chat', context.budget))
         ceiling = asdict(context.budget_ceiling or context.budget)
         budget = Budget(**{key: min(value, ceiling[key]) for key, value in asdict(profile).items()})
+        if self.workspaces.get(context.owner_id,context.workspace_id).get('is_companion'):
+            allowed-= {'read_project','update_action','arrange_meeting','update_participant','record_project_update'}
         return replace(context, task_kind=snapshot['name'], allowed_tools=frozenset(allowed), budget=budget)
 
     def _budget_usage(self, context, rounds, calls):
@@ -182,6 +187,8 @@ class TextAgent:
             self.tasks.emit(context,'tools.updated',{'steps':visible},patch)
 
     def _run(self, context, messages, active_skill=None, initial_sources=None, input_references=None, checkpoint=None):
+        if self.workspaces.get(context.owner_id,context.workspace_id).get('is_companion') and context.allowed_tools is None:
+            context=replace(context,allowed_tools=frozenset(set(self.registry.names)-{'read_project','update_action','arrange_meeting','update_participant','record_project_update'}))
         sources, steps, total_calls = list(initial_sources or []), [], 0
         input_references = input_references or []
         if checkpoint:
@@ -220,10 +227,27 @@ class TextAgent:
                                            on_delta=delta)
             context.remaining()
             calls = result.get('tool_calls', [])
+            if has_control_markup(result.get('content') or ''):
+                self.tasks.emit(context,'text.reset',{'phase':'tools'},{'partial_text':'','phase':'tools'})
+                if not enabled:
+                    raise Fault('AGENT_INVALID_OUTPUT','模型返回了未完成的工具请求，消息已保留，可以重试',502)
+                # Do not execute strings from the content channel as tools. Reissue through
+                # the normal schema-validated protocol and the existing bounded budget.
+                messages.append({'role':'system','content':'上一轮输出包含内部 DSML 工具标记，客户端无法执行。需要工具时必须使用 API 的 tool_calls 字段，不能在 content 中输出工具语法；已有资料足够时直接用自然语言回答并引用来源。'})
+                turn+=1
+                continue
             if not calls:
                 content = result['content'].strip()
                 if not content:
                     raise Fault('AGENT_INVALID_OUTPUT', '模型没有返回回答，可以重试', 502)
+                if self.workspaces.get(context.owner_id,context.workspace_id).get('is_companion') and self.preparation_requested(task['input']['content']):
+                    saved=self.memory.rows('companion_preparations',context.owner_id,client_request_id='agent:'+context.task_id)
+                    if not saved:
+                        if not enabled:raise Fault('PREPARATION_NOT_SAVED','准备包尚未成功保存，原文保留；请重试继续整理',502)
+                        messages.append(result)
+                        messages.append({'role':'system','content':'本轮是明确的准备任务，尚无持久化准备包。不要仅以一段报告结束：信息已够时必须调用 save_preparation；对象或目标确实缺失才使用 request_input 集中补问，时间可留空。只引用实际已读来源。'})
+                        turn+=1
+                        continue
                 if context.voice and enabled:
                     voice_final=True
                     turn+=1
@@ -350,7 +374,14 @@ class TextAgent:
         if queue:
             self._schedule(owner,queue[0])
 
-    def submit(self, owner, thread_id, text, request_id, voice=None):
+    @staticmethod
+    def preparation_requested(text):
+        import re
+        if re.search(r'(帮我|为我|直接)准备|生成.{0,8}准备包',text):return True
+        if re.search(r'如何|怎么|步骤|流程|能否|会不会',text):return False
+        return bool(re.search(r'准备.{0,10}(下一场|客户|面试|会谈)',text))
+
+    def submit(self, owner, thread_id, text, request_id, voice=None, live_source_id=None):
         self.memory.check_owner(owner)
         budget = self.config.budget('chat')
         if not isinstance(text,str) or not text.strip() or len(text)>budget.max_input_chars:
@@ -362,6 +393,8 @@ class TextAgent:
             if previous:
                 if voice and previous.get('voice_context') != {**voice,'client_request_id':request_id}:
                     raise Fault('REQUEST_CONFLICT','语音轮标识与原请求不一致',409)
+                if previous.get('live_source_id')!=live_source_id:
+                    raise Fault('REQUEST_CONFLICT','实时字幕快照与原请求不一致',409)
                 if previous['input']['content']!=text:
                     raise Fault('REQUEST_CONFLICT','重试消息与原消息不一致',409)
                 return self.tasks.public(previous)
@@ -374,6 +407,11 @@ class TextAgent:
                 with self.memory.transaction(owner):
                     workspace = self.workspaces.seed_from_message(owner,workspace['id'],text)
                     task, fresh = self.tasks.enqueue(owner,thread_id,request_id,text,self.snapshot(budget,owner,workspace))
+                    if fresh and workspace.get('is_companion') and self.preparation_requested(text):
+                        skill=self.catalog.load('communication_prep',task['config_snapshot']['skill_index'],{})
+                        task=self.tasks.update(owner,task['id'],{'active_skill_snapshot':skill,'task_kind':'communication_prep','skill_load_history':[skill]})
+                    if fresh and live_source_id:
+                        task=self.tasks.update(owner,task['id'],{'live_source_id':live_source_id})
                     if fresh and voice:
                         task=self.tasks.update(owner,task['id'],{'voice_context':{**voice,'client_request_id':request_id}})
             except Exception:
@@ -546,7 +584,7 @@ class TextAgent:
                     orders = {t['id']:t.get('queue_order',0) for t in self.tasks.list(owner,thread_id)}
                     history = [m for m in self.detail(owner,thread_id)['messages']
                                if orders.get(m.get('task_id'),0)<=task.get('queue_order',0)]
-                    prepared = self.context_manager.prepare(context,snapshot,history,task['input']['content'],active_skill)
+                    prepared = self.context_manager.prepare(context,snapshot,history,task['input']['content'],active_skill,live_source_id=task.get('live_source_id'))
                     messages,sources,references = prepared.messages,prepared.sources,prepared.references
                     checkpoint = {'messages':messages,'sources':sources,'references':references,'steps':[],
                                   'total_calls':0,'round':0,'active_skill_digest':fingerprint(active_skill) if active_skill else None}

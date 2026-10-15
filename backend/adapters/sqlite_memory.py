@@ -63,14 +63,21 @@ class SQLiteMemoryAdapter:
     def context(self, owner, *args, **kwargs):
         return self.store.context(owner, *args, **kwargs)
 
-    def resolve(self, owner, source_id, workspace_id=None):
+    def resolve(self, owner, source_id, workspace_id=None, _seen=None):
         if not isinstance(source_id, str) or ':' not in source_id:
             raise Fault('SOURCE_UNAVAILABLE', '资料引用格式不正确', 422)
+        seen=set(_seen or ())
+        if source_id in seen or len(seen)>12:raise Fault('SOURCE_UNAVAILABLE','来源引用存在循环',409)
+        seen.add(source_id)
         kind, id = source_id.split(':', 1)
         table = SOURCE_TABLES.get(kind)
         if not table or not id or len(id) > 120:
             raise Fault('SOURCE_UNAVAILABLE', '资料类型不在读取范围内', 422)
         row = self.get(table, owner, id)
+        if kind=='document':
+            original=row.get('onboarding_original_id') or (row['id'] if row.get('material_kind')=='onboarding_original' else None)
+            if original and self.store.db.execute("SELECT 1 FROM requests WHERE owner_id=? AND request_id=? AND kind='onboarding_document_removed'",(owner,original)).fetchone():
+                raise Fault('SOURCE_UNAVAILABLE','资料已移除',404)
         self._require_scope(owner,kind,row,workspace_id)
         scope_versions = self.workspaces.scope_versions(owner,kind,row)
         if scope_versions:
@@ -84,14 +91,19 @@ class SQLiteMemoryAdapter:
             row = {**row,'personal_identity_confirmed':False}
         if kind in {'document','research'} and not row.get('text'):
             raise Fault('SOURCE_UNREADABLE', '资料正文尚未取得或解析', 409)
-        if kind in {'personal','knowledge','discovery'}:
+        if kind in {'personal','knowledge','discovery','asset'}:
             for reference in row.get('evidence_refs',[]):
                 parent_kind,_,parent_id=reference.get('source_id','').partition(':')
                 parent_table=SOURCE_TABLES.get(parent_kind)
                 if not parent_table:row={**row,'conflict_status':'unresolved'};break
-                try:parent=self.get(parent_table,owner,parent_id)
-                except Fault:row={**row,'conflict_status':'unresolved'};break
-                if reference.get('source_version') and reference['source_version']!=version(parent):
+                try:
+                    _,parent=self.resolve(owner,parent_kind+':'+parent_id,workspace_id,_seen=seen)
+                except Fault as error:
+                    if error.code=='MEMORY_DELETED':raise
+                    raise Fault('SOURCE_UNAVAILABLE','依据已移除或不可访问，请重新核对',409) from None
+                if state_of(parent)!='current':raise Fault('SOURCE_SUPERSEDED','依据已变化，请重新核对',409)
+                raw_parent=self.get(parent_table,owner,parent_id)
+                if reference.get('source_version') and reference['source_version'] not in (self._version_candidates(parent) | {version(raw_parent)}):
                     row={**row,'conflict_status':'unresolved'};break
                 sid=parent.get('session_id')
                 if sid and parent_kind=='transcript' and parent.get('transcript_revision',1)!=self.get('sessions',owner,sid).get('transcript_revision',1):
@@ -109,7 +121,8 @@ class SQLiteMemoryAdapter:
     def _version_candidates(row):
         # Stored evidence references bind raw content; Agent snapshots also bind current scope.
         content={k:v for k,v in row.items() if k!='context_scope_versions'}
-        return {version(row),version(content)}
+        unannotated={k:v for k,v in content.items() if k!='personal_identity_confirmed'}
+        return {version(row),version(content),version(unannotated)}
 
     def references_status(self, owner, references, workspace_id=None):
         self.store.check_owner(owner)

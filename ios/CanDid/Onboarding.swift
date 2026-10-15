@@ -205,7 +205,7 @@ extension Store {
         var failures:[String]=[]
         for url in urls {
             do {
-                guard ["pdf", "docx", "txt", "md"].contains(url.pathExtension.lowercased()) else { throw PrototypeError.message("请选择 PDF、DOCX、TXT 或 Markdown 文件。") }
+                guard ["pdf", "docx", "pptx", "txt", "md"].contains(url.pathExtension.lowercased()) else { throw PrototypeError.message("请选择 PDF、DOCX、PPTX、TXT 或 Markdown 文件。") }
                 let target=try await ImportedDocumentFiles.copy(url,into:root.appendingPathComponent("OnboardingFiles"),maxBytes:25_000_000)
                 guard identity==DeviceRecordingMap.identity(api) else {try? FileManager.default.removeItem(at:target);return}
                 personalState.documents.append(OnboardingDocument(id:UUID().uuidString,title:url.lastPathComponent,status:"local",localPath:"OnboardingFiles/"+target.lastPathComponent))
@@ -377,7 +377,7 @@ struct OnboardingView: View {
             .onChange(of: scenePhase) { _, phase in if phase == .background || (phase == .inactive && !dictation.permissionPending) { dictation.cancel() } }
             .onChange(of: dictation.text) { _, value in var p = profile; p.introduction = prefix + value; store.changePersonalProfile(p) }
             .sheet(isPresented: $settings) { SettingsView() }
-            .fileImporter(isPresented: $importer, allowedContentTypes: [.pdf, UTType(filenameExtension: "docx") ?? .data, .plainText, UTType(filenameExtension: "md") ?? .plainText], allowsMultipleSelection: true) { result in
+            .fileImporter(isPresented: $importer, allowedContentTypes: [UTType(filenameExtension: "pptx") ?? .data, .pdf, UTType(filenameExtension: "docx") ?? .data, .plainText, UTType(filenameExtension: "md") ?? .plainText], allowsMultipleSelection: true) { result in
                 switch result { case .success(let urls): Task { await store.addOnboardingFiles(urls) }; case .failure(let error): if !ImportedDocumentFiles.isCancellation(error) {store.personalImportError = error.localizedDescription} }
             }
     }

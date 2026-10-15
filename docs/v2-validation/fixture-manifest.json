@@ -1,0 +1,124 @@
+{
+  "version": "candid-v2-20261016",
+  "text_license": "CC0 authored synthetic scenarios",
+  "audio_provenance": "macOS built-in say: Tingting, Samantha, Sinji; synthetic test input only",
+  "audio": [
+    {
+      "file": "mandarin.wav",
+      "reference": "我们先确认三家门店的接口和服务范围，再讨论试点排期。",
+      "voice": "Tingting",
+      "duration_seconds": 5.84375,
+      "synthetic": true
+    },
+    {
+      "file": "english.wav",
+      "reference": "Please confirm the service scope before we discuss the delivery date.",
+      "voice": "Samantha",
+      "duration_seconds": 3.5971875,
+      "synthetic": true
+    },
+    {
+      "file": "cantonese.wav",
+      "reference": "我哋先确认三间分店嘅服务范围，唔好咁快承诺上线时间。",
+      "voice": "Sinji",
+      "duration_seconds": 5.911125,
+      "synthetic": true
+    },
+    {
+      "file": "mixed-turns.wav",
+      "reference": "我们先确认三家门店的接口和服务范围，再讨论试点排期。 Please confirm the service scope before we discuss the delivery date. 我哋先确认三间分店嘅服务范围，唔好咁快承诺上线时间。",
+      "synthetic": true,
+      "scenario": "three synthetic voices, Mandarin-English-Cantonese, 2s turn gaps"
+    },
+    {
+      "file": "mixed-noise.wav",
+      "reference": "我们先确认三家门店的接口和服务范围，再讨论试点排期。 Please confirm the service scope before we discuss the delivery date. 我哋先确认三间分店嘅服务范围，唔好咁快承诺上线时间。",
+      "synthetic": true,
+      "scenario": "deterministic low noise"
+    },
+    {
+      "file": "overlap.wav",
+      "synthetic": true,
+      "scenario": "fully overlapped Mandarin and English; negative stress case, not DER benchmark"
+    }
+  ],
+  "files": [
+    {
+      "file": "cantonese.wav",
+      "bytes": 189234,
+      "sha256": "4e08d674e267cf063781bf48468c3ed04d242d4b551751ebe66954636c3a8898"
+    },
+    {
+      "file": "english.wav",
+      "bytes": 115188,
+      "sha256": "a87038386a897cc66ea079a1cd83c4b5d5b4cb7c26bd23fdbb8f68e0e3df2f03"
+    },
+    {
+      "file": "mandarin.wav",
+      "bytes": 187078,
+      "sha256": "284a8b947f9c495a96682f999b501296ee58c5ce4bf1caa5722bc0250e301a7b"
+    },
+    {
+      "file": "mixed-noise.wav",
+      "bytes": 619310,
+      "sha256": "74ba3b386d909b9918998146168dc2f74dd8cb96e232d41f31c991e16562e9a0"
+    },
+    {
+      "file": "mixed-turns.wav",
+      "bytes": 619310,
+      "sha256": "79a31cf53ce3afbb118119ec9ec4a93dcc98a6805e56b42158c8f94d6559e8fb"
+    },
+    {
+      "file": "overlap.wav",
+      "bytes": 187044,
+      "sha256": "eec93d27d044a4f8a0f89dcfc9b0164e42cbc089763b8c7546ef8499e8c0d41f"
+    },
+    {
+      "file": "产品介绍.docx",
+      "bytes": 335,
+      "sha256": "e7298823e710e3b5f40158d28883814e3f35a31cae0c18008da8643477350034"
+    },
+    {
+      "file": "客户乙-需求.md",
+      "bytes": 127,
+      "sha256": "0811e59a342e6f8a2ec5e0d79f82a15e362da1e5d914c1868becd5675050e652"
+    },
+    {
+      "file": "客户甲-服务范围.txt",
+      "bytes": 178,
+      "sha256": "bf38d63bd6d12a3d94a7095f5703ed04dbac406c3e5599cefd5ea4210ad36433"
+    },
+    {
+      "file": "扫描件无文字.pdf",
+      "bytes": 1326,
+      "sha256": "d2d6ce58beb6294b8cad1283f079cef6f81cdc574f467aee760ff0ab688e96c8"
+    },
+    {
+      "file": "报价与服务范围.pdf",
+      "bytes": 2998,
+      "sha256": "f31ce88bb6fae4b4c8e200ed15823eb31260ce7d67abdd32456fa3fa995b0410"
+    },
+    {
+      "file": "损坏.pdf",
+      "bytes": 20,
+      "sha256": "16e2481c22898a89558f311bcd3efc7dc8d16021831c5d1c097eb0e7e18e8859"
+    },
+    {
+      "file": "试点方案.pptx",
+      "bytes": 722,
+      "sha256": "480d41b04ae4638710dde0522562dc14a8d7a07e8b131aa92e05283401fbfa7a"
+    },
+    {
+      "file": "面试-JD.txt",
+      "bytes": 170,
+      "sha256": "223c2e27f860e841b0d90c47a170a5f7fbcf8d57c27ecd2d1389ab5cefe29746"
+    }
+  ],
+  "expected": [
+    "A73 belongs to customer A, B29 to customer B",
+    "Interview facts must not become customer or user experience",
+    "PDF page references 1/2; PPTX slides 1/2",
+    "Scan and corrupt PDFs fail truthfully",
+    "No invented dates, names, prices or completed actions"
+  ]
+}

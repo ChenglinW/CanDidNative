@@ -76,7 +76,18 @@ class SummaryStore:
                       'new_messages': [{k: m[k] for k in ('id','role','content')} for m in fresh if not m.get('excluded_from_summary')]}
         serialized = json.dumps(input_data, ensure_ascii=False)
         if len(serialized) > budget.summary_input_chars:
-            raise Fault('AGENT_COMPACTION_LIMIT', '需要整理的历史超过单次预算，原文已保留；请缩小任务或开始新对话', 422)
+            # A lifelong Chat has no "start a new thread" escape hatch. Compact in bounded batches.
+            cursor=covered;result=previous
+            while cursor<len(older):
+                end=cursor
+                while end<len(older):
+                    candidate={'previous_summary':result['structured'] if result else None,'new_messages':[{k:m[k] for k in ('id','role','content')} for m in older[cursor:end+1] if not m.get('excluded_from_summary')]}
+                    if len(json.dumps(candidate,ensure_ascii=False))>budget.summary_input_chars:break
+                    end+=1
+                if end==cursor:raise Fault('AGENT_COMPACTION_LIMIT','单条历史过长，原文已保留，请分段处理该内容',422)
+                result=self.extend(owner,thread_id,older[:end],result,budget,remaining,cancellation,workspace_id)
+                cursor=end
+            return result
         schema = TaskSummary.model_json_schema()
         system = SUMMARY_RULES + '\n摘要总长度预算：' + str(budget.context_summary_chars) + ' 字符。\nJSON Schema:\n' + json.dumps(schema, ensure_ascii=False)
         self.store.check_owner(owner)
