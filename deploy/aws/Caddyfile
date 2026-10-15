@@ -1,0 +1,15 @@
+# HTTP is used for ACME validation and redirects once the public IP certificate exists.
+:80 {
+    handle /.well-known/acme-challenge/* {
+        root * /var/lib/candid-acme
+        file_server
+    }
+    handle /health {
+        reverse_proxy 127.0.0.1:8000
+    }
+    handle {
+        respond "Use HTTPS to access the CanDid API." 426
+    }
+}
+
+# The deployer adds the TLS listener after issuing the IP certificate.

@@ -1,0 +1,27 @@
+[Unit]
+Description=CanDid FastAPI backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=candid
+Group=candid
+WorkingDirectory=/opt/candid/current/backend
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=CANDID_DATA_DIR=/var/lib/candid
+EnvironmentFile=/etc/candid/backend.env
+ExecStart=/opt/candid/venv/bin/python /opt/candid/current/backend/run.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/candid
+
+[Install]
+WantedBy=multi-user.target

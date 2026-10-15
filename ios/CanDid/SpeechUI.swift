@@ -148,10 +148,29 @@ struct PendingRecording: Codable, Identifiable {
         try? FileManager.default.createDirectory(at:pendingPath.deletingLastPathComponent(),withIntermediateDirectories:true)
         if let data=try? JSONEncoder().encode(pending) { try? data.write(to:pendingPath,options:[.atomic,.completeFileProtection]) }
     }
+    // The cloud migration preserves the signing key and owner database. Rebind
+    // local upload/device references only after the same credential authenticates.
+    func migrateCloudReferences(to api:API,previousToken:String) {
+        guard !previousToken.isEmpty,previousToken==api.token else{return}
+        let destination=identity(api)
+        for base in BackendConfiguration.previousCloudBaseURLs where base != api.base {
+            let old=identity(API(base:base,token:previousToken))
+            for index in pending.indices where pending[index].backendIdentity==old {pending[index].backendIdentity=destination}
+            if trackedDevice?.backendIdentity==old {
+                trackedDevice?.backendIdentity=destination
+                if let data=try? JSONEncoder().encode(trackedDevice) {UserDefaults.standard.set(data,forKey:"candid-device-capture")}
+            }
+            let prefix="device-recording-"+old
+            for (key,value) in UserDefaults.standard.dictionaryRepresentation() where key.hasPrefix(prefix) {
+                UserDefaults.standard.set(value,forKey:"device-recording-"+destination+String(key.dropFirst(prefix.count)))
+            }
+        }
+        persistPending()
+    }
     func start(store: Store, voice: Bool) async {
         guard !recording,!finishing,!uploading,!meetingPreparing,!meetingSyncing, store.remote else { notice="请先连接后端，或等待当前录音处理。"; return }
         guard voice || store.soundcore.recordStatus == 0 else { notice="设备正在录音，请使用设备完成本场录音。"; return }
-        if !voice && store.capabilities?.recording_mode == "device" { notice="正式沟通录音请连接安克设备并按设备按钮开始。"; return }
+        if !voice && !store.cloudStorageAllowed { notice="请先确认录音保存与处理许可。"; return }
         meetingPreparing=true;defer { meetingPreparing=false }
         store.stopPlayback();stopPlayback(); notice=nil; preview=""; finalSentences=[:]; liveOrder=[];liveText=[]; partial=""; seconds=0
         liveSentences=[];liveRevision+=1;captionState = .idle;hasCaptionGap=false
@@ -179,7 +198,14 @@ struct PendingRecording: Codable, Identifiable {
             audioResources=store.audio;audioLease=try store.audio.acquire(.meeting)
             let microphone=VoiceCapture.shared
             guard let format=AVAudioFormat(commonFormat:.pcmFormatInt16,sampleRate:16000,channels:1,interleaved:true) else{throw PrototypeError.message("麦克风音频格式不可用。")}
-            let file=try AVAudioFile(forWriting:url,settings:[AVFormatIDKey:kAudioFormatMPEG4AAC,AVSampleRateKey:16000,AVNumberOfChannelsKey:1,AVEncoderBitRateKey:64000],commonFormat:.pcmFormatInt16,interleaved:true)
+            // AAC's supported bitrate range depends on sample rate and channel count.
+            // 64 kbps at 16 kHz mono fails with kAudioCodecUnsupportedFormatError (!dat).
+            let file:AVAudioFile
+            do {
+                file=try AVAudioFile(forWriting:url,settings:[AVFormatIDKey:kAudioFormatMPEG4AAC,AVSampleRateKey:16000,AVNumberOfChannelsKey:1,AVEncoderBitRateKey:32000],commonFormat:.pcmFormatInt16,interleaved:true)
+            } catch {
+                throw PrototypeError.message("手机录音文件无法初始化，请重试。错误码：\((error as NSError).code)")
+            }
             try FileManager.default.setAttributes([.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],ofItemAtPath:url.path)
             recording=true;started=Date();microphone.setMeetingPaused(false)
             if let sid=sessionID {pending.append(PendingRecording(id:sid,path:url.path,milliseconds:0,backendIdentity:identity(api)));persistPending()}
@@ -190,12 +216,15 @@ struct PendingRecording: Codable, Identifiable {
                 do {try file.write(from:buffer)} catch {DispatchQueue.main.async {self?.notice="本机写入失败，已保留录音。";Task {await self?.finishCapture()}};return}
                 DispatchQueue.main.async {self?.sendFrame(pcm)}
             }
-            try microphone.start();await openLive(api:api,sid:sessionID)
+            try microphone.start(voiceProcessing:voice || store.audio.voiceActive);await openLive(api:api,sid:sessionID)
             clock=Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(for:.seconds(1))
                     guard let self,self.recording else { return }
                     if !self.phonePaused { self.seconds=self.phoneElapsedSeconds }
+                    if self.seconds>=3 && VoiceCapture.shared.capturedPCMBytes==0 {
+                        self.notice="麦克风没有送出音频，请结束后重试；空录音不会上传。"
+                    }
                     if let sid=self.sessionID,let i=self.pending.firstIndex(where:{$0.id==sid}) { self.pending[i].milliseconds=self.seconds*1000; self.persistPending() }
                 }
             }
@@ -305,7 +334,9 @@ struct PendingRecording: Codable, Identifiable {
         if let sid=sessionID,let i=pending.firstIndex(where:{$0.id==sid}) { pending[i].milliseconds=max(1,seconds*1000);persistPending() }
     }
     func finishAndUpload() async {
+        let emptyPhoneRecording=meetingSource=="iphone" && VoiceCapture.shared.capturedPCMBytes==0
         await finishCapture()
+        if emptyPhoneRecording {notice="本次未采集到音频，无法转写，请重新录音。";return}
         if !voiceMessage,let api=connection,let sid=sessionID,let item=pending.first(where:{$0.id==sid}) { await upload(item,api:api) }
     }
     func sendVoice(store:Store) async {
@@ -323,6 +354,11 @@ struct PendingRecording: Codable, Identifiable {
         guard !uploading,identity(api)==item.backendIdentity else { notice="请连接录音创建时的后端账号后上传。";return }
         uploading=true;defer { uploading=false }
         do {
+            let url=URL(fileURLWithPath:item.path)
+            if url.pathExtension=="m4a" {
+                let audio=try AVAudioFile(forReading:url)
+                guard audio.length>0 else {throw PrototypeError.message("这段录音没有声音帧，无法上传和转写，请重新录音。")}
+            }
             if item.id==meetingID { meetingProgress="音频正在上传" }
             try await api.upload(URL(fileURLWithPath:item.path),session:item.id,durationMS:item.milliseconds)
             pending.removeAll { $0.id==item.id };persistPending();notice="音频已入库，正在精转写和整理。"

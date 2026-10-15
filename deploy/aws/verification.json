@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-16",
+  "region": "ap-southeast-1",
+  "backend": "https://47.129.137.212",
+  "migration": "complete",
+  "legacy_endpoint": "https://16.144.9.183",
+  "legacy_mode": "https_proxy_only_backend_disabled",
+  "pytest": {
+    "passed": 134,
+    "warnings": 2
+  },
+  "ios_release_build": "passed",
+  "iphone_install": "passed",
+  "iphone_launch": "passed",
+  "tls_health": 200,
+  "authenticated_endpoints": 200,
+  "unauthenticated_capabilities": 401,
+  "database_integrity": "ok",
+  "preserved_recording_segments": 12,
+  "preserved_recording_summaries": 1,
+  "new_recording_after_migration": "not_yet_verified",
+  "soundcore_hardware": "not_verified",
+  "certificate_renewal_dry_run": "passed"
+}

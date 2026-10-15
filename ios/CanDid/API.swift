@@ -1,5 +1,15 @@
 import Foundation
 import Security
+enum BackendConfiguration {
+    static let baseURL = "https://47.129.137.212"
+    static let previousCloudBaseURLs = ["https://16.144.9.183"]
+    static let credentialAccount = "candid-cloud-access-v1"
+    static let installationAccount = "candid-cloud-installation-v1"
+}
+struct DeviceRegistrationResponse: Decodable {
+    var access_token: String
+    var owner_id: String
+}
 import CryptoKit
 
 enum TokenVault {

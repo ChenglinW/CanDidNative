@@ -101,38 +101,57 @@ extension Store {
         guard remote, chatForeground, chatRequest == nil, let id = chatThread?.id else { return }
         Task { try? await loadChat(id) }
     }
-    func restoreConnection() async {
-        #if DEBUG
-        if Self.isolatedTestRun { return }
-        #endif
-        var token = TokenVault.read()
-        var shouldConnect = UserDefaults.standard.bool(forKey: "remote-enabled")
-        #if DEBUG && targetEnvironment(simulator)
-        let env = ProcessInfo.processInfo.environment
-        if env["CANDID_LOCAL_BACKEND"] == "1", let supplied = env["CANDID_BACKEND_TOKEN"], !supplied.isEmpty {
-            base = "http://127.0.0.1:" + (env["CANDID_BACKEND_PORT"] ?? "8000")
-            token = supplied; shouldConnect = true
-            do { try TokenVault.save(token); UserDefaults.standard.set(base, forKey: "api-base") }
-            catch { chatError = error.localizedDescription; return }
-        }
-        #endif
-        guard shouldConnect, !token.isEmpty else { return }
+    func restoreConnection(force: Bool = false) async {
+        if Self.isolatedTestRun || connecting || (connectionReady && !force) { return }
+        connecting = true; connectionError = nil
+        defer { connecting = false }
         do {
-            _ = try await api.raw("/v1/profile")
-            remote = true
+            var address = BackendConfiguration.baseURL
+            var token = ""
+            var localOverride = false
+            #if DEBUG && targetEnvironment(simulator)
+            let env = ProcessInfo.processInfo.environment
+            if env["CANDID_LOCAL_BACKEND"] == "1", let supplied = env["CANDID_BACKEND_TOKEN"], !supplied.isEmpty {
+                address = "http://127.0.0.1:" + (env["CANDID_BACKEND_PORT"] ?? "8000")
+                token = supplied; localOverride = true
+            }
+            #endif
+            if !localOverride {
+                var installation = TokenVault.read(account: BackendConfiguration.installationAccount)
+                if installation.isEmpty {
+                    installation = (UUID().uuidString + UUID().uuidString).replacingOccurrences(of: "-", with: "").lowercased()
+                    try TokenVault.save(installation, account: BackendConfiguration.installationAccount)
+                }
+                let registration: DeviceRegistrationResponse = try await API(base: address, token: "").call(
+                    "/v1/auth/device", method: "POST", body: ["installation_secret": installation])
+                token = registration.access_token
+            }
+            let candidate = API(base: address, token: token)
+            let profile = try await candidate.raw("/v1/profile")
+            let previous = TokenVault.read(); let draft = personalState
+            if !localOverride {speech.migrateCloudReferences(to:candidate,previousToken:previous)}
+            try TokenVault.save(token)
+            if !localOverride { try TokenVault.save(token, account: BackendConfiguration.credentialAccount) }
+            base = address; remote = true
+            if previous != token { loadOnboarding(migrating: previous.isEmpty ? draft : nil); loadProductCache() }
+            cloudStorageAllowed = ((try? JSONSerialization.jsonObject(with: profile)) as? [String: Any])?["product_use_consent_at"] as? String != nil
             await restorePersonalProfile()
-            UserDefaults.standard.set(true, forKey: "remote-enabled")
             try await reload(); try await reloadChats()
             var requestedID: String?
             #if DEBUG && targetEnvironment(simulator)
             requestedID = ProcessInfo.processInfo.environment["CANDID_CHAT_THREAD_ID"]
             #endif
             if let id = requestedID { try await loadChat(id) }
-            else { try await openScope(["mode":"all"]) }
+            else if chatThread == nil { try await openScope(["mode":"all"]) }
+            connectionReady = true
             #if DEBUG && targetEnvironment(simulator)
             if let message = ProcessInfo.processInfo.environment["CANDID_CHAT_MESSAGE"], !message.isEmpty { sendChat(message) }
             #endif
-        } catch { chatError = error.localizedDescription }
+        } catch is CancellationError {
+            // The next foreground activation retries without changing the installation identity.
+        } catch {
+            connectionError = "暂时无法连接 Candid，请检查网络后重试。你的资料会保留。"
+        }
     }
     func reloadChats() async throws {
         guard remote else { return }
@@ -253,7 +272,7 @@ extension Store {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty, !chatControlBusy, !chatLoading, currentProjectSpace?.status == "active" else { return }
         guard value.count <= 12000 else { chatError = "消息最多 12,000 字，请分段发送。"; return }
-        guard remote, capabilities?.agent_configured == true else { chatError = "请先连接已配置文本模型的后端。"; return }
+        guard remote, capabilities?.agent_configured == true else { chatError = "服务暂时不可用，请稍后重试。"; return }
         if let task = chatTask, task.status == "waiting_input", !retry { answerChat(task, text: value); return }
         let requestID = retry ? (chatPending?.requestID ?? UUID().uuidString) : UUID().uuidString
         chatPending = (value, requestID); chatControlBusy = true; chatError = nil
@@ -467,7 +486,7 @@ struct ChatView: View {
                     Button("归档这个空间", systemImage: "archivebox") { Task { await store.archiveProjectSpace() } }
                         .disabled(store.chatControlBusy || store.chatTasks.contains(where: { $0.active }))
                 }
-                Button("设置与后端连接", systemImage: "gearshape", action: onSettings)
+                Button("设置与隐私", systemImage: "gearshape", action: onSettings)
             } label: {
                 Image(systemName: "ellipsis").frame(width: 44, height: 44)
                     .background(Warm.white, in: Circle()).overlay(Circle().stroke(Warm.ink.opacity(0.10)))

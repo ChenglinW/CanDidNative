@@ -20,9 +20,9 @@ sh scripts/check-ios.sh --build
 backend/.venv/bin/python scripts/launch-chat.py
 ```
 
-第二条命令只启动 App，不传测试消息。真机与队友手机需设置可达后端地址。需要局域网访问时显式使用 `backend/run.py --lan`，在 App 连接设置填写后端地址及其自己的 `backend/data/local-access.txt` 访问令牌；不使用供应商密钥作为 App 登录令牌。
+第二条命令只启动 App，不传测试消息。真机与队友的正式 App 固定连接新加坡 `https://47.129.137.212`，自动保存设备独立凭证，无需填写后端配置。上述模拟器启动脚本通过 Debug 专用环境覆盖连接本机服务；供应商密钥始终只放在后端。需要局域网开发时显式使用 `backend/run.py --lan`，并在开发构建中配置对应地址，正式设置页不再提供地址或令牌输入框。
 
-开发配置默认允许临时手机会议录音；正式部署设置 `CANDID_RECORDING_MODE=device`，Release App 始终隐藏临时会议录音。手机语音消息是独立获准的功能，继续保留。
+所有版本均保留「手机录音（备用）」，包括 Release 真机版。录音豆仍是主入口，手机语音消息也继续保留；服务端允许两种录音来源，能力状态为 `recording_mode=hybrid`。
 
 服务开关及非密钥配置见 `backend/agent_config/services.env.example`。本 demo 经负责人确认不设 Monid 金额限额，仍限定每任务工具调用次数和单次结果数量，记录原始 billing 与运行 ID。ASR/TTS 保存供应商用量；关闭 `CANDID_SPEECH_ENABLED` 可停止新语音调用。
 

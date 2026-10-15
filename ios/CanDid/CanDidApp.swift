@@ -46,7 +46,17 @@ struct RootView: View {
     @State private var settings = false
     var body: some View {
         Group {
-            if store.onboarding {
+            if !store.connectionReady && !Store.isolatedTestRun {
+                VStack(spacing: 20) {
+                    Mascot(size: 110)
+                    if store.connecting || store.connectionError == nil {
+                        ProgressView("正在连接 Candid…")
+                    } else {
+                        Text(store.connectionError ?? "暂时无法连接 Candid").multilineTextAlignment(.center)
+                        Button("重新连接") { Task { await store.restoreConnection() } }.buttonStyle(PrimaryButton())
+                    }
+                }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity).background(Warm.paper)
+            } else if store.onboarding {
                 RecordingShell(navigation:store.recordingNavigation,speech:store.speech,device:store.soundcore,onSettings:{settings=true})
             } else { OnboardingView() }
         }
@@ -57,7 +67,7 @@ struct RootView: View {
         .overlay { if store.busy { ProgressView().padding(22).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
         .onChange(of: phase) { _, value in
             store.chatSceneChanged(active: value == .active)
-            if value == .active { store.purgeLocalExpired() }
+            if value == .active { store.purgeLocalExpired(); Task { await store.restoreConnection(force: true) } }
             else { store.soundcore.stopScan() }
         }
         .task { await store.restoreConnection() }
@@ -255,45 +265,35 @@ struct SessionDetailView: View {
 }
 struct SettingsView: View {
     @EnvironmentObject var store: Store; @Environment(\.dismiss) var dismiss
-    @State var token = ""; @State private var backendAddress = ""; @State var exportURL: URL?; @State var deleting = false; @State var allowBackend = false
+    @State var exportURL: URL?; @State var deleting = false
     var body: some View { NavigationStack { Form {
         Section("个人资料") { NavigationLink("我的介绍与资料") { PersonalProfilePage() } }
-        Section("运行模式") { Text(store.remote ? "已连接持久化 FastAPI 后端" : "离线示例 · 本机保存"); Button("切回离线示例") { UserDefaults.standard.set(false, forKey: "remote-enabled"); store.loadDemo() }.disabled(store.chatBusy) }
-        Section("连接后端") {
-            TextField("后端地址", text: $backendAddress).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-            SecureField("本机令牌或 Supabase 用户 JWT", text: $token).textInputAutocapitalization(.never).autocorrectionDisabled()
-            Toggle("同意在填写的后端地址保存我的资料与音频", isOn: $allowBackend)
-            Text("模拟器连接 http://127.0.0.1:8000。真机填写电脑局域网地址。默认本机令牌由后端生成，不包含服务端密钥。跨境云端部署需要另行同意流程。").font(.footnote)
-            Button("连接并读取真实后端数据") { Task { await store.perform { try await store.connect(token: token, backend: backendAddress); dismiss() } } }.disabled(token.isEmpty || !allowBackend)
+        Section("同步") {
+            LabeledContent("状态", value: store.connecting ? "正在同步" : store.connectionError != nil ? "暂时离线" : store.connectionReady ? "已连接" : "等待连接")
+            if let issue = store.connectionError { Text(issue).font(.footnote).foregroundStyle(.secondary) }
+            Button("重新同步") { Task { await store.restoreConnection(force: true) } }.disabled(store.connecting || store.chatBusy)
         }
-        Section("文本 Agent") {
-            if store.remote, let capability = store.capabilities {
-                Text(capability.agent_configured == true ? "已连接安克模型网关" : "后端尚未配置文本 Agent")
-                Text(capability.agent_model ?? "未配置").font(.caption)
-                Text("发送的消息及按问题检索的资料会由后端交给模型。AI 回复可以保留为草稿，由你确认后进入长期记忆。").font(.footnote)
-            } else { Text("连接本机后端后可以开始真实文本对话。模型 Key 仅保存在后端。") }
-        }
-        Section("录音文本分析模型") {
-            if store.remote, let capability = store.capabilities {
-                LabeledContent("服务", value: capability.llm_provider)
-                LabeledContent("模型", value: capability.llm_model)
-                Text(capability.llm_configured ? "后端已配置密钥。选择分析时仅发送本次本人原文。" : "后端尚未配置 DeepSeek 密钥。")
-            } else { Text("连接后端后显示模型信息；密钥仅保存在后端。") }
+        Section("资料与录音") {
+            Toggle("允许保存与处理我提交的资料和录音", isOn: Binding(
+                get: { store.cloudStorageAllowed },
+                set: { allowed in Task { await store.perform { try await store.setCloudStorageAllowed(allowed) } } }
+            )).disabled(!store.connectionReady || store.busy)
+            Text("你主动提交的内容会保存在 Candid 云端（新加坡），并按功能需要用于语音转写和 AI 整理。AI 草稿经你核对后进入记忆库。").font(.footnote)
         }
         Section("原音频保留") {
             Picker("默认保留", selection: $store.retention) { ForEach([0,7,30,90,180], id: \.self) { Text($0 == 0 ? "处理完即删" : "\($0) 天").tag($0) } }
             Button("应用保留设置") { Task { await store.perform { try await store.setRetention(store.retention); store.message = "保留设置已更新" } } }
-            Text("后端持续运行时自动清理到期音频；缩短应用于已有场次，延长仅影响新场次。离线示例仅在 App 启动和回到前台时检查到期。").font(.footnote)
+            Text("到期音频会自动清理；缩短保留期会应用于已有场次，延长仅影响新场次。").font(.footnote)
         }
         Section("你的数据") {
             Button("导出记忆 JSON") { Task { await store.perform { exportURL = try await store.export() } } }
             if let exportURL { ShareLink("分享导出文件", item: exportURL) }
             Button("删除全部记忆", role: .destructive) { deleting = true }
-            Text("删除后会停止读取与处理，清理当前后端用户的全部记忆。离线示例数据独立保存。").font(.footnote)
+            Text("删除这台设备对应的云端记忆和本机缓存，其他设备的独立资料不受影响。").font(.footnote)
         }
         Section("录音设备") { NavigationLink("soundcore 连接与授权") { SoundcoreDeviceView(device: store.soundcore) } }
-        Section("原型范围") { Text("设备录音由硬件按键开始和结束；App 可以暂停、继续、查看实时字幕和同步完整文件。录音与资料由当前连接的后端管理。").font(.footnote) }
-    }.onAppear { if backendAddress.isEmpty { backendAddress = store.base } }.navigationTitle("设置与隐私").toolbar { Button("完成") { dismiss() } }
-        .confirmationDialog("永久删除当前模式的全部记忆？", isPresented: $deleting) { Button("删除全部记忆", role: .destructive) { Task { await store.perform { try await store.deleteMemory(); dismiss() } } } }
+        Section("原型范围") { Text("设备录音由硬件按键开始和结束；App 可以暂停、继续、查看实时字幕和同步完整文件。录音与资料自动同步到 Candid。").font(.footnote) }
+    }.navigationTitle("设置与隐私").toolbar { Button("完成") { dismiss() } }
+        .confirmationDialog("永久删除这台设备的全部记忆？", isPresented: $deleting) { Button("删除全部记忆", role: .destructive) { Task { await store.perform { try await store.deleteMemory(); dismiss() } } } }
     } }
 }

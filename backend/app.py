@@ -13,7 +13,7 @@ from typing import Literal
 from uuid import UUID
 
 import jwt
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,6 +23,7 @@ from llm import DeepSeek
 from agent import TextAgent
 from adapters.sqlite_memory import SQLiteMemoryAdapter
 from tools.memory_tools import SourceReference
+from device_auth import DeviceAuth
 
 ROOT=Path(os.environ.get('CANDID_DATA_DIR',str(Path(__file__).parent/'data')))
 ROOT.mkdir(parents=True,exist_ok=True)
@@ -35,6 +36,7 @@ else:LOCAL_TOKEN=''
 LOCAL_OWNER='11111111-1111-4111-8111-111111111111'
 SIGN_KEY=secrets.token_bytes(32)
 store=Memory(ROOT/'memory.sqlite3',ROOT/'storage',llm=DeepSeek.from_config(ROOT))
+device_auth=DeviceAuth(store,ROOT)
 memory_service=SQLiteMemoryAdapter(store)
 agent=TextAgent(store,memory_adapter=memory_service)
 from tasks.business import BusinessJobs
@@ -86,8 +88,8 @@ async def http_error(req,e):return JSONResponse({'error':{'code':'NOT_FOUND' if 
 def owner(req:Request):
     token=req.headers.get('Authorization','').removeprefix('Bearer ')
     if MODE=='local':
-        if not token or not hmac.compare_digest(token,LOCAL_TOKEN):raise Fault('UNAUTHORIZED','请填写本机访问令牌',401)
-        uid=LOCAL_OWNER
+        if token and hmac.compare_digest(token,LOCAL_TOKEN):uid=LOCAL_OWNER
+        else:uid=device_auth.owner(token)
     elif MODE=='supabase':
         try:
             key=JWKS.get_signing_key_from_jwt(token).key
@@ -99,6 +101,8 @@ def owner(req:Request):
     store.check_owner(uid);return uid
 
 class Input(BaseModel):model_config=ConfigDict(extra='forbid')
+class DeviceRegistrationIn(Input):
+    installation_secret:str=Field(pattern=r'^[a-f0-9]{64}$')
 class SessionIn(Input):
     client_request_id:UUID
     occasion_id:UUID|None=None
@@ -223,6 +227,11 @@ def health():return {'status':'ok','schema_version':'2.0.0','storage':'sqlite_pr
                     'ai_provider':'anker' if agent.gateway.configured else 'not_configured'}
 @app.get('/v1/profile')
 def profile(uid=Depends(owner)):return memory_service.profile(uid)
+@app.post('/v1/auth/device')
+def register_device(body:DeviceRegistrationIn,response:Response):
+    if MODE!='local':raise Fault('NOT_FOUND','设备接入未启用',404)
+    response.headers['Cache-Control']='no-store'
+    return device_auth.register(body.installation_secret)
 @app.patch('/v1/profile')
 def patch_profile(body:ProfileIn,uid=Depends(owner)):
     patch=data(body);preferences=patch.pop('preferences',None)
@@ -288,7 +297,7 @@ def capabilities(uid=Depends(owner)):
             'project_spaces_configured':True,'project_space_memory_policy':'explicit_scope_only',
             'project_archive_analysis_configured':agent.gateway.configured,'recording_knowledge_configured':agent.gateway.configured,
             'monid_research_configured':agent.monid.configured,'tts_configured':speech.configured,
-            'recording_mode':os.getenv('CANDID_RECORDING_MODE','development'),
+            'recording_mode':'hybrid',
             'agent_skills':[{k:e[k] for k in ('name','title','version','available','missing_tools')}
                             for e in agent.catalog.index(agent.registry.names)]}
 
@@ -755,8 +764,6 @@ class RecordingIn(Input):
 @app.post('/v1/recordings')
 def create_recording(body:RecordingIn,uid=Depends(owner)):
     payload=data(body)
-    if body.recording_source=='iphone' and os.getenv('CANDID_RECORDING_MODE','development')=='device':
-        raise Fault('DEVICE_REQUIRED','正式会议录音请连接安克设备',409)
     return memory_service.create_session(uid,{**payload,'kind':'live','occasion_id':None})
 
 @app.get('/v1/recordings')

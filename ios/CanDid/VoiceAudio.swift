@@ -51,6 +51,11 @@ final class VoiceCapture {
     func setMeetingPaused(_ paused:Bool){stateLock.lock();meetingPaused=paused;stateLock.unlock()}
     let engine=AVAudioEngine()
     let player=AVAudioPlayerNode()
+    // Keep the input in the rendered graph, without monitoring the microphone.
+    // A tap on an unconnected voice-processing input can start but deliver no buffers.
+    private let captureSink=AVAudioMixerNode()
+    private var capturedBytes=0
+    var capturedPCMBytes:Int {stateLock.lock();defer{stateLock.unlock()};return capturedBytes}
     private var epoch=UUID()
     private var scheduled=0
     private var stopped=false
@@ -63,34 +68,50 @@ final class VoiceCapture {
     }
     var onError: (()->Void)?
     var onPlaybackChanged: ((Bool)->Void)?
-    func start() throws {
+    func start(voiceProcessing:Bool=true) throws {
         if engine.isRunning {return}
-        stateLock.lock();stopped=false;stateLock.unlock()
+        stateLock.lock();stopped=false;capturedBytes=0;stateLock.unlock()
         let session=AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord,mode:.voiceChat,options:[.defaultToSpeaker,.allowBluetoothHFP])
+        try session.setCategory(.playAndRecord,mode:voiceProcessing ? .voiceChat:.measurement,options:voiceProcessing ? [.defaultToSpeaker,.allowBluetoothHFP]:[.defaultToSpeaker])
+        if !voiceProcessing {
+            try session.setPreferredSampleRate(48000)
+            if let microphone=session.availableInputs?.first(where:{$0.portType == .builtInMic}) {try session.setPreferredInput(microphone)}
+        }
         try session.setActive(true)
-        try engine.inputNode.setVoiceProcessingEnabled(true)
+        try engine.inputNode.setVoiceProcessingEnabled(voiceProcessing)
+        if voiceProcessing {engine.inputNode.isVoiceProcessingInputMuted=false}
         let input=engine.inputNode;let format=input.outputFormat(forBus:0)
         guard format.sampleRate>0,let target=AVAudioFormat(commonFormat:.pcmFormatInt16,sampleRate:16000,channels:1,interleaved:true),let converter=AVAudioConverter(from:format,to:target) else {throw PrototypeError.message("麦克风格式不可用。")}
         if player.engine==nil {
             engine.attach(player)
             engine.connect(player,to:engine.mainMixerNode,format:AVAudioFormat(standardFormatWithSampleRate:24000,channels:1))
         }
+        if captureSink.engine==nil {engine.attach(captureSink)}
+        captureSink.outputVolume=0
+        engine.connect(input,to:captureSink,format:format)
+        engine.connect(captureSink,to:engine.mainMixerNode,format:format)
+        print("CanDid capture start: rate=\(format.sampleRate) channels=\(format.channelCount) voiceProcessing=\(voiceProcessing) route=\(session.currentRoute.inputs.map(\.portType.rawValue))")
+        var loggedInput=false;var loggedConversionError=false
         input.installTap(onBus:0,bufferSize:1024,format:format) { [weak self] buffer,_ in
             guard let self else{return};self.stateLock.lock();let active = !self.stopped;self.stateLock.unlock();guard active else{return}
+            if !loggedInput {loggedInput=true;print("CanDid capture: first input frames=\(buffer.frameLength)")}
             let capacity=AVAudioFrameCount(Double(buffer.frameLength)*16000/format.sampleRate)+32
             guard let output=AVAudioPCMBuffer(pcmFormat:target,frameCapacity:capacity) else{return}
             var supplied=false;var error:NSError?
             converter.convert(to:output,error:&error) { _,status in
                 if supplied {status.pointee = .noDataNow;return nil};supplied=true;status.pointee = .haveData;return buffer
             }
-            guard error==nil,let samples=output.int16ChannelData?[0] else{self.onError?();return}
+            guard error==nil,let samples=output.int16ChannelData?[0] else{if !loggedConversionError {loggedConversionError=true;print("CanDid capture conversion error: \(error?.code ?? 0)")};self.onError?();return}
+            guard output.frameLength>0 else{return}
             let pcm=Data(bytes:samples,count:Int(output.frameLength)*2)
+            self.stateLock.lock();let first=self.capturedBytes==0;self.capturedBytes+=pcm.count;self.stateLock.unlock()
+            if first {print("CanDid capture: first PCM buffer bytes=\(pcm.count)")}
             self.onFrame?(pcm)
             self.stateLock.lock();let meetingEnabled = !self.meetingPaused;self.stateLock.unlock()
             if meetingEnabled {self.onMeetingFrame?(pcm)}
         }
         tapInstalled=true
+        engine.prepare()
         try engine.start()
     }
     @MainActor func play(_ pcm:Data,completion:@escaping ()->Void) throws {

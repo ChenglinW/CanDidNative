@@ -146,7 +146,7 @@ extension Store {
         }
     }
     func syncPersonalProfile() async {
-        guard remote, !personalSyncing else { return }
+        guard remote, cloudStorageAllowed || Store.isolatedTestRun, !personalSyncing else { return }
         personalSyncing = true
         let connection = api
         let identity = DeviceRecordingMap.identity(connection)
@@ -266,7 +266,7 @@ extension API {
     private var generation = UUID()
     func start(store: Store) async {
         guard !active else { return }
-        guard store.remote, store.capabilities?.asr_configured == true else { error = "连接已配置语音的后端后，就能用说的；现在也可以直接打字。"; return }
+        guard store.remote, store.capabilities?.asr_configured == true else { error = "语音服务暂时不可用，现在可以直接打字。"; return }
         generation = UUID(); let stamp = generation
         active = true; ready = false; finishing = false; error = nil; text = ""
         do {
@@ -360,7 +360,7 @@ struct OnboardingView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if step > 0 { Button { move(to: step - 1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }.foregroundStyle(Warm.purple).accessibilityLabel("返回上一步") }
-                    else { Button { settings = true } label: { Image(systemName: "gearshape").frame(width: 44, height: 44) }.foregroundStyle(Warm.purple).accessibilityLabel("设置与后端连接") }
+                    else { Button { settings = true } label: { Image(systemName: "gearshape").frame(width: 44, height: 44) }.foregroundStyle(Warm.purple).accessibilityLabel("设置与隐私") }
                 }
                 ToolbarItem(placement: .principal) {
                     if step > 0 { HStack(spacing: 8) { ForEach(1...3, id: \.self) { n in Capsule().fill(n <= step ? Warm.purple : Warm.ink.opacity(0.15)).frame(width: 26, height: 4) }; Text("\(step) / 3").font(.caption).foregroundStyle(note) }.accessibilityElement(children: .ignore).accessibilityLabel("第 \(step) 步，共三步") }
@@ -380,12 +380,12 @@ struct OnboardingView: View {
     }
     private var actions: some View {
         VStack(spacing: 3) {
-            Button(step == 0 ? "认识一下" : step == 3 ? (editing ? "保存资料" : "开始使用") : "继续", systemImage: "arrow.right") {
-                if step == 3 { complete() } else { move(to: step + 1) }
+            Button(step == 0 && !store.cloudStorageAllowed ? "同意并认识一下" : step == 0 ? "认识一下" : step == 3 ? (editing ? "保存资料" : "开始使用") : "继续", systemImage: "arrow.right") {
+                advance(skip: false)
             }.buttonStyle(RecordingPrimary()).accessibilityIdentifier("onboarding-next")
             HStack {
                 Button(step == 0 ? "直接开始，之后再介绍" : step == 3 ? "资料稍后再补" : "这一步先跳过") {
-                    if step == 0 || step == 3 { complete() } else { move(to: step + 1) }
+                    advance(skip: true)
                 }.frame(maxWidth: .infinity, minHeight: 44)
                 if focusedInput != nil { Button("收起键盘") { dismissKeyboard() }.frame(minHeight: 44) }
             }.font(.subheadline.weight(.semibold)).foregroundStyle(Warm.purple)
@@ -397,6 +397,7 @@ struct OnboardingView: View {
             Text("下一次开口，\n有我一起准备。").font(.largeTitle.bold()).multilineTextAlignment(.center)
             Text("记得你的背景，也记得每次沟通。\n让上一次的经验，帮上下一次的忙。").foregroundStyle(note).multilineTextAlignment(.center)
             WarmCard { Text("先认识一下就好。").font(.headline); Text("选个用途，聊聊你自己。资料以后补也可以。").font(.subheadline).foregroundStyle(note) }
+            Text("继续即同意将你主动提交的资料和录音保存到 Candid 云端并按需进行 AI 处理，服务位于新加坡。可在设置中撤回许可。").font(.footnote).foregroundStyle(note)
             privacy
         }.frame(maxWidth: .infinity)
     }
@@ -472,13 +473,22 @@ struct OnboardingView: View {
         }
     }
     private var privacy: some View {
-        DisclosureGroup { Text("你主动提供的背景会成为个人资料。导入文件先提取文字，后续 Agent 按需读取时会使用已配置的模型服务；AI 产生的新跨场个人结论仍会集中请你核对。录音权限在开始录音时申请，原音频默认保留 90 天，可在设置修改。").font(.footnote).foregroundStyle(note).padding(.top, 8) } label: { Label("资料与录音怎么处理？", systemImage: "lock").font(.footnote).frame(minHeight: 44) }.tint(Warm.purple)
+        DisclosureGroup { Text("你主动提供的背景会成为个人资料，并同步到 Candid 云端（新加坡）。导入文件先提取文字，后续按需使用 AI 整理；AI 产生的新跨场个人结论仍会集中请你核对。录音权限在开始录音时申请，原音频默认保留 90 天，可在设置修改。").font(.footnote).foregroundStyle(note).padding(.top, 8) } label: { Label("资料与录音怎么处理？", systemImage: "lock").font(.footnote).frame(minHeight: 44) }.tint(Warm.purple)
     }
     private func dismissKeyboard() {
         focusedInput = nil
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     private func move(to value: Int) { dismissKeyboard(); dictation.cancel(); step = value; if !editing { store.personalState.step = value; store.persistOnboarding() } }
+    private func advance(skip: Bool) {
+        let proceed = {
+            if self.step == 3 || (self.step == 0 && skip) { self.complete() }
+            else { self.move(to: self.step + 1) }
+        }
+        if step == 0 && store.remote && !store.cloudStorageAllowed {
+            Task { await store.perform { try await store.setCloudStorageAllowed(true); proceed() } }
+        } else { proceed() }
+    }
     private func complete() {
         dismissKeyboard()
         dictation.cancel()

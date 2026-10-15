@@ -17,6 +17,10 @@ import UserNotifications
     @Published var personalRemoteProfile: PersonalProfile?
     var personalRemoteVersion = 0
     @Published var remote = false
+    @Published var connecting = false
+    @Published var connectionReady = false
+    @Published var connectionError: String?
+    @Published var cloudStorageAllowed = false
     @Published var capabilities: Capabilities?
     var productScopeGeneration=UUID()
     @Published var products:[ProductProject]=[]
@@ -45,7 +49,7 @@ import UserNotifications
     @Published var error: String?
     @Published var message: String?
     @Published var retention = 90
-    @Published var base = UserDefaults.standard.string(forKey: "api-base") ?? "http://127.0.0.1:8000"
+    @Published var base = BackendConfiguration.baseURL
     var api: API { API(base: base, token: TokenVault.read()) }
     private var player: AVPlayer?
     let soundcore = Soundcore()
@@ -79,7 +83,16 @@ import UserNotifications
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             demoURL = folder.appendingPathComponent("candid-demo.json")
         } else { demoURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("candid-demo.json") }
-        retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90; loadDemo(); loadOnboarding(); purgeLocalExpired();loadProductCache()
+        retention = UserDefaults.standard.object(forKey: "retention-days") as? Int ?? 90
+        if Self.isolatedTestRun || localDirectory != nil {
+            loadDemo(); connectionReady = true
+        } else {
+            // Cloud mode never silently displays or writes the fixture database.
+            remote = true
+            let saved = TokenVault.read(account: BackendConfiguration.credentialAccount)
+            try? TokenVault.save(saved)
+        }
+        loadOnboarding(); purgeLocalExpired();loadProductCache()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") && ProcessInfo.processInfo.arguments.contains("-candid-surface-review") {onboarding=true;seedProducts()}
         #endif
@@ -155,6 +168,11 @@ import UserNotifications
         let s: [Session] = try await api.all("/v1/sessions")
         assets = a; occasions = o; sessions = s
         try await reloadProducts()
+    }
+    func setCloudStorageAllowed(_ allowed: Bool) async throws {
+        _ = try await api.raw("/v1/profile", method: "PATCH", body: ["product_use_consent": allowed, "cross_border_consent": allowed])
+        cloudStorageAllowed = allowed
+        if allowed { await syncPersonalProfile() }
     }
     func addOccasion(title: String, scenario: Scenario, goal: String) async throws {
         if remote {
@@ -309,7 +327,15 @@ import UserNotifications
         personalState = OnboardingState(); persistOnboarding()
         assets = []; occasions = []; sessions = []; diagnoses = []; onboarding = false
         chatThread = nil; chatMessages = []; chatThreads = []; chatPending = nil
-        if !remote { persist() }; message = "记忆已删除"
+        if !remote { persist() }
+        if remote && base == BackendConfiguration.baseURL && !Self.isolatedTestRun {
+            try TokenVault.save("", account: BackendConfiguration.installationAccount)
+            try TokenVault.save("", account: BackendConfiguration.credentialAccount)
+            try TokenVault.save("")
+            cloudStorageAllowed = false; connectionReady = false
+            Task { await self.restoreConnection(force: true) }
+        }
+        message = "记忆已删除"
     }
 }
 

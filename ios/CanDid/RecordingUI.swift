@@ -47,13 +47,6 @@ enum RecordingFormat {
         default: return "音频已保留"
         }
     }
-    @MainActor static func phoneEnabled(_ store: Store) -> Bool {
-        #if DEBUG
-        return store.remote && store.capabilities?.recording_mode != "device"
-        #else
-        return false
-        #endif
-    }
     static func speaker(_ id: String?) -> String {
         guard let id else { return "未知说话人" }
         let parts=id.split(separator:":")
@@ -218,7 +211,7 @@ struct LiveRecordingView: View {
                 HStack {
                     HStack(spacing:6) {
                         Circle().fill(isPaused ? Color.brown:hasLiveMeeting ? Color(red:0.28,green:0.42,blue:0.27):Warm.purple).frame(width:7,height:7)
-                        Text(sameConnection && speech.deviceRecordingUncertain ? "设备状态待重新连接核对":deviceActive ? "安克录音豆 · \(isPaused ? "已暂停":"正在录音")" : phoneActive ? "手机录音 · 开发入口":"\(sameConnection && speech.meetingID != nil ? "录音已结束":"安克录音豆")")
+                        Text(sameConnection && speech.deviceRecordingUncertain ? "设备状态待重新连接核对":deviceActive ? "安克录音豆 · \(isPaused ? "已暂停":"正在录音")" : phoneActive ? "手机录音 · 备用":"\(sameConnection && speech.meetingID != nil ? "录音已结束":"安克录音豆")")
                     }.font(.caption).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
                     Spacer()
                     Text(RecordingFormat.clock(duration,hours:true)).font(.system(size:23,weight:.semibold,design:.rounded)).monospacedDigit()
@@ -230,7 +223,7 @@ struct LiveRecordingView: View {
                     Text(record.pipeline_status=="done" ? "总结与原文已就绪" : speech.meetingProgress ?? RecordingFormat.status(record))
                         .font(.caption).lineSpacing(3)
                     Spacer()
-                }.foregroundStyle(Color.white).padding(13).background(Warm.sage,in:RoundedRectangle(cornerRadius:12)).padding(.horizontal,16).padding(.bottom,12)
+                }.foregroundStyle(Warm.ink).padding(13).background(Warm.sage,in:RoundedRectangle(cornerRadius:12)).padding(.horizontal,16).padding(.bottom,12)
             }
             transcript
             VStack(spacing:10) {
@@ -261,7 +254,7 @@ struct LiveRecordingView: View {
                     if store.remote {
                         Button { deviceSheet=true } label: { Label("\(device.connected==nil ? "连接录音豆":"查看设备")",systemImage:"waveform") }.buttonStyle(RecordingPrimary())
                         Text("连接后，按录音豆按钮开始本场沟通").font(.caption2).foregroundStyle(Color(red:0.78,green:0.75,blue:0.84))
-                        if RecordingFormat.phoneEnabled(store) { Button("临时手机录音 · 开发入口") { beginPhone() }.font(.caption).frame(minHeight:44).disabled(speech.meetingPreparing || speech.finishing || speech.uploading || speech.meetingSyncing) }
+                        Button("手机录音（备用）") { beginPhone() }.font(.subheadline.weight(.semibold)).frame(minHeight:44).accessibilityIdentifier("phone-recording-fallback").disabled(speech.meetingPreparing || speech.finishing || speech.uploading || speech.meetingSyncing)
                     } else { Button("连接后端") { connectionSheet=true }.buttonStyle(RecordingPrimary()) }
                 }
             }.padding(.horizontal,23).padding(.top,13).padding(.bottom,18)
@@ -277,12 +270,17 @@ struct LiveRecordingView: View {
         .alert(consentForDevice ? "开启本场转写":"开始沟通录音",isPresented:$consent) {
             Button("已告知并同意") {
                 guard consentIdentity==DeviceRecordingMap.identity(store.api) else{issue="连接已变化，请重新开始。";return}
-                speech.allowMeetingTranscription(store.api)
-                if consentForDevice {Task {await speech.prepareDevice(store:store,device:device);await speech.startDevice(store:store,device:device)}}
-                else {startPhone()}
+                Task {
+                    do {
+                        if !store.cloudStorageAllowed { try await store.setCloudStorageAllowed(true) }
+                        speech.allowMeetingTranscription(store.api)
+                        if consentForDevice { await speech.prepareDevice(store:store,device:device); await speech.startDevice(store:store,device:device) }
+                        else { startPhone() }
+                    } catch { issue = error.localizedDescription }
+                }
             }
             Button("取消",role:.cancel) {}
-        } message: {Text("请确保参与者知情并同意。音频会发送到已配置的服务进行转写和整理，之后无需重复填写。")}
+        } message: {Text("请确保参与者知情并同意。音频会保存到 Candid 云端（新加坡），用于转写和整理。")}
         .task(id:String(describing:device.currentFileID)+String(device.recordStatus)+String(store.remote)) {
             if deviceActive && store.remote && !askedDeviceConsent && !speech.hasMeetingConsent(store.api) {askDeviceConsent()}
         }
@@ -337,7 +335,7 @@ struct LiveRecordingView: View {
             .overlay(RoundedRectangle(cornerRadius:22).stroke(Warm.ink.opacity(0.08))).padding(.horizontal,16)
     }
     private func beginPhone() {
-        if speech.hasMeetingConsent(store.api) {startPhone()}
+        if speech.hasMeetingConsent(store.api) && store.cloudStorageAllowed {startPhone()}
         else {consentForDevice=false;consentIdentity=DeviceRecordingMap.identity(store.api);consent=true}
     }
     private func startPhone() {
@@ -431,9 +429,7 @@ struct RecordingLibrary: View {
                     }
                 }
                 Text("全部录音统一保存，通过标签关联空间。").font(.caption2).foregroundStyle(RecordingFormat.secondary)
-                if RecordingFormat.phoneEnabled(store) {
-                    Button("临时手机录音 · 开发入口") {store.recordingNavigation.newMeeting=true;store.recordingNavigation.showRecorder=true}.font(.caption).frame(minHeight:44)
-                }
+                Button("手机录音（备用）") {store.recordingNavigation.newMeeting=true;store.recordingNavigation.showRecorder=true}.font(.subheadline.weight(.semibold)).frame(minHeight:44).accessibilityIdentifier("phone-recording-fallback").disabled(!store.remote)
             }.padding(22)
         }.background(Warm.paper.ignoresSafeArea()).toolbar(.hidden,for:.navigationBar)
             .refreshable {await reload()}
@@ -522,6 +518,10 @@ struct RecordingDetail: View {
                 Button("重新获取") {Task {await reload()}}.frame(minHeight:44)
             } else {ProgressView("正在读取录音").frame(maxWidth:.infinity,maxHeight:.infinity)}
         }
+        .foregroundStyle(Warm.ink).tint(Warm.purple).preferredColorScheme(.light)
+        .environment(\.colorScheme,.light)
+        .toolbarColorScheme(.light,for:.navigationBar)
+        .toolbarBackground(Warm.paper,for:.navigationBar)
         .background(Warm.paper.ignoresSafeArea()).navigationTitle("沟通录音").navigationBarTitleDisplayMode(.inline)
         .toolbar {ToolbarItem(placement:.topBarTrailing) {Menu {
             Button("回听完整录音",systemImage:"play") {Task {await play()}}
