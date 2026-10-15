@@ -115,11 +115,7 @@ private final class VoiceInput {
     private func scopeValid(_ stamp:UUID)->Bool {guard let store,let api else{return false};return stamp==epoch && store.remote && store.chatForeground && identity(store.api)==identity(api) && store.currentProjectSpace?.id==workspace && store.currentProjectSpace?.status=="active"}
     func captionObserved() {mark("caption_observed")}
     func enter(store:Store) {
-        #if DEBUG
         showContinuous=true;begin(store:store,continuous:true)
-        #else
-        notice="连续对话暂不可用。"
-        #endif
     }
     func beginHold(store:Store) {guard !holding,!active else{return};holding=true;cancelling=false;begin(store:store,continuous:false)}
     private func begin(store:Store,continuous:Bool) {

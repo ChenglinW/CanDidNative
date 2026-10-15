@@ -302,7 +302,12 @@ struct ProductMaterialPage:View {
         ForEach(materials.filter(\.linked)){m in VStack(alignment:.leading,spacing:7){Text(m.title).font(.headline);Text(m.text_preview).lineLimit(5).font(.subheadline)}}
     }.padding(22)}.background(Warm.paper).navigationTitle("项目资料").navigationBarTitleDisplayMode(.inline)
         .task {try? await reload()}.sheet(isPresented:$ask){ProductAskSheet()}
-        .fileImporter(isPresented:$upload,allowedContentTypes:[.pdf]){result in if case .success(let url)=result {Task {await store.perform {let access=url.startAccessingSecurityScopedResource();defer{if access {url.stopAccessingSecurityScopedResource()}};_=try await store.api.uploadPDF(url,workspaceID:project.id,title:url.deletingPathExtension().lastPathComponent);try await reload()}}}}
+        .fileImporter(isPresented:$upload,allowedContentTypes:[.pdf]) {result in
+            switch result {
+            case .success(let url):Task {await store.perform {_=try await store.api.uploadPDF(url,workspaceID:project.id,title:url.deletingPathExtension().lastPathComponent);try await reload()}}
+            case .failure(let error):if !ImportedDocumentFiles.isCancellation(error) {store.error=error.localizedDescription}
+            }
+        }
     }
     private func reload() async throws {guard store.remote else{return};materials=try await store.api.all("/v1/project-spaces/"+project.id+"/materials")}
 }

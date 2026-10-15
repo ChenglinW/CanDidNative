@@ -12,6 +12,7 @@ import UserNotifications
     @Published var personalState = OnboardingState()
     @Published var personalSaveError: String?
     @Published var personalSyncError: String?
+    @Published var personalImportError: String?
     @Published var personalSyncing = false
     var personalEditing = false
     @Published var personalRemoteProfile: PersonalProfile?
@@ -68,8 +69,11 @@ import UserNotifications
     private var localFiles: [String: String] = UserDefaults.standard.dictionary(forKey: "local-recordings") as? [String: String] ?? [:]
     let demoURL: URL
     static var isolatedTestRun: Bool {
+        // Unit-test hosts must stay offline in Release as well. Launch flags
+        // remain Debug-only; a normal installed Release app cannot opt out of auth.
+        if NSClassFromString("XCTestCase") != nil { return true }
         #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") || NSClassFromString("XCTestCase") != nil
+        return ProcessInfo.processInfo.arguments.contains("-candid-ui-testing")
         #else
         return false
         #endif

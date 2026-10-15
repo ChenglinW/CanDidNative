@@ -1,5 +1,49 @@
 import Foundation
 import Security
+
+enum ImportedDocumentFiles {
+    /// Read through the provider so iCloud/WeChat can materialize their file first.
+    /// Upload only an app-owned copy, never a temporary picker URL.
+    static func copy(_ source:URL,into folder:URL,maxBytes:Int) async throws -> URL {
+        try await Task.detached(priority:.userInitiated) {
+            let access=source.startAccessingSecurityScopedResource()
+            defer {if access {source.stopAccessingSecurityScopedResource()}}
+            let manager=FileManager.default
+            try manager.createDirectory(at:folder,withIntermediateDirectories:true)
+            let target=folder.appendingPathComponent(UUID().uuidString).appendingPathExtension(source.pathExtension.lowercased())
+            var coordinationError:NSError?
+            var result:Result<URL,Error>?
+            NSFileCoordinator().coordinate(readingItemAt:source,options:.withoutChanges,error:&coordinationError) {readable in
+                do {
+                    let metadata=try readable.resourceValues(forKeys:[.fileSizeKey,.isRegularFileKey])
+                    guard metadata.isRegularFile==true else {throw PrototypeError.message("请选择一个文件。")}
+                    if let size=metadata.fileSize,size>maxBytes {throw PrototypeError.message("文件超过 \(maxBytes/1_000_000) MB，请拆分后上传。")}
+                    try manager.copyItem(at:readable,to:target)
+                    let size=(try manager.attributesOfItem(atPath:target.path)[.size] as? NSNumber)?.intValue ?? 0
+                    guard size>0 else {throw PrototypeError.message("文件为空，请重新选择。")}
+                    guard size<=maxBytes else {throw PrototypeError.message("文件超过 \(maxBytes/1_000_000) MB，请拆分后上传。")}
+                    try manager.setAttributes([.protectionKey:FileProtectionType.complete,.posixPermissions:0o600],ofItemAtPath:target.path)
+                    result = .success(target)
+                } catch {try? manager.removeItem(at:target);result = .failure(error)}
+            }
+            if let coordinationError {throw PrototypeError.message("文件未能读取，请先在“文件”中完成下载，再重新选择。"+coordinationError.localizedDescription)}
+            guard let result else {throw PrototypeError.message("文件未能读取，请重新选择。")}
+            return try result.get()
+        }.value
+    }
+    static func isCancellation(_ error:Error)->Bool {
+        let value=error as NSError
+        return (value.domain==NSCocoaErrorDomain && value.code==NSUserCancelledError) || (value.domain==NSURLErrorDomain && value.code==NSURLErrorCancelled)
+    }
+    /// Relative paths survive an iOS data-container move after an app update.
+    static func localURL(_ path:String,in root:URL)->URL? {
+        let parts=path.split(separator:"/")
+        guard parts.count>=2,parts[parts.count-2]=="OnboardingFiles" else{return nil}
+        let name=String(parts.last!)
+        guard UUID(uuidString:URL(fileURLWithPath:name).deletingPathExtension().lastPathComponent) != nil else{return nil}
+        return root.appendingPathComponent("OnboardingFiles").appendingPathComponent(name)
+    }
+}
 enum BackendConfiguration {
     static let baseURL = "https://47.129.137.212"
     static let previousCloudBaseURLs = ["https://16.144.9.183"]
@@ -152,11 +196,14 @@ struct API {
 
 extension API {
     func uploadPDF(_ file:URL,workspaceID:String,title:String) async throws -> Data {
+        let folder=FileManager.default.temporaryDirectory.appendingPathComponent("DocumentImports")
+        let local=try await ImportedDocumentFiles.copy(file,into:folder,maxBytes:20_000_000)
+        defer {try? FileManager.default.removeItem(at:local)}
         var components=URLComponents(url:try url("/v1/materials/pdf"),resolvingAgainstBaseURL:false)!
         components.queryItems=[URLQueryItem(name:"workspace_id",value:workspaceID),URLQueryItem(name:"title",value:title)]
-        var request=URLRequest(url:components.url!);request.httpMethod="POST"
+        var request=URLRequest(url:components.url!);request.httpMethod="POST";request.timeoutInterval=120
         request.setValue("Bearer "+token,forHTTPHeaderField:"Authorization");request.setValue("application/pdf",forHTTPHeaderField:"Content-Type")
-        let (raw,response)=try await URLSession.shared.upload(for:request,fromFile:file)
+        let (raw,response)=try await URLSession.shared.upload(for:request,fromFile:local)
         guard let http=response as? HTTPURLResponse,(200..<300).contains(http.statusCode) else {
             let error=try? JSONDecoder().decode(APIError.self,from:raw)
             throw PrototypeError.message(error?.error.message ?? "PDF导入失败")

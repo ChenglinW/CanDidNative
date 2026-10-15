@@ -497,9 +497,9 @@ struct MaterialIntake:View {
         } catch { self.error=error.localizedDescription } } }.disabled(busy || (text.isEmpty && link.isEmpty))
     }.fileImporter(isPresented:$importing,allowedContentTypes:[.pdf]) { result in
         Task { busy=true;defer{busy=false};do {
-            let file=try result.get();let access=file.startAccessingSecurityScopedResource();defer { if access { file.stopAccessingSecurityScopedResource() } }
+            let file=try result.get()
             _=try await store.api.uploadPDF(file,workspaceID:workspaceID,title:title.isEmpty ? file.lastPathComponent:title);dismiss()
-        } catch { self.error=error.localizedDescription } }
+        } catch {if !ImportedDocumentFiles.isCancellation(error) {self.error=error.localizedDescription}} }
     } } }
 }
 struct PersonalMemoryRecord:Decodable,Identifiable {

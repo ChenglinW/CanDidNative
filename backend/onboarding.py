@@ -102,16 +102,9 @@ class Onboarding:
         pages = []
         try:
             if original['extension'] == '.pdf':
-                from pypdf import PdfReader
-                reader = PdfReader(io.BytesIO(raw))
-                if reader.is_encrypted or len(reader.pages) > 300: raise ValueError()
-                total = 0
-                for n, page in enumerate(reader.pages, 1):
-                    text = page.extract_text() or ''; total += len(text)
-                    if total > 200000: raise ValueError()
-                    pages.append({'page': n, 'text': text})
-                text = '\n\n'.join('[第'+str(p['page'])+'页]\n'+p['text'] for p in pages)
-                meaningful = any(p['text'].strip() for p in pages)
+                from document_text import pdf_text
+                text, pages = pdf_text(raw)
+                meaningful = True
             elif original['extension'] == '.docx':
                 with zipfile.ZipFile(io.BytesIO(raw)) as z:
                     part = z.getinfo('word/document.xml')

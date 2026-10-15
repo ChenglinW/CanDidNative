@@ -280,3 +280,39 @@ def test_chat_progress_written_once_and_scoped_from_global_to_project(domain):
         assert len(p.items(A,pr['id']))==1
         assert SQLiteMemoryAdapter(p.store).read_evidence(A,[{'source_id':'message:'+message['id']}],workspace_id=pr['id'])['items']
     finally:registry.close()
+
+
+def test_speaker_names_partial_updates_clear_conflict_and_recording_scope(tmp_path,monkeypatch,bind_app_store):
+    import app
+    from fastapi.testclient import TestClient
+    store=Memory(tmp_path/'speakers.sqlite',tmp_path/'files');bind_app_store(app,store)
+    # Keep this contract test offline and observe queued analysis without executing it.
+    submitted=[]
+    monkeypatch.setattr(app.business,'submit',lambda *args:submitted.append(args) or {})
+    client=TestClient(app.app);headers={'Authorization':'Bearer test-token'}
+    p=app.business.product;m=meeting(p);s,original=recording(p,m['id'])
+    other,_=recording(p,m['id'])
+    store.put('transcript_segments',A,{'session_id':s['id'],'speaker':'other','speaker_id':'part0:1','speaker_name':'张总','start_ms':5000,'end_ms':6000,'text':'请明确排期。','transcript_revision':1},L1)
+    def patch(rev,rows):
+        return client.patch('/v1/recordings/'+s['id']+'/speakers',headers=headers,json={'expected_revision':rev,'speakers':rows})
+    def row(sid,name,self=False):return {'speaker_id':sid,'name':name,'is_self':self}
+    assert patch(1,[row('part0:0',' 林晓 ',True)]).json()=={'revision':2}
+    lines=app.recordings.segments(A,s['id'])
+    assert lines[0]['speaker_name']=='林晓' and lines[0]['speaker']=='self'
+    assert lines[1]['speaker_name']=='张总'
+    session=store.get('sessions',A,s['id'])
+    assert session['speaker_names']=={'part0:0':'林晓','part0:1':'张总'}
+    assert session['self_speaker_ids']==['part0:0']
+    assert store.get('transcript_segments',A,original['id']).get('speaker_name') is None
+    assert app.recordings.segments(A,other['id'])[0].get('speaker_name') is None
+    assert patch(2,[row('part0:0','林晓',True)]).json()=={'revision':2}
+    assert len(submitted)==1
+    assert patch(1,[row('part0:0','过期',True)]).status_code==409
+    assert patch(2,[row('missing','未知')]).status_code==422
+    assert patch(2,[row('part0:0','甲'),row('part0:0','乙')]).status_code==422
+    assert patch(2,[row('part0:0',' ',True)]).json()=={'revision':3}
+    session=store.get('sessions',A,s['id'])
+    assert session['speaker_names']=={'part0:1':'张总'} and session['self_speaker_ids']==['part0:0']
+    assert app.recordings.segments(A,s['id'])[0]['speaker_name']==''
+    assert patch(3,[]).json()=={'revision':3}
+    assert len(submitted)==2

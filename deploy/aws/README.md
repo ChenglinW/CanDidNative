@@ -4,7 +4,7 @@
 
 ## 当前运行位置
 
-新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码 `/opt/candid/releases/20261016-singapore/backend`，当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
+新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261016-pdf-import/backend`（基于新加坡迁移版本，仅增加 PDF 解析修复），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
 
 ```sh
 ssh -i ~/Downloads/candid.pem ubuntu@47.129.137.212
@@ -47,3 +47,7 @@ sudo journalctl -u candid-cert-renew -n 30 --no-pager
 - 迁移前实际手机音频 55.17 秒，已完成异步转写和总结。迁移后尚未重新录制一段新音频作端到端验收；soundcore 硬件未验证。麦克风测试时不要开启 Device Hub 屏幕共享。
 
 设备接入由 `CANDID_DEVICE_AUTH=1` 开启，签名密钥保存在 `/var/lib/candid/device-auth.key`，数据库保存凭证哈希，按 owner 隔离资料。匿名新设备最多 30 台/小时、500 台总量；已有设备恢复不消耗新注册额度。
+
+## PDF 解析修复（2026-10-16）
+
+当前 release 的 PDF 模块已通过隔离测试后切换；原版本为 `/opt/candid/releases/20261016-singapore`。切换前的 SQLite 备份为 `/var/backups/candid-before-pdf-import.sqlite3`，旧代码保留供回滚。未改变配置、鉴权或数据目录。服务器本轮 132 项通过、1 项跳过；真实 HTTPS 已验证个人与项目两个入口的无打开密码加密 PDF、BOM 前缀 PDF，且能在资料列表读取提取文字。独立测试 owner 随后删除。详见 [PDF 修复记录](../../docs/PDF_IMPORT_FIX.md)。

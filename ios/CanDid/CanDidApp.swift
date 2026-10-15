@@ -46,6 +46,31 @@ struct RootView: View {
     @State private var settings = false
     var body: some View {
         Group {
+            #if DEBUG
+            if Store.isolatedTestRun && ProcessInfo.processInfo.arguments.contains("-candid-speaker-review") {
+                RecordingSpeakerReviewHost()
+            } else {
+                content
+            }
+            #else
+            content
+            #endif
+        }
+        .fontDesign(.rounded).foregroundStyle(Warm.ink)
+        .sheet(isPresented: $settings) { SettingsView() }
+        .alert("需要留意", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("知道了") { store.error = nil } } message: { Text(store.error ?? "") }
+        .alert("Candid", isPresented: Binding(get: { store.message != nil }, set: { if !$0 { store.message = nil } })) { Button("好") { store.message = nil } } message: { Text(store.message ?? "") }
+        .overlay { if store.busy { ProgressView().padding(22).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
+        .onChange(of: phase) { _, value in
+            store.chatSceneChanged(active: value == .active)
+            if value == .active { store.purgeLocalExpired(); Task { await store.restoreConnection(force: true) } }
+            else { store.soundcore.stopScan() }
+        }
+        .task { await store.restoreConnection() }
+        .modifier(VoicePresentation(voice:store.voice))
+    }
+    private var content: some View {
+        Group {
             if !store.connectionReady && !Store.isolatedTestRun {
                 VStack(spacing: 20) {
                     Mascot(size: 110)
@@ -60,18 +85,6 @@ struct RootView: View {
                 RecordingShell(navigation:store.recordingNavigation,speech:store.speech,device:store.soundcore,onSettings:{settings=true})
             } else { OnboardingView() }
         }
-        .fontDesign(.rounded).foregroundStyle(Warm.ink)
-        .sheet(isPresented: $settings) { SettingsView() }
-        .alert("需要留意", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("知道了") { store.error = nil } } message: { Text(store.error ?? "") }
-        .alert("Candid", isPresented: Binding(get: { store.message != nil }, set: { if !$0 { store.message = nil } })) { Button("好") { store.message = nil } } message: { Text(store.message ?? "") }
-        .overlay { if store.busy { ProgressView().padding(22).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
-        .onChange(of: phase) { _, value in
-            store.chatSceneChanged(active: value == .active)
-            if value == .active { store.purgeLocalExpired(); Task { await store.restoreConnection(force: true) } }
-            else { store.soundcore.stopScan() }
-        }
-        .task { await store.restoreConnection() }
-        .modifier(VoicePresentation(voice:store.voice))
     }
 }
 struct CompanionView: View {

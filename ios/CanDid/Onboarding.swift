@@ -59,7 +59,7 @@ extension Store {
         return demoURL.deletingLastPathComponent().appendingPathComponent("onboarding-" + key + ".json")
     }
     func loadOnboarding(migrating draft: OnboardingState? = nil) {
-        personalSyncError = nil; personalRemoteProfile = nil; personalRemoteVersion = 0
+        personalSyncError = nil; personalImportError = nil; personalRemoteProfile = nil; personalRemoteVersion = 0
         if let bytes = try? Data(contentsOf: personalStateURL), let saved = try? OnboardingState.restore(bytes) {
             personalState = saved
         } else if let draft {
@@ -172,14 +172,15 @@ extension Store {
             for item in personalState.documents.filter({ $0.serverID == nil && $0.localPath != nil }) {
                 guard identity == DeviceRecordingMap.identity(api), remote, !Task.isCancelled else { return }
                 do {
-                    var receipt = try await connection.uploadOnboarding(URL(fileURLWithPath: item.localPath!), title: item.title)
+                    guard let local=ImportedDocumentFiles.localURL(item.localPath!,in:demoURL.deletingLastPathComponent()), FileManager.default.fileExists(atPath:local.path) else {throw PrototypeError.message("本机文件副本未找到，请移除此条后重新选择原文件。")}
+                    var receipt = try await connection.uploadOnboarding(local, title: item.title)
                     guard identity == DeviceRecordingMap.identity(api), remote else { return }
                     if let duplicate = personalState.documents.firstIndex(where: { $0.serverID == receipt.id && $0.id != item.id }) {
                         let retainedPath = personalState.documents[duplicate].localPath
                         receipt.serverID = receipt.id; receipt.localPath = retainedPath
                         personalState.documents[duplicate] = receipt
                         personalState.documents.removeAll { $0.id == item.id }
-                        if let path = item.localPath, path != retainedPath { try? FileManager.default.removeItem(atPath: path) }
+                        if let path = item.localPath, path != retainedPath,let local=ImportedDocumentFiles.localURL(path,in:demoURL.deletingLastPathComponent()) { try? FileManager.default.removeItem(at:local) }
                     } else if let index = personalState.documents.firstIndex(where: { $0.id == item.id }) {
                         receipt.serverID = receipt.id; receipt.localPath = item.localPath
                         personalState.documents[index] = receipt
@@ -198,23 +199,24 @@ extension Store {
         } catch { if identity == DeviceRecordingMap.identity(api) { personalSyncError = error.localizedDescription } }
     }
     func addOnboardingFiles(_ urls: [URL]) async {
+        personalImportError=nil
+        let identity=DeviceRecordingMap.identity(api)
+        let root=demoURL.deletingLastPathComponent()
+        var failures:[String]=[]
         for url in urls {
             do {
                 guard ["pdf", "docx", "txt", "md"].contains(url.pathExtension.lowercased()) else { throw PrototypeError.message("请选择 PDF、DOCX、TXT 或 Markdown 文件。") }
-                let granted = url.startAccessingSecurityScopedResource()
-                defer { if granted { url.stopAccessingSecurityScopedResource() } }
-                let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                guard size > 0, size <= 25_000_000 else { throw PrototypeError.message("请选择 25 MB 以内的非空文件。") }
-                let folder = demoURL.deletingLastPathComponent().appendingPathComponent("OnboardingFiles")
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                let target = folder.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
-                try FileManager.default.copyItem(at: url, to: target)
-                try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete, .posixPermissions: 0o600], ofItemAtPath: target.path)
-                personalState.documents.append(OnboardingDocument(id: UUID().uuidString, title: url.lastPathComponent, status: "local", localPath: target.path))
+                let target=try await ImportedDocumentFiles.copy(url,into:root.appendingPathComponent("OnboardingFiles"),maxBytes:25_000_000)
+                guard identity==DeviceRecordingMap.identity(api) else {try? FileManager.default.removeItem(at:target);return}
+                personalState.documents.append(OnboardingDocument(id:UUID().uuidString,title:url.lastPathComponent,status:"local",localPath:"OnboardingFiles/"+target.lastPathComponent))
                 persistOnboarding()
-            } catch { personalSyncError = error.localizedDescription }
+            } catch {
+                guard identity==DeviceRecordingMap.identity(api) else{return}
+                if !ImportedDocumentFiles.isCancellation(error) {failures.append(url.lastPathComponent+"："+error.localizedDescription)}
+            }
         }
-        if remote { await syncPersonalProfile() }
+        if !failures.isEmpty {personalImportError=failures.joined(separator:"\n")}
+        if remote {await syncPersonalProfile()}
     }
     func removePersonalDocument(_ item: OnboardingDocument) async {
         do {
@@ -224,7 +226,7 @@ extension Store {
             }
             if let id = item.serverID { personalState.removedDocumentIDs.append(id) }
             personalState.documents.removeAll { $0.id == item.id }
-            if let path = item.localPath { try? FileManager.default.removeItem(atPath: path) }
+            if let path = item.localPath,let local=ImportedDocumentFiles.localURL(path,in:demoURL.deletingLastPathComponent()) { try? FileManager.default.removeItem(at:local) }
             persistOnboarding()
         } catch { personalSyncError = error.localizedDescription }
     }
@@ -241,7 +243,7 @@ extension API {
     func uploadOnboarding(_ file: URL, title: String) async throws -> OnboardingDocument {
         var parts = URLComponents(url: try url("/v1/onboarding/documents"), resolvingAgainstBaseURL: false)!
         parts.queryItems = [URLQueryItem(name: "filename", value: title)]
-        var request = URLRequest(url: parts.url!); request.httpMethod = "POST"
+        var request = URLRequest(url: parts.url!); request.httpMethod = "POST";request.timeoutInterval=120
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         let (raw, response) = try await URLSession.shared.upload(for: request, fromFile: file)
@@ -340,6 +342,7 @@ struct OnboardingView: View {
                     else if step == 2 { introduction }
                     else { materials }
                     if let error = store.personalSaveError { Text(error).foregroundStyle(.red).font(.footnote) }
+                    if let error = store.personalImportError { Text(error).foregroundStyle(.red).font(.footnote) }
                     if let error = store.personalSyncError { Text(error + "。本机内容仍保留，可稍后在记忆库重试。").foregroundStyle(.red).font(.footnote) }
                 }.padding(24).frame(maxWidth: 550).frame(maxWidth: .infinity)
             }
@@ -375,7 +378,7 @@ struct OnboardingView: View {
             .onChange(of: dictation.text) { _, value in var p = profile; p.introduction = prefix + value; store.changePersonalProfile(p) }
             .sheet(isPresented: $settings) { SettingsView() }
             .fileImporter(isPresented: $importer, allowedContentTypes: [.pdf, UTType(filenameExtension: "docx") ?? .data, .plainText, UTType(filenameExtension: "md") ?? .plainText], allowsMultipleSelection: true) { result in
-                switch result { case .success(let urls): Task { await store.addOnboardingFiles(urls) }; case .failure(let error): store.personalSyncError = error.localizedDescription }
+                switch result { case .success(let urls): Task { await store.addOnboardingFiles(urls) }; case .failure(let error): if !ImportedDocumentFiles.isCancellation(error) {store.personalImportError = error.localizedDescription} }
             }
     }
     private var actions: some View {
@@ -524,6 +527,7 @@ struct PersonalProfilePage: View {
             Text(store.personalState.profile.introduction.isEmpty ? "说说你的背景，让准备更贴近你。资料随时都能补。" : store.personalState.profile.introduction).lineSpacing(5)
             if !store.personalState.profile.scenarios.isEmpty { Text("常用场景：" + store.personalState.profile.scenarios.map { $0 == "sales" ? "销售 BD" : "面试" }.joined(separator: "、")).font(.subheadline).foregroundStyle(Warm.purple) }
             Button("编辑我的介绍与资料") { edit = true }.buttonStyle(RecordingPrimary())
+            if let error = store.personalImportError {Text(error).font(.footnote).foregroundStyle(.red)}
             if let error = store.personalSyncError { Text(error).font(.footnote).foregroundStyle(.red); Button("读取最新版本，保留本机输入") { Task { await store.readLatestPersonalProfile() } }.frame(minHeight: 44) }
             if let latest = store.personalRemoteProfile {
                 WarmCard { Text("后端最新介绍").font(.headline); Text(latest.display_name); Text(latest.introduction.isEmpty ? "尚未填写背景" : latest.introduction); Button("使用后端介绍") { store.personalState.profile = latest; store.personalState.version = store.personalRemoteVersion; store.personalState.profileDirty = false; store.personalRemoteProfile = nil; store.persistOnboarding() }; if store.personalState.profileDirty { Button("保存本机介绍") { store.personalState.version = store.personalRemoteVersion; store.personalRemoteProfile = nil; store.personalState.requestID = UUID().uuidString; store.persistOnboarding(); Task { await store.syncPersonalProfile() } } } }

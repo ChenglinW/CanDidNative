@@ -17,6 +17,99 @@ private final class OnboardingStubProtocol: URLProtocol {
 }
 
 final class SoundcoreAudioTests: XCTestCase {
+    func testProviderFileCopyValidatesActualBytesAndCleansFailedCopies() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
+        let source=root.appendingPathComponent("简历.PDF"),destination=root.appendingPathComponent("Copies")
+        let bytes=Data("%PDF-test-bytes".utf8);try bytes.write(to:source)
+        let local=try await ImportedDocumentFiles.copy(source,into:destination,maxBytes:100)
+        XCTAssertEqual(try Data(contentsOf:local),bytes)
+        XCTAssertNotEqual(local,source);XCTAssertEqual(local.pathExtension,"pdf")
+        try FileManager.default.removeItem(at:local)
+        do {_=try await ImportedDocumentFiles.copy(source,into:destination,maxBytes:2);XCTFail("Oversized document must fail")} catch {}
+        let empty=root.appendingPathComponent("empty.pdf");try Data().write(to:empty)
+        do {_=try await ImportedDocumentFiles.copy(empty,into:destination,maxBytes:100);XCTFail("Empty document must fail")} catch {}
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath:destination.path).isEmpty)
+        XCTAssertTrue(ImportedDocumentFiles.isCancellation(CocoaError(.userCancelled)))
+    }
+    @MainActor func testDocumentImportErrorSurvivesSuccessfulProfileSync() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let store=Store(localDirectory:root);store.base="http://onboarding-test.invalid";store.remote=true
+        await store.addOnboardingFiles([root.appendingPathComponent("missing.pdf")])
+        XCTAssertNotNil(store.personalImportError)
+        let issue=store.personalImportError
+        await store.syncPersonalProfile()
+        XCTAssertEqual(store.personalImportError,issue)
+        XCTAssertTrue(store.personalState.documents.isEmpty)
+        store.remote=false
+    }
+    @MainActor func testImportedDocumentResolvesAfterContainerMoveAndLegacyAbsolutePath() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
+        let source=root.appendingPathComponent("resume.pdf");try Data("%PDF-local-original".utf8).write(to:source)
+        let old=root.appendingPathComponent("OldContainer"),new=root.appendingPathComponent("NewContainer")
+        let store=Store(localDirectory:old);await store.addOnboardingFiles([source])
+        let item=try XCTUnwrap(store.personalState.documents.first)
+        XCTAssertTrue(try XCTUnwrap(item.localPath).hasPrefix("OnboardingFiles/"))
+        let original=try XCTUnwrap(ImportedDocumentFiles.localURL(item.localPath!,in:old))
+        store.personalState.documents[0].localPath=original.path;store.persistOnboarding()
+        try FileManager.default.moveItem(at:old,to:new)
+        let restored=Store(localDirectory:new)
+        let row=try XCTUnwrap(restored.personalState.documents.first)
+        let recovered=try XCTUnwrap(ImportedDocumentFiles.localURL(row.localPath!,in:new))
+        XCTAssertEqual(try Data(contentsOf:recovered),Data("%PDF-local-original".utf8))
+        XCTAssertNil(ImportedDocumentFiles.localURL("../../private.pdf",in:new))
+        await restored.removePersonalDocument(row)
+        XCTAssertFalse(FileManager.default.fileExists(atPath:recovered.path))
+    }
+    private func speakerRecord() throws -> RecordingRecord {
+        let json = #"{"id":"unit-speakers","pipeline_status":"done","transcript_revision":1,"segments":[{"id":"a","speaker":"self","speaker_id":"part0:0","speaker_name":"林晓","text":"确认目标。","start_ms":0,"end_ms":1000},{"id":"b","speaker":"unknown","speaker_id":"part0:1","text":"明确排期。","start_ms":1000,"end_ms":2000},{"id":"c","speaker":"unknown","speaker_id":"part1:0","text":"讨论交付。","start_ms":60000,"end_ms":61000}]}"#
+        return try JSONDecoder().decode(RecordingRecord.self,from:Data(json.utf8))
+    }
+    @MainActor func testContinuousEntryOpensInEveryBuildAndKeepsReadinessGuard() throws {
+        let folder=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:folder)}
+        let store=Store(localDirectory:folder)
+        XCTAssertTrue(Store.isolatedTestRun,"Release unit hosts must not connect to the real cloud")
+        store.voice.enter(store:store)
+        XCTAssertTrue(store.voice.showContinuous,"Continuous conversation must also open in Release")
+        XCTAssertEqual(store.voice.phase,.failed)
+        XCTAssertEqual(store.voice.notice,"请先连接后端并选择可用项目空间。")
+        XCTAssertFalse(store.voice.active)
+        XCTAssertFalse(store.audio.voiceActive,"Unavailable prerequisites must not acquire the microphone")
+        store.voice.exit()
+        XCTAssertFalse(store.voice.showContinuous)
+    }
+    func testSpeakerDraftKeepsChunkIDsSeparateAndOnlySendsEdits() throws {
+        let record=try speakerRecord()
+        var draft=RecordingSpeakerDraft(record.segments!)
+        XCTAssertEqual(draft.ids,["part0:0","part0:1","part1:0"])
+        XCTAssertTrue(draft.changes.isEmpty)
+        draft.names["part0:0"]="  林晓  "
+        XCTAssertTrue(draft.changes.isEmpty)
+        draft.names["part0:1"]=" 王总 "
+        XCTAssertEqual(draft.changes.count,1)
+        XCTAssertEqual(draft.changes[0]["name"] as? String,"王总")
+        XCTAssertEqual(draft.changes[0]["is_self"] as? Bool,false)
+        XCTAssertTrue(draft.selfIDs.contains("part0:0"))
+        draft.names["part1:0"]="王总"
+        XCTAssertEqual(draft.changes.count,2)
+        XCTAssertEqual(Set(draft.changes.compactMap{$0["speaker_id"] as? String}),["part0:1","part1:0"])
+        draft.names["part0:0"]=" "
+        XCTAssertEqual(draft.changes.first?["name"] as? String,"")
+        draft.names["part0:1"]=String(repeating:"名",count:101)
+        XCTAssertTrue(draft.invalidName)
+        XCTAssertTrue(RecordingSpeakerDraft(record.segments!).changes.isEmpty)
+    }
+    func testEmptySpeakerNameFallsBackToIdentityLabel() throws {
+        var line=(try speakerRecord()).segments![0]
+        line.speaker_name=" ";XCTAssertEqual(RecordingFormat.speakerName(line),"本人")
+        line.speaker="other";XCTAssertEqual(RecordingFormat.speakerName(line),"说话人 1 · 第1段")
+        line.speaker_name=" 王总 ";XCTAssertEqual(RecordingFormat.speakerName(line),"王总")
+    }
     @MainActor func testFailedConnectionDoesNotReplaceCredentialsOrPersonalDraft() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder); URLProtocol.unregisterClass(OnboardingStubProtocol.self); OnboardingStubProtocol.handler = nil }

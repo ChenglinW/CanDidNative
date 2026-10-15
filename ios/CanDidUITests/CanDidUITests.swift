@@ -1,6 +1,29 @@
 import XCTest
 
 final class CanDidUITests: XCTestCase {
+    func testSpeakerNamingFormSeparatesNamesAndSelfIdentity() {
+        continueAfterFailure=false
+        let app=XCUIApplication()
+        app.launchArguments=["-candid-ui-testing","-candid-speaker-review"]
+        app.launch()
+        let name=app.textFields["speaker-name-part0:1"]
+        XCTAssertTrue(app.textFields["speaker-name-part0:0"].waitForExistence(timeout:15))
+        XCTAssertFalse(app.buttons["speaker-save"].isEnabled)
+        XCTAssertEqual(app.textFields["speaker-name-part0:0"].value as? String,"林晓")
+        XCTAssertEqual(app.switches["speaker-self-part0:0"].value as? String,"1")
+        capture(app,"speaker-editor-initial")
+        for _ in 0..<4 {if name.exists && name.isHittable {break};app.swipeUp()}
+        XCTAssertTrue(name.exists && name.isHittable)
+        name.tap();name.typeText("王总")
+        XCTAssertTrue(app.buttons["speaker-save"].isEnabled)
+        XCTAssertEqual(app.switches["speaker-self-part0:1"].value as? String,"0")
+        capture(app,"speaker-editor-keyboard")
+        app.buttons["收起键盘"].tap()
+        let later=app.textFields["speaker-name-part1:0"]
+        for _ in 0..<4 {if later.exists && later.isHittable {break};app.swipeUp()}
+        XCTAssertTrue(later.exists && later.isHittable)
+        capture(app,"speaker-editor-later-chunk")
+    }
     private func capture(_ app: XCUIApplication, _ name: String) {
         if name == "onboarding-introduction" { app.scrollViews.firstMatch.swipeDown() }
         // Accessibility geometry can settle before the simulator compositor finishes keyboard motion.
@@ -66,7 +89,7 @@ final class CanDidUITests: XCTestCase {
     func testEachOnboardingStepCanBeSkippedWithoutInventingUserData() {
         continueAfterFailure = false
         let app = XCUIApplication(); app.launchArguments = ["-candid-ui-testing"]; app.launchEnvironment = [:]; app.launch()
-        XCTAssertTrue(app.buttons["认识一下"].waitForExistence(timeout: 15)); app.buttons["认识一下"].tap()
+        XCTAssertTrue(app.buttons["onboarding-next"].waitForExistence(timeout: 15)); app.buttons["onboarding-next"].tap()
         app.buttons["这一步先跳过"].tap()
         XCTAssertTrue(app.textFields["onboarding-name"].waitForExistence(timeout: 10))
         app.buttons["这一步先跳过"].tap()

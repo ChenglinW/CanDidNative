@@ -1,6 +1,5 @@
 """User material intake: preserve actual bytes, page locations, acquisition and scope."""
 import hashlib
-import io
 import re
 from pathlib import Path
 from urllib.parse import urlparse
@@ -16,19 +15,9 @@ class Materials:
         self.workspaces.get(owner,workspace_id)
         pages=[]
         if raw is not None:
-            if len(raw)>20_000_000 or not raw.startswith(b'%PDF-'):raise Fault('PDF_INVALID','仅支持20 MB以内的PDF',422)
-            from pypdf import PdfReader
-            try:
-                pdf=PdfReader(io.BytesIO(raw))
-                if pdf.is_encrypted or len(pdf.pages)>300:raise ValueError('unsupported PDF')
-                for number,page in enumerate(pdf.pages,1):
-                    content=page.extract_text() or ''
-                    pages.append({'page':number,'text':content})
-                    if sum(len(p['text']) for p in pages)>200000:raise ValueError('too much text')
-                text='\n\n'.join('[第'+str(p['page'])+'页]\n'+p['text'] for p in pages)
-                if not any(p['text'].strip() for p in pages):raise Fault('PDF_NO_TEXT','PDF没有可提取文字，可能是扫描件；请提供文字版',422)
-            except Fault:raise
-            except Exception:raise Fault('PDF_INVALID','PDF无法解析或超出页数/文本上限',422) from None
+            if len(raw)>20_000_000:raise Fault('PDF_TOO_LARGE','PDF 超过 20 MB，请拆分后上传',413)
+            from document_text import pdf_text
+            text,pages=pdf_text(raw)
         if url:
             parsed=urlparse(url)
             if parsed.scheme not in {'https','http'} or not parsed.hostname or parsed.username or parsed.password:

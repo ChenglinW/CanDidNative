@@ -56,6 +56,35 @@ enum RecordingFormat {
         }
         return "说话人 \(id)"
     }
+    static func speakerName(_ line: RecordingSentence) -> String {
+        let name=line.speaker_name?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""
+        return name.isEmpty ? (line.speaker=="self" ? "本人":speaker(line.speaker_id)) : name
+    }
+}
+
+/// Identity stays local to this recording and its diarization revision.
+struct RecordingSpeakerDraft {
+    let ids:[String]
+    var names:[String:String]
+    var selfIDs:Set<String>
+    private let originalNames:[String:String]
+    private let originalSelfIDs:Set<String>
+    init(_ lines:[RecordingSentence]) {
+        var seen=Set<String>()
+        ids=lines.compactMap(\.speaker_id).filter{!$0.isEmpty && seen.insert($0).inserted}
+        var values:[String:String]=[:]
+        for line in lines {if let id=line.speaker_id {values[id]=line.speaker_name?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""}}
+        names=values;originalNames=values
+        selfIDs=Set(lines.filter{$0.speaker=="self"}.compactMap(\.speaker_id));originalSelfIDs=selfIDs
+    }
+    var changes:[[String:Any]] {
+        ids.compactMap {id in
+            let name=(names[id] ?? "").trimmingCharacters(in:.whitespacesAndNewlines)
+            guard name != originalNames[id] || selfIDs.contains(id) != originalSelfIDs.contains(id) else{return nil}
+            return ["speaker_id":id,"name":name,"is_self":selfIDs.contains(id)]
+        }
+    }
+    var invalidName:Bool {names.values.contains{$0.trimmingCharacters(in:.whitespacesAndNewlines).count>100}}
 }
 
 struct RecordingPrimary: ButtonStyle {
@@ -480,6 +509,7 @@ struct RecordingDetail: View {
     @State private var editingTag:RecordingTag?
     @State private var addTag=false
     @State private var chooseSpeaker=false
+    @State private var focusedSpeaker:String?
     @State private var editTranscript=false
     @State private var focusSentence:String?
     @State private var readingIssue:String?
@@ -526,7 +556,7 @@ struct RecordingDetail: View {
         .toolbar {ToolbarItem(placement:.topBarTrailing) {Menu {
             Button("回听完整录音",systemImage:"play") {Task {await play()}}
             Button("修正转写",systemImage:"square.and.pencil") {editTranscript=true}.disabled((record?.segments ?? []).isEmpty)
-            Button("标记本人",systemImage:"person") {chooseSpeaker=true}.disabled((record?.segments ?? []).isEmpty)
+            Button("说话人认领",systemImage:"person.crop.rectangle") {focusedSpeaker=nil;chooseSpeaker=true}.disabled((record?.segments ?? []).isEmpty)
         } label: {Image(systemName:"ellipsis").frame(width:44,height:44).accessibilityLabel("录音详情更多操作")}}}
         .safeAreaInset(edge:.bottom) {
             if store.recordingPlaybackID==recordID {RecordingPlayerBar().environmentObject(store)}
@@ -536,7 +566,7 @@ struct RecordingDetail: View {
             TagEditor(tag:tag,save:{name,wid in Task {await updateTag(tag,label:name,active:true,workspace:wid)}},spaces:store.projectSpaces)
         }
         .sheet(isPresented:$addTag,onDismiss:{Task {await reload()}}) {RecordingTagCreation(recordID:recordID).environmentObject(store)}
-        .sheet(isPresented:$chooseSpeaker,onDismiss:{Task {await reload()}}) {if let record {RecordingSpeakerPicker(record:record).environmentObject(store)}}
+        .sheet(isPresented:$chooseSpeaker,onDismiss:{Task {await reload()}}) {if let record {RecordingSpeakerPicker(record:record,focusedSpeaker:focusedSpeaker).environmentObject(store)}}
         .sheet(isPresented:$editTranscript,onDismiss:{Task {await reload()}}) {if let record {TranscriptEditor(record:record).environmentObject(store)}}
         .task(id:DeviceRecordingMap.identity(store.api)+recordID) {
             record=nil
@@ -576,7 +606,7 @@ struct RecordingDetail: View {
         }.frame(maxWidth:.infinity,alignment:.leading).padding(18).background(Warm.white,in:RoundedRectangle(cornerRadius:22)).overlay(RoundedRectangle(cornerRadius:22).stroke(Warm.ink.opacity(0.08)))
     }
     @ViewBuilder private func raw(_ record:RecordingRecord) -> some View {
-        HStack {Text("录后分人 · 时间戳已校准").font(.caption2).foregroundStyle(RecordingFormat.secondary);Spacer();Button("哪位是我？") {chooseSpeaker=true}.font(.caption).frame(minHeight:44).disabled((record.segments ?? []).isEmpty)}
+        HStack {Text("录后分人 · 时间戳已校准").font(.caption2).foregroundStyle(RecordingFormat.secondary);Spacer();Button("说话人认领") {focusedSpeaker=nil;chooseSpeaker=true}.font(.caption).frame(minHeight:44).disabled((record.segments ?? []).isEmpty)}
         if let marks=record.marks,!marks.isEmpty {
             ScrollView(.horizontal) {HStack {ForEach(marks) {mark in Button {Task {await store.perform {try await store.playRecording(record.id,startMS:mark.t_ms)}}} label:{Label("标记 "+RecordingFormat.clock(mark.t_ms/1000),systemImage:"bookmark.fill").font(.caption).frame(minHeight:44)}}}}
         }
@@ -587,7 +617,11 @@ struct RecordingDetail: View {
                     VStack(alignment:.leading,spacing:8) {
                         HStack {
                             Text(RecordingFormat.clock(line.start_ms/1000,hours:true)).monospacedDigit().foregroundStyle(RecordingFormat.secondary)
-                            Text(line.speaker_name ?? (line.speaker=="self" ? "本人":RecordingFormat.speaker(line.speaker_id))).foregroundStyle(Warm.purple).lineLimit(2)
+                            Button {focusedSpeaker=line.speaker_id;chooseSpeaker=true} label: {
+                                HStack(spacing:4) {Text(RecordingFormat.speakerName(line)).lineLimit(2);if line.speaker=="self" {Image(systemName:"person.fill")}}
+                                    .frame(minHeight:44)
+                            }.foregroundStyle(Warm.purple).buttonStyle(.plain).disabled(line.speaker_id==nil)
+                                .accessibilityLabel("认领说话人："+RecordingFormat.speakerName(line))
                             Spacer()
                             Button {Task {await play(line)}} label: {Image(systemName:store.recordingPlaybackID==recordID && store.recordingPlaybackStartMS==line.start_ms && store.recordingPlaybackPlaying ? "pause.fill":"play.fill").font(.caption).frame(width:44,height:44).background(Warm.lavender,in:Circle())}
                                 .accessibilityLabel("回听\(RecordingFormat.clock(line.start_ms/1000))的原文")
@@ -708,29 +742,101 @@ struct RecordingSpeakerPicker: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     let record:RecordingRecord
-    @State private var names:[String:String]=[:]
-    @State private var selected:Set<String>=[]; @State private var issue:String?; @State private var saving=false
-    private var speakers:[String] {Array(Set((record.segments ?? []).compactMap(\.speaker_id))).sorted()}
+    var focusedSpeaker:String?=nil
+    @State private var current:RecordingRecord
+    @State private var draft:RecordingSpeakerDraft
+    @State private var issue:String?
+    @State private var saving=false
+    @State private var conflict=false
+    @FocusState private var nameFocus:String?
+    private var canSave:Bool {!saving && !draft.changes.isEmpty && !draft.invalidName && draft.changes.count<=100 && !conflict}
+    init(record:RecordingRecord,focusedSpeaker:String?=nil) {
+        self.record=record;self.focusedSpeaker=focusedSpeaker
+        _current=State(initialValue:record);_draft=State(initialValue:RecordingSpeakerDraft(record.segments ?? []))
+    }
     var body: some View {
         NavigationStack {
-            Form {
-                Text("选择本人，只用于个人经历归属；全场总结不受影响。长录音跨段的说话人编号分别保存，需要分别选择，不自动猜测跨段身份。").font(.caption).foregroundStyle(RecordingFormat.secondary)
-                ForEach(speakers,id:\.self) {id in
-                    VStack(alignment:.leading,spacing:6) {
-                        TextField("姓名（不确定可留空）",text:Binding(get:{names[id] ?? ""},set:{names[id]=$0}))
-                        Toggle(RecordingFormat.speaker(id),isOn:Binding(get:{selected.contains(id)},set:{if $0 {selected.insert(id)} else {selected.remove(id)}}))
-                        if let line=record.segments?.first(where:{$0.speaker_id==id}) {Text(line.text).font(.caption).lineLimit(2).foregroundStyle(RecordingFormat.secondary)}
+            ScrollViewReader {proxy in
+                Form {
+                    Section {
+                        Text("给每位说话人填上名字，原文中的姓名会一起更新。不确定的可以留空，以后再改。")
+                            .font(.subheadline).foregroundStyle(RecordingFormat.secondary)
                     }
+                    if draft.ids.isEmpty {
+                        Section {Text("还没有可认领的说话人。录后分人完成后再来看看。").foregroundStyle(RecordingFormat.secondary)}
+                    }
+                    ForEach(draft.ids,id:\.self) {id in
+                        Section {
+                            TextField("姓名或称呼",text:Binding(get:{draft.names[id] ?? ""},set:{draft.names[id]=$0}),prompt:Text("姓名或称呼").foregroundColor(RecordingFormat.secondary))
+                                .textContentType(.name).submitLabel(.done).focused($nameFocus,equals:id)
+                                .onSubmit{nameFocus=nil}.frame(minHeight:44)
+                                .accessibilityLabel(RecordingFormat.speaker(id)+"的姓名")
+                                .accessibilityIdentifier("speaker-name-"+id)
+                            if (draft.names[id] ?? "").trimmingCharacters(in:.whitespacesAndNewlines).count>100 {
+                                Text("姓名请控制在 100 字以内。").font(.caption).foregroundStyle(.red)
+                            }
+                            Toggle("这是我",isOn:Binding(get:{draft.selfIDs.contains(id)},set:{if $0 {draft.selfIDs.insert(id)} else {draft.selfIDs.remove(id)}}))
+                                .accessibilityIdentifier("speaker-self-"+id)
+                            if let line=current.segments?.first(where:{$0.speaker_id==id}) {
+                                VStack(alignment:.leading,spacing:6) {
+                                    Text("原话参考 · "+RecordingFormat.clock(line.start_ms/1000,hours:true)).font(.caption)
+                                    Text(line.text).font(.subheadline).lineLimit(3)
+                                }.foregroundStyle(RecordingFormat.secondary).padding(.vertical,4)
+                            }
+                        } header: {Text(RecordingFormat.speaker(id))}
+                        .listRowBackground(Warm.white).id(id)
+                    }
+                    Section {
+                        Text("姓名仅用于这段录音；“这是我”用于识别你的个人经历。长录音跨段编号分别认领，同一个人可以填写相同名字。")
+                            .font(.caption).foregroundStyle(RecordingFormat.secondary)
+                        if draft.changes.count>100 {Text("本次请先修改不超过 100 个说话人，保存后可继续。").foregroundStyle(.red)}
+                        if let issue {
+                            Text(issue).font(.subheadline).foregroundStyle(.red).accessibilityIdentifier("speaker-save-error")
+                            if conflict {
+                                Button("放弃本次修改，载入最新原文") {Task {await refresh()}}
+                                    .frame(minHeight:44)
+                            }
+                        }
+                    }.listRowBackground(Warm.white)
                 }
-                if let issue {Text(issue).font(.caption)}
-            }.navigationTitle("哪位是你？").navigationBarTitleDisplayMode(.inline)
-                .toolbar {ToolbarItem(placement:.cancellationAction) {Button("暂时跳过") {dismiss()}};ToolbarItem(placement:.confirmationAction) {Button("保存") {Task {await save()}}.disabled(saving)}}
-                .onAppear {selected=Set((record.segments ?? []).filter{$0.speaker=="self"}.compactMap(\.speaker_id));for line in record.segments ?? [] {if let sid=line.speaker_id,let name=line.speaker_name {names[sid]=name}}}
+                .disabled(saving).scrollDismissesKeyboard(.interactively)
+                .scrollContentBackground(.hidden).background(Warm.paper)
+                .onAppear {if let focusedSpeaker {proxy.scrollTo(focusedSpeaker,anchor:.top)}}
+            }
+            .navigationTitle("说话人认领").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement:.cancellationAction) {Button("取消") {dismiss()}.disabled(saving)}
+                ToolbarItem(placement:.confirmationAction) {
+                    Button {nameFocus=nil;Task {await save()}} label: {
+                        if saving {ProgressView().accessibilityLabel("正在保存说话人")}
+                        else {Text("保存").foregroundStyle(Warm.purple.opacity(canSave ? 1:0.4))}
+                    }.disabled(!canSave)
+                        .accessibilityIdentifier("speaker-save")
+                }
+                ToolbarItemGroup(placement:.keyboard) {Spacer();Button("收起键盘") {nameFocus=nil}}
+            }
         }
+        .foregroundStyle(Warm.ink).tint(Warm.purple).fontDesign(.rounded)
+        .preferredColorScheme(.light).environment(\.colorScheme,.light)
+        .interactiveDismissDisabled(saving)
     }
     private func save() async {
+        guard !saving,!draft.changes.isEmpty,!draft.invalidName else{return}
+        saving=true;issue=nil;defer {saving=false}
+        do {
+            _=try await store.api.raw("/v1/recordings/"+current.id+"/speakers",method:"PATCH",body:["speakers":draft.changes,"expected_revision":current.transcript_revision ?? 1])
+            dismiss()
+        } catch {
+            conflict=error.localizedDescription.contains("VERSION_CONFLICT")
+            issue=conflict ? "原文已更新，本次修改尚未保存。请载入最新原文后重新认领。" : "姓名尚未保存，填写内容仍保留。"+error.localizedDescription
+        }
+    }
+    private func refresh() async {
         saving=true;defer {saving=false}
-        do {_=try await store.api.raw("/v1/recordings/"+record.id+"/speakers",method:"PATCH",body:["speakers":speakers.map{["speaker_id":$0,"name":names[$0] ?? "","is_self":selected.contains($0)] as [String:Any]},"expected_revision":record.transcript_revision ?? 1]);dismiss()} catch {issue=error.localizedDescription}
+        do {
+            let value:RecordingRecord=try await store.api.call("/v1/recordings/"+current.id)
+            current=value;draft=RecordingSpeakerDraft(value.segments ?? []);issue=nil;conflict=false
+        } catch {issue="未能载入最新原文，本次填写仍保留。"+error.localizedDescription}
     }
 }
 
@@ -774,3 +880,19 @@ struct RecordingDeviceLibrary: View {
         else {pendingFile=file;consent=true}
     }
 }
+
+#if DEBUG
+struct RecordingSpeakerReviewHost: View {
+    @State private var presented=true
+    var body: some View {
+        NavigationStack {Button("说话人认领") {presented=true}.frame(maxWidth:.infinity,maxHeight:.infinity).background(Warm.paper)}
+            .sheet(isPresented:$presented) {RecordingSpeakerPicker(record:RecordingSpeakerFixture.record)}
+    }
+}
+enum RecordingSpeakerFixture {
+    static var record:RecordingRecord {
+        let text = #"{"id":"speaker-review","pipeline_status":"done","transcript_revision":1,"segments":[{"id":"a","speaker":"self","speaker_id":"part0:0","speaker_name":"林晓","text":"我们先确认一下这次试点的目标和时间安排。","start_ms":1000,"end_ms":4000},{"id":"b","speaker":"unknown","speaker_id":"part0:1","text":"可以，我更关注接口能否配合我们的排期。","start_ms":4200,"end_ms":8000},{"id":"c","speaker":"unknown","speaker_id":"part1:0","text":"下一段我们具体讨论交付范围。","start_ms":60000,"end_ms":64000}]}"#
+        return try! JSONDecoder().decode(RecordingRecord.self,from:Data(text.utf8))
+    }
+}
+#endif

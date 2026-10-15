@@ -83,7 +83,7 @@ class DiscoveryDecision(Input):
     status:Literal['confirmed','withdrawn','pending']
     text:str|None=Field(default=None,min_length=1,max_length=1200)
 class DiscoveryBatch(Input):items:list[DiscoveryDecision]=Field(max_length=100)
-class SpeakerName(Input):speaker_id:str=Field(max_length=100);name:str=Field(max_length=100);is_self:bool=False
+class SpeakerName(Input):speaker_id:str=Field(min_length=1,max_length=100);name:str=Field(max_length=100);is_self:bool=False
 class SpeakersIn(Input):expected_revision:int=Field(ge=1);speakers:list[SpeakerName]=Field(max_length=100)
 class NaturalIn(Input):
     text:str=Field(min_length=1,max_length=3000)
@@ -178,7 +178,6 @@ def router(module):
     def progress(uid=auth):return domain().stats(uid)
     @r.patch('/recordings/{id}/speakers')
     def names(id:str,body:SpeakersIn,uid=auth):
-        from adapters.sources import version
         from memory import L1
         with module.store.transaction(uid):
             session=module.store.get('sessions',uid,id)
@@ -186,13 +185,22 @@ def router(module):
             lines=module.recordings.segments(uid,id);valid={line.get('speaker_id') for line in lines}
             if any(s.speaker_id not in valid for s in body.speakers):raise Fault('SPEAKER_INVALID','未知说话人',422)
             mappings={s.speaker_id:s for s in body.speakers}
+            if len(mappings)!=len(body.speakers):raise Fault('SPEAKER_INVALID','说话人编号不能重复',422)
+            for speaker in mappings.values():speaker.name=speaker.name.strip()
+            if not any(s.speaker_id==line.get('speaker_id') and (s.name!=(line.get('speaker_name') or '') or s.is_self!=(line.get('speaker')=='self')) for s in body.speakers for line in lines):
+                return {'revision':body.expected_revision}
             revision=body.expected_revision+1
+            updated=[]
             for line in lines:
                 speaker=mappings.get(line.get('speaker_id'));copy={k:v for k,v in line.items() if k not in {'id','created_at','updated_at'}}
                 copy.update(transcript_revision=revision,speaker_name=speaker.name if speaker else line.get('speaker_name'),
                     speaker='self' if speaker and speaker.is_self else 'other' if speaker else line.get('speaker','unknown'))
                 module.store.put('transcript_segments',uid,copy,L1,source='device')
-            module.store.update('sessions',uid,id,{'transcript_revision':revision,'speaker_names':{s.speaker_id:s.name for s in body.speakers}})
+                updated.append(copy)
+            module.store.update('sessions',uid,id,{'transcript_revision':revision,
+                'speaker_names':{line['speaker_id']:line['speaker_name'] for line in updated if line.get('speaker_id') and line.get('speaker_name')},
+                'self_speaker_ids':sorted({line['speaker_id'] for line in updated if line.get('speaker_id') and line.get('speaker')=='self'}),
+                'speaker_identity_status':'user_selected'})
             module.business.submit(uid,'recording_knowledge',id,str(revision))
             return {'revision':revision}
     @r.post('/projects/natural/create')
