@@ -48,3 +48,7 @@
 - 整合后完整后端测试 313 passed、2 项依赖弃用提醒；独立页面复核结论 ship。手机原生 HTTP 测试 3 项、平板 2 项通过，涵盖分组到独立回答、现有资料与 Mock，以及根列表大字号；模型边界为确定性测试。组详情／成员详情的大字号未单独测试。
 - 真实 Qwen3.7 接口：四条合成问题，价格两问合组，交付问题单列，面试同句独立；临时 SQLite 随测试清理，结果见 FAQ_GROUPING_LIVE.json。
 - 证据：`.build/memory-library/UnifiedPhone.xcresult`、`UnifiedTablet.xcresult`，以及本轮后端日志。截图是隔离合成资料。
+
+- 实现提交 `e895624` 已推送 master；服务器 49 项针对性回归通过，后端已发布到 `/opt/candid/releases/20261016-faq-e895624`。发布前后业务记录数量一致；HTTPS、鉴权与数据库完整性检查通过。
+- 云端使用生产配置的真实 embedding 在临时 SQLite 中重复四问验收通过，耗时约 0.99 秒；无真实用户资料，结果见 FAQ_GROUPING_CLOUD_LIVE.json。公网隔离新账号的分组接口也通过，测试记忆已清理。
+- 本轮 Release 真机构建及严格签名校验通过；已覆盖安装到既有 iPhone，设备启动命令返回成功，没有卸载或重置资料。
