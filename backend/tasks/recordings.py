@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 from memory import Fault,L1,L2,ident,now
 from adapters.sources import version
+from transcript_enrichment import enhance_transcript
 
 
 class Recordings:
@@ -120,7 +121,7 @@ class Recordings:
                     if tag.get('source')=='ai' and not tag.get('manual'):
                         self.store.update('recording_tags',owner,tag['id'],{'active':False,'revision':tag['revision']+1})
                 self.store.update('sessions',owner,sid,{'tag_generation_revision':job['revision']})
-        segments=self.segments(owner,sid); groups=[];group=[];size=0
+        segments=self.segments(owner,sid); prepared={s['id']:s for s in enhance_transcript(self.store,owner,sid,segments)}; groups=[];group=[];size=0
         for segment in segments:
             if size+len(segment['text'])>24000 and group:groups.append(group);group=[];size=0
             group.append(segment);size+=len(segment['text'])
@@ -130,9 +131,9 @@ class Recordings:
             self.business.guard(owner,job)
             prior=next((k for k in self.store.rows('recording_knowledge',owner,session_id=sid) if k.get('revision')==job['revision'] and k.get('part')==number),None)
             if prior:saved.append(prior);continue
-            result=self.business.structured('整理全场沟通，不猜谁是用户。user_marks_ms 是用户关注的音频毫秒点，优先覆盖附近原文，但不猜标记原因，不遗漏未标记的重要内容。保留粤语原文引用，复盘可用普通话。输出 {"title":"简短沟通主题","summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"next_steps":[],"expressions":[{"title":"关键问题","text":"可尝试的表达","quote":"逐字原文","segment_id":"提供的片段id","kind":"客户常问/值得复用/需要改善"}],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。kind为客户常问时，title必须概括一个客户实际提出的问题，quote必须逐字引用该问题，不能引用回答或把陈述猜成问题；同一处问题只提取一次。next_steps只提取原文中明确讨论的后续行动，不凭空安排任务，各数组条目为字符串。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
-                {'segments':[{'id':s['id'],'start_ms':s['start_ms'],'end_ms':s['end_ms'],'speaker':s.get('speaker_id'),'text':s['text']} for s in group],
-                 'user_marks_ms':[m['t_ms'] for m in self.store.rows('marks',owner,session_id=sid) if m['id'] not in session.get('hidden_mark_ids',[])],'project_spaces':spaces,'part':number+1,'parts':len(groups)}, timeout_seconds=240)
+            result=self.business.structured('整理全场沟通，不猜谁是用户。保留粤语原文引用，复盘可用普通话。输出 {"title":"简短沟通主题","summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"next_steps":[],"expressions":[{"title":"关键问题","text":"可尝试的表达","quote":"逐字原文","segment_id":"提供的片段id","kind":"客户常问/值得复用/需要改善"}],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。kind为客户常问时，title必须概括一个客户实际提出的问题，quote必须逐字引用该问题，不能引用回答或把陈述猜成问题；同一处问题只提取一次。next_steps只提取原文中明确讨论的后续行动，不凭空安排任务，各数组条目为字符串。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
+                {'segments':[{'id':s['id'],'start_ms':s['start_ms'],'end_ms':s['end_ms'],'speaker':s.get('speaker_id'),'text':prepared[s['id']]['text']} for s in group],
+                 'project_spaces':spaces,'part':number+1,'parts':len(groups)}, timeout_seconds=240)
             summary=result.get('summary','')
             if not isinstance(summary,str) or not summary.strip():raise Fault('KNOWLEDGE_FORMAT_INVALID','录音整理格式无效',502)
             refs=[{'source_id':'transcript:'+s['id'],'source_version':version(s),'start_ms':s['start_ms'],'end_ms':s['end_ms']} for s in group]
@@ -192,7 +193,10 @@ class Recordings:
         for lines in groups:
             if len(lines)<=quota:evidence.extend(lines)
             else:evidence.extend(lines[round(i*(len(lines)-1)/(quota-1))] for i in range(quota))
-        result=self.business.structured('从多场已认领本人原话中发现可复用的沟通习惯，不猜成交因果，不编经历。返回 {"items":[{"title":"标题","text":"待核对的发现与下一步建议","source_ids":["transcript:id"]}]}。每条至少引用两个不同场次，否则不输出。',{'evidence':[{'source_id':'transcript:'+s['id'],'session_id':s['session_id'],'text':s['text']} for s in evidence]})
+        prepared={}
+        for sid in {s['session_id'] for s in evidence}:
+            prepared.update({s['id']:s for s in enhance_transcript(self.store,owner,sid,[s for s in evidence if s['session_id']==sid])})
+        result=self.business.structured('从多场已认领本人原话中发现可复用的沟通习惯，不猜成交因果，不编经历。返回 {"items":[{"title":"标题","text":"待核对的发现与下一步建议","source_ids":["transcript:id"]}]}。每条至少引用两个不同场次，否则不输出。',{'evidence':[{'source_id':'transcript:'+s['id'],'session_id':s['session_id'],'text':prepared[s['id']]['text']} for s in evidence]})
         byid={'transcript:'+s['id']:s for s in evidence};candidates=[]
         for item in result.get('items',[])[:6]:
             if not isinstance(item,dict) or not isinstance(item.get('text'),str):continue
