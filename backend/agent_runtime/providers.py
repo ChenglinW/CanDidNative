@@ -84,31 +84,39 @@ class Gateway:
                 pass
         self._status(response.status_code)
         try:
-            choice = response.json()['choices'][0]
-            message = choice['message']
-            if choice.get('finish_reason') not in {'stop', 'tool_calls'}:
-                raise ValueError('incomplete output')
-            if not message.get('content') and not message.get('tool_calls'):
-                raise ValueError('empty output')
-            # Never return or persist reasoning_content from the provider.
-            result = {'role': 'assistant', 'content': message.get('content') or ''}
-            if message.get('tool_calls'):
-                result['tool_calls'] = message['tool_calls']
-            return result
+            return self._choice(response.json()['choices'][0])
         except (ValueError, KeyError, IndexError, TypeError):
             raise Fault('AGENT_INVALID_OUTPUT', '模型没有返回完整回答，消息已保留，可以重试', 502) from None
 
     @staticmethod
+    def _choice(choice):
+        message = choice.get('message') or {}
+        if choice.get('finish_reason') not in {'stop', 'tool_calls'}:
+            raise ValueError('incomplete output')
+        if not message.get('content') and not message.get('tool_calls'):
+            raise ValueError('empty output')
+        # Never return or persist reasoning_content from the provider.
+        result = {'role': 'assistant', 'content': message.get('content') or ''}
+        if message.get('tool_calls'):
+            result['tool_calls'] = message['tool_calls']
+        return result
+
+    @staticmethod
     def _status(status_code):
         if status_code != 200:
-            code, message = {
+            known = {
                 401: ('AGENT_AUTH_FAILED', '模型网关 Key 无效，请检查后端配置'),
                 403: ('AGENT_FORBIDDEN', '当前 Key 没有此模型的使用权限'),
                 429: ('AGENT_RATE_LIMITED', '模型请求过于频繁，请稍后重试'),
                 400: ('AGENT_REQUEST_REJECTED', '模型请求被拒绝，请检查模型或工具参数'),
                 404: ('AGENT_MODEL_UNAVAILABLE', '模型不可用，请检查后端模型配置'),
-            }.get(status_code, ('AGENT_UNAVAILABLE', '模型网关暂时不可用'))
-            raise Fault(code, message, 502)
+                504: ('AGENT_UPSTREAM_TIMEOUT', '上游在返回完整结果前中断了这次请求，已有内容会保留，可以重试这一步'),
+            }
+            if status_code in known:
+                code, message = known[status_code]
+            else:
+                code, message = ('AGENT_UNAVAILABLE', f'上游模型服务返回 HTTP {status_code}，这次整理没有完成，可以重试')
+            raise Fault(code, message, 502, {'upstream_status': status_code})
 
     def _stream(self, client, payload, on_delta, cancellation):
         content, calls, finish, buffer = '', {}, None, ''
@@ -118,7 +126,10 @@ class Gateway:
                            headers={'Authorization': 'Bearer ' + self._key}) as response:
             self._status(response.status_code)
             if not response.headers.get('content-type', '').startswith('text/event-stream'):
-                raise Fault('AGENT_STREAM_UNAVAILABLE', '模型网关未返回流式响应，请检查当前模型的流式支持', 502)
+                try:
+                    return self._choice(json.loads(response.read())['choices'][0])
+                except (ValueError, KeyError, IndexError, TypeError, json.JSONDecodeError):
+                    raise Fault('AGENT_STREAM_UNAVAILABLE', '模型网关未返回可读取的结果，请检查当前模型的流式支持', 502) from None
             if cancellation:cancellation.register(response.close)
             try:
                 for line in response.iter_lines():

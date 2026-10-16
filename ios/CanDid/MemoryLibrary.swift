@@ -79,6 +79,8 @@ struct CompanionMemory:View {
     catch {if !Task.isCancelled {self.error=error.localizedDescription}}
   }
   @ViewBuilder private func overview(_ s:LibrarySnapshot)->some View {
+    let materials=rows.filter {$0.item_type=="material"}
+    let materialsTitle=scenario=="interview" ? "面试故事与表达素材":"故事与表达素材"
     NavigationLink {MergedDeliveryPage(metrics:s.metrics,scenario:scenario)} label: {
       CompanionMemoryCard {
         HStack {Text("表达").companionFont(16,weight:.semibold);Spacer();Text("查看详情").companionFont(12);Image(systemName:"chevron.right")}
@@ -90,12 +92,11 @@ struct CompanionMemory:View {
     }.buttonStyle(.plain).accessibilityIdentifier("memory-expression-overview")
     LazyVGrid(columns:typeSize.isAccessibilitySize ? [GridItem(.flexible())]:[GridItem(.flexible()),GridItem(.flexible())],spacing:10) {
       Button {selections[scenario]="FAQ"} label:{CompanionMemoryCard {Text("\(rows.filter {$0.item_type=="faq" && $0.user_edited==true}.count)").companionFont(27,weight:.semibold);Text("问题已有我的说法").companionFont(12)}}.buttonStyle(.plain)
-      CompanionMemoryCard {Text("\(rows.filter {$0.item_type=="material"}.count)").companionFont(27,weight:.semibold);Text(scenario=="interview" ? "面试故事与表达素材":"故事与表达素材").companionFont(12)}
+      NavigationLink {MergedMaterialList(items:materials,title:materialsTitle)} label:{CompanionMemoryCard {Text("\(materials.count)").companionFont(27,weight:.semibold);HStack {Text(materialsTitle).companionFont(12);Spacer();Image(systemName:"chevron.right").font(.system(size:12))}}}.buttonStyle(.plain).accessibilityIdentifier("memory-materials-overview")
     }
     if let d=store.companionMemory?.discoveries.first {
       NavigationLink {CompanionDiscoveryPage(discovery:d)} label:{VStack(alignment:.leading,spacing:10) {Text("跨场发现 · 个人积累").companionFont(12);Text(d.title).companionFont(16,weight:.semibold);Text("查看依据与集中确认 →").companionFont(12)}.padding(16).frame(maxWidth:.infinity,alignment:.leading).foregroundStyle(.white).background(Color(red:0.345,green:0.255,blue:0.753),in:RoundedRectangle(cornerRadius:14))}.buttonStyle(.plain)
     }
-    NavigationLink("表达积累") {MergedMaterialList(items:rows,title:scenario=="interview" ? "面试积累":"销售积累")}.frame(minHeight:44)
     NavigationLink("全部跨场发现") {CompanionDiscoveryList()}.frame(minHeight:44)
     NavigationLink("我的介绍与资料") {PersonalProfilePage()}.frame(minHeight:44)
     let archived=s.items.filter {$0.scenario==scenario && $0.status=="archived"}

@@ -1072,15 +1072,21 @@ struct CompanionRecordingPage: View {
       .background(Warm.white, in: RoundedRectangle(cornerRadius: 14)).id(line.id)
   }
   @ViewBuilder private func review(_ r: RecordingRecord) -> some View {
+    let stalled = (r.jobs ?? []).filter { ["failed", "interrupted", "cancelled"].contains($0.status) }
     if let value=r.highlights {RecordingHighlightsSection(recordID:id,value:value,onChange:{Task {await load()}})}
     if (r.knowledge ?? []).isEmpty {
       ContentUnavailableView(
-        "正在整理这场沟通", systemImage: "sparkles",
-        description: Text(RecordingFormat.status(r) + "；完成后会给你一条复盘消息。"))
-      ForEach((r.jobs ?? []).filter { ["failed", "interrupted", "cancelled"].contains($0.status) })
-      { job in
-        Text(job.error ?? "整理尚未完成")
-        Button("重试整理") {
+        stalled.contains { $0.kind == "recording_knowledge" } ? "复盘整理没有完成" : "正在整理这场沟通",
+        systemImage: "sparkles",
+        description: Text(stalled.contains { $0.kind == "recording_knowledge" }
+          ? "已完成的原文仍可查看。下面只重试失败的步骤。"
+          : RecordingFormat.status(r) + "；完成后会给你一条复盘消息。"))
+    }
+    ForEach(stalled) { job in
+      VStack(alignment: .leading, spacing: 8) {
+        Text(reviewJobTitle(job.kind)).companionFont(15, weight: .semibold)
+        Text(job.error ?? "这一步尚未完成，已有结果会保留。").companionFont(13).foregroundStyle(RecordingFormat.secondary)
+        Button("重试这一步") {
           Task {
             await store.perform {
               _ = try await store.api.raw(
@@ -1161,6 +1167,16 @@ struct CompanionRecordingPage: View {
       }
     }
     Button("查看完整原文") { tab = "原文" }.companionFont(13).frame(minHeight: 44)
+  }
+  private func reviewJobTitle(_ kind: String) -> String {
+    switch kind {
+    case "recording_knowledge": return "复盘整理"
+    case "recording_marks": return "重点整理"
+    case "library_extract": return "问答提取"
+    case "transcribe": return "转写"
+    case "companion_discovery": return "跨场发现"
+    default: return "整理"
+    }
   }
   private func load() async {
     guard store.remote else {

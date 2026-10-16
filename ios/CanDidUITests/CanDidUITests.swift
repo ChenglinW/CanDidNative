@@ -85,7 +85,11 @@ final class CanDidUITests: XCTestCase {
         let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
         app.buttons["记忆库"].firstMatch.tap()
         XCTAssertTrue(app.buttons["memory-sales"].waitForExistence(timeout:10))
-        XCTAssertTrue(app.buttons["表达积累"].exists)
+        XCTAssertTrue(app.buttons["memory-materials-overview"].exists)
+        XCTAssertFalse(app.buttons["表达积累"].exists)
+        app.buttons["memory-materials-overview"].tap()
+        XCTAssertTrue(app.staticTexts["还没有素材。历史内容同步后会显示在这里。"].waitForExistence(timeout:10))
+        app.navigationBars.buttons.firstMatch.tap()
         app.buttons["memory-expression-overview"].tap()
         for axis in ["语速","停顿","口头禅","起伏","说话占比"] {XCTAssertTrue(app.buttons[axis].exists)}
         app.buttons["停顿"].tap();XCTAssertTrue(app.staticTexts["暂无可靠测量"].exists)
@@ -443,7 +447,7 @@ final class CanDidUITests: XCTestCase {
         continueAfterFailure=false
         let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
         XCTAssertTrue(app.buttons["记忆库"].waitForExistence(timeout:15));app.buttons["记忆库"].tap()
-        XCTAssertTrue(app.buttons["表达积累"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["memory-materials-overview"].waitForExistence(timeout:10))
         exerciseSegments(app,["我","FAQ","背景资料"])
         capture(app,"solid-memory-segments")
         XCTAssertTrue(app.buttons["上传资料"].exists)
