@@ -96,8 +96,9 @@ class SkillCatalog:
             body = path.read_text('utf8')
             if hashlib.sha256(body.encode()).hexdigest() != entry['body_sha256']:
                 raise Fault('SKILL_VERSION_UNAVAILABLE', '沟通流程正文与版本不匹配，请更新配置', 503)
-        except ValidationError:
-            raise Fault('SKILL_INPUT_INVALID', '沟通任务的输入字段或长度不正确', 422) from None
+        except ValidationError as error:
+            fields=', '.join('.'.join(map(str,e['loc']))+':'+e['type'] for e in error.errors(include_input=False,include_url=False))
+            raise Fault('SKILL_INPUT_INVALID', '请按流程inputs规范修正字段：'+fields[:800], 422) from None
         except (OSError, ValueError, TypeError):
             raise Fault('SKILL_CONFIG_INVALID', '沟通流程无法读取', 503) from None
         return {'name': name, 'title': entry['title'], 'version': entry['version'],

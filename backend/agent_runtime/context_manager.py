@@ -130,7 +130,7 @@ class ContextManager:
 
         section('基础运行规则', snapshot.get('base_rules_body', BASE_RULES), budget.context_rules_chars)
         section('人格', snapshot['soul']['body'], budget.context_soul_chars)
-        index = [{k:e[k] for k in ('name','description','available')} for e in snapshot['skill_index']]
+        index = [{k:e[k] for k in ('name','description','available','inputs')} for e in snapshot['skill_index']]
         section('固定后台流程索引', json.dumps(index, ensure_ascii=False), budget.context_index_chars)
         section('用户偏好', json.dumps(snapshot['user_preferences'], ensure_ascii=False), budget.context_preferences_chars, True)
         section('用户主动提供的个人背景', json.dumps(snapshot.get('personal_profile', {}), ensure_ascii=False), 3000, True)

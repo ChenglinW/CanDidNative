@@ -1,6 +1,6 @@
 """Validated tool registration, task permissions, deadlines and safe result envelopes."""
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 import time
 from typing import Callable
@@ -92,7 +92,8 @@ class ToolRegistry:
         timeout = min(spec.timeout_seconds, context.budget.tool_timeout_seconds, context.remaining())
         # The worker receives its own source list. Timed-out calls cannot change the answer's sources.
         collected = json.loads(json.dumps(sources, ensure_ascii=False))
-        future = self._pool.submit(spec.handler, context, args, collected)
+        worker_context=replace(context,deadline=min(context.deadline,time.monotonic()+timeout))
+        future = self._pool.submit(spec.handler, worker_context, args, collected)
         try:
             deadline = time.monotonic() + timeout
             while True:
@@ -129,8 +130,8 @@ class ToolRegistry:
             if exc.code in {'MEMORY_DELETED', 'AGENT_CANCELLED', 'AGENT_TIMEOUT'}:
                 future.cancel()
                 raise
-            if exc.code in {'USER_INTENT_REQUIRED','SOURCE_UNAVAILABLE','SOURCE_SUPERSEDED','DATE_INVALID','WORKSPACE_ARCHIVED','VERSION_CONFLICT'}:
-                return ToolResult.failure(exc.code,exc.message,True)
+            if exc.code in {'RESEARCH_REQUIRED','RESEARCH_NOT_ALLOWED','SOURCE_UNSUPPORTED','SOURCE_UNREADABLE','RESEARCH_RESULT_INVALID','MONID_NOT_CONFIGURED','MONID_REQUEST_REJECTED','MONID_UNAVAILABLE','MONID_FORMAT_INVALID','PROVIDER_SUBMIT_UNCERTAIN','RESEARCH_SOURCE_FAILED','RESEARCH_RATE_LIMITED','URL_INVALID','USER_INTENT_REQUIRED','SOURCE_UNAVAILABLE','SOURCE_SUPERSEDED','DATE_INVALID','WORKSPACE_ARCHIVED','VERSION_CONFLICT'}:
+                return ToolResult.failure(exc.code,exc.message,exc.details.get('retryable',exc.status>=500 or exc.code in {'RESEARCH_REQUIRED','USER_INTENT_REQUIRED','SOURCE_UNAVAILABLE','SOURCE_SUPERSEDED','DATE_INVALID','WORKSPACE_ARCHIVED','VERSION_CONFLICT'}))
             return ToolResult.failure('TOOL_DATA_UNAVAILABLE', '未找到可访问的资料', exc.status >= 500)
         except Exception:
             # Provider responses, user content and exception repr never enter model-visible errors.

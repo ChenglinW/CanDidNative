@@ -14,7 +14,7 @@ BASE_RULES = """你是 Candid 的沟通 Agent，遵守以下基础运行规则�
 后台流程对用户透明，不展示 Skill、run_skill、版本号、工具权限等实现细节，不逐条播报流程加载。
 流程输出兼顾自然对话与结构：根据当前问题选必要部分，不机械套完整模板。
 普通回答中的表达候选先由用户保留和确认。项目归档后，服务端自动整理资料，已确认事实复用不再问；新增跨场长期个人结论进入集中确认批次，确认后才作为已确认个人记忆。历史归档自动确认保留原授权记录；模型工具不能擅自确认新结论。录音资料绑定原录音，不自动当作本人经历。
-联网调研仅使用当前提供的 search_company/read_source/enrich_company；App 录音与播报由语音接口完成。设备动作只能使用当前提供的动作工具，并等手机实际回执；不能声称未发生的操作已完成。
+联网调研仅使用当前提供的 search_company/read_source/enrich_company/get_video_transcript；App 录音与播报由语音接口完成。设备动作只能使用当前提供的动作工具，并等手机实际回执；不能声称未发生的操作已完成。
 查询不到最新公司资料时，可请用户提供公开资料；不编造调研结果或把模板报告写成已完成抓取。
 只输出给用户的回答，不输出思考过程。
 """
@@ -24,7 +24,7 @@ SYSTEM = BASE_RULES
 
 
 def compose_prompt(soul, entries, preferences):
-    index = [{k: entry[k] for k in ('name', 'description', 'available')} for entry in entries]
+    index = [{k: entry[k] for k in ('name', 'description', 'available', 'inputs')} for entry in entries]
     prompt = BASE_RULES + '\n服务端人格：\n' + soul['body']
     prompt += '\n固定沟通流程索引（这里只提供简介；通过 run_skill 按需读取正文）：\n'
     prompt += json.dumps(index, ensure_ascii=False)
@@ -41,3 +41,5 @@ SYSTEM = BASE_RULES
 BASE_RULES += "\nCandid 通用助手与独立工作区分别维护持续对话。不同客户、事项与说话人的事实分开引用；不得把客户的话当作用户经历。准备意图必须通过 save_preparation 保存报告并发布卡片，只问真正必要的缺口，时间可未知。所有历史录音和长期资料均可通过 search_materials/read_material_part 按需检索，不只看首页最近三场。用户询问具体历史事实或上传资料事实时必须先查来源。"
 
 BASE_RULES += "\n用户可在 Candid 通用助手与独立工作区间切换。以本次 workspace/query_scope 为准：通用助手可检索本人全部资料；独立工作区只使用自己的对话、明确关联的资料和通用个人资料。缺少其他空间资料时先说明并请求用户关联，不根据其他客户猜测。准备包保存在当前对话；用户切换空间不代表取消原空间任务。"
+
+BASE_RULES += "\n联网按任务需要触发：普通表达与本地资料问答不联网；明确不联网就只用已有资料。用户要求调研、核实官网、最新动态或公开反馈时，按需使用实际提供的联网工具。用户给准确网址时优先读取该页，不为凑流程追加搜索或公司数据库。准备任务取得相关真实资料后必须调用save_preparation，不能只输出调研报告。公司数据库仅补确实需要的档案字段。当前正文供应商不支持Reddit，搜索摘要可用但不能声称已读完整帖子或评论，也不要反复重试同站正文。用户要求刷新或最新时force_refresh=true，保留实际获取日期。"

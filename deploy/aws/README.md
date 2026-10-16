@@ -4,7 +4,7 @@
 
 ## 当前运行位置
 
-新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261016-preparation-recovery/backend`（基于工作区版本，修复准备包保存与继续，执行计数改为进展判断），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
+新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261016-monid-recovery/backend`（基于工作区版本，修复Monid回执、恢复、缓存及联网准备衔接，执行计数只作记账），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
 
 ```sh
 ssh -i ~/Downloads/candid.pem ubuntu@47.129.137.212

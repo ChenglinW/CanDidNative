@@ -24,7 +24,7 @@ backend/.venv/bin/python scripts/launch-chat.py
 
 所有版本均保留「手机录音（备用）」，包括 Release 真机版。录音豆仍是主入口，手机语音消息也继续保留；服务端允许两种录音来源，能力状态为 `recording_mode=hybrid`。
 
-服务开关及非密钥配置见 `backend/agent_config/services.env.example`。本 demo 经负责人确认不设 Monid 金额限额，仍限定每任务工具调用次数和单次结果数量，记录原始 billing 与运行 ID。ASR/TTS 保存供应商用量；关闭 `CANDID_SPEECH_ENABLED` 可停止新语音调用。
+服务开关及非密钥配置见 `backend/agent_config/services.env.example`。本 demo 经负责人确认不设 Monid 金额限额，不设每任务工具调用次数上限；仍限定单次结果数量，保留单次请求超时、进展判断和取消，记录原始 billing 与运行 ID。ASR/TTS 保存供应商用量；关闭 `CANDID_SPEECH_ENABLED` 可停止新语音调用。
 
 密钥更新后由负责人重新打包：
 

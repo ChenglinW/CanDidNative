@@ -138,7 +138,8 @@ def test_retry_saves_staged_report_without_regeneration_or_duplicate(domain,monk
     finally:a.close()
 
 @pytest.mark.parametrize('pending',[False,True])
-def test_explicit_legacy_retry_migrates_policy_and_preserves_user_answers(domain,pending):
+@pytest.mark.parametrize('legacy_version',['agent-runtime@10-recovery','agent-runtime@11-progress'])
+def test_explicit_legacy_retry_migrates_policy_and_preserves_user_answers(domain,pending,legacy_version):
     ready=False
     def handler(g,m):
         if not ready:
@@ -150,7 +151,7 @@ def test_explicit_legacy_retry_migrates_policy_and_preserves_user_answers(domain
     g=Gateway(handler);a=TextAgent(domain.store,gateway=g)
     try:
         t=a.submit(OWNER,domain.thread(OWNER)['id'],INTENT,ident());old=wait(a,t['id'],'waiting_input' if pending else 'failed')
-        snapshot=old['config_snapshot'];snapshot['runtime_version']='agent-runtime@10-recovery';snapshot['budget']['max_rounds']=4
+        snapshot=old['config_snapshot'];snapshot['runtime_version']=legacy_version;snapshot['budget']['max_rounds']=4
         a.tasks.update(OWNER,t['id'],{'config_snapshot':snapshot,'budget_usage':{'model_rounds':4,'tool_calls':12}})
         ready=True
         if pending:a.answer_input(OWNER,t['id'],ident(),old['input_request']['id'],'周总，确认试点范围。',old['attempt'])

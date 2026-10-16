@@ -149,8 +149,9 @@ class TextAgent:
     def _skill_context(self, context, snapshot):
         allowed = set(snapshot['allowed_tools'])
         registered = set(self.registry.names)
-        if not set(snapshot['required_tools']) <= registered or not allowed <= registered:
+        if not set(snapshot['required_tools']) <= registered:
             raise Fault('AGENT_DEPENDENCY_CHANGED', '原沟通流程的工具依赖已不可用，请新建一条消息', 409)
+        allowed &= registered
         profiles = dict(context.budget_profiles)
         profile = profiles.get(snapshot['name'], profiles.get('chat', context.budget))
         ceiling = asdict(context.budget_ceiling or context.budget)
@@ -210,6 +211,9 @@ class TextAgent:
         seen=set((checkpoint or {}).get('progress_seen',[]))
         stalled=0
         preparation=self.preparation_requested(task['input']['content'])
+        from .research_policy import task_policy,require_preparation_research
+        research_rule=task_policy(self.memory,context)
+        messages.append({'role':'system','content':'本轮联网约束（来自真实用户需求）：'+json.dumps(research_rule,ensure_ascii=False)+'。required=true时先完成指定公开资料读取，再将实际research来源加入准备包source_ids。没有实际资料不能把模板标为已完成联网准备。offline=true时不得联网。'})
         def finish_preparation():
             # The report is already durable. Its acknowledgement must not depend
             # on another model call or repeat a long report over its own card.
@@ -225,6 +229,7 @@ class TextAgent:
             if existing:
                 if not Companion(self.memory).current(context.owner_id,existing[0]['evidence_refs'],context.workspace_id):
                     raise Fault('SOURCE_SUPERSEDED','已保存报告的依据已变化，请重新发送需求以整理新版报告',409)
+                require_preparation_research(self.memory,context,existing[0]['evidence_refs'])
                 return finish_preparation()
         if preparation:
             self.tasks.update(context.owner_id,context.task_id,{'preparation_intent_bound':True})
@@ -233,7 +238,11 @@ class TextAgent:
         if draft:
             from companion import Companion
             domain=Companion(self.memory)
-            if domain.current(context.owner_id,draft['references'],context.workspace_id):
+            try:require_preparation_research(self.memory,context,draft['references']);research_ready=True
+            except Fault as error:
+                if error.code!='RESEARCH_REQUIRED':raise
+                research_ready=False
+            if research_ready and domain.current(context.owner_id,draft['references'],context.workspace_id):
                 pack=domain.save_preparation(context.owner_id,context.thread_id,'agent:'+context.task_id,draft['data'],draft['references'],guard=lambda:(context.remaining(),self.tasks.require_running(context.owner_id,context.task_id,context.attempt)))
                 return finish_preparation()
             else:
@@ -463,7 +472,7 @@ class TextAgent:
                 with self.memory.transaction(owner):
                     workspace = self.workspaces.seed_from_message(owner,workspace['id'],text)
                     task, fresh = self.tasks.enqueue(owner,thread_id,request_id,text,self.snapshot(budget,owner,workspace))
-                    if fresh and workspace.get('is_companion') and self.preparation_requested(text):
+                    if fresh and self.preparation_requested(text):
                         skill=self.catalog.load('communication_prep',task['config_snapshot']['skill_index'],{})
                         task=self.tasks.update(owner,task['id'],{'active_skill_snapshot':skill,'task_kind':'communication_prep','skill_load_history':[skill]})
                     if fresh and live_source_id:
@@ -482,7 +491,8 @@ class TextAgent:
 
     def _upgrade_preparation_retry(self, owner, task, preserve_input=False):
         old=task['config_snapshot']
-        if old.get('runtime_version') != 'agent-runtime@10-recovery' or not self.preparation_requested(task['input']['content']):return task
+        research=task.get('task_kind')=='company_research' or bool(self.memory.rows('provider_runs',owner,task_id=task['id']))
+        if old.get('runtime_version') not in {'agent-runtime@10-recovery','agent-runtime@11-progress'} or not (self.preparation_requested(task['input']['content']) or research):return task
         current=self.dependency_snapshot()
         if old.get('model_digest')!=current['model_digest'] or old.get('memory_adapter')!=current['memory_adapter']:return task
         space=self._validate_workspace(owner,task)

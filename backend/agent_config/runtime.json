@@ -1,5 +1,5 @@
 {
-  "version": "agent-runtime@11-progress",
+  "version": "agent-runtime@12-research",
   "task_limits": {
     "max_rounds": null,
     "max_tool_calls": null,

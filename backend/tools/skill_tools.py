@@ -16,9 +16,9 @@ def register_skill_tool(registry, catalog):
         try:
             skill = catalog.load(args['name'], context.skill_index_snapshot, args.get('inputs', {}))
         except Fault as error:
-            return ToolResult.failure(error.code, error.message, False)
+            return ToolResult.failure(error.code, error.message, error.code=='SKILL_INPUT_INVALID')
         return ToolResult('ok', {'skill_snapshot': skill})
     registry.register(ToolSpec(
         'run_skill', '准备沟通流程', '根据服务端固定索引按需加载一个沟通流程。只选索引中 available=true 的流程；加载后执行其规则。',
-        SkillArgs, load, frozenset({'chat', 'communication_prep', 'communication_review', 'memory_draft'}),
+        SkillArgs, load, frozenset({'chat', 'communication_prep', 'communication_review', 'memory_draft','company_research'}),
         visible_to_user=False))

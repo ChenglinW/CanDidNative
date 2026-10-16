@@ -1,0 +1,1907 @@
+{
+  "date": "2026-10-16",
+  "local_full_run": {
+    "synthetic_and_public_only": true,
+    "checks": [
+      {
+        "case": "search-bing",
+        "item_count": 5,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51N9MN2HQ5KJ9C68Q6X1MCP",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 4.36
+      },
+      {
+        "case": "search-google",
+        "item_count": 5,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51N9MMJT7HF3VAK56G7WPMK",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 6.07
+      },
+      {
+        "case": "search-baidu",
+        "item_count": 5,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51N9MNJXS557VQ6SD0HXP4H",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 8.15
+      },
+      {
+        "case": "search-reddit",
+        "item_count": 5,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51N9RYHAPBNKF5SGYEKBKDC",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 5.59
+      },
+      {
+        "case": "search-youtube",
+        "item_count": 5,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51N9TG6WPXXD7V137BXWSPS",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 4.24
+      },
+      {
+        "case": "search-wechat",
+        "item_count": 5,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51N9WJ2WXG09BG8B8VFRP8P",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 5.3
+      },
+      {
+        "case": "read-fresh-official",
+        "item_count": 1,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51N9YK669G3MKSX6NE8YQP1",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 4.69
+      },
+      {
+        "case": "company-stripe",
+        "item_count": 1,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51NA1NJKSKRASV1EDHXVKG7",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 100000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 2.5
+      },
+      {
+        "case": "company-anker",
+        "item_count": 1,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51NA37HZ1Y5N2WPVYENGC69",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 100000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 2.67
+      },
+      {
+        "case": "company-empty-match",
+        "item_count": 0,
+        "provider_outcomes": [
+          {
+            "http_status": 404,
+            "outcome": "empty"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51NA43E801X6ER27AH6HF07",
+            "status": "COMPLETED",
+            "outcome": "empty",
+            "http_status": 404,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 0,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 2.08
+      },
+      {
+        "case": "search-bilibili",
+        "item_count": 5,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51N9YBJ1DPDZSY02MZEHB56",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "cost": null
+          }
+        ],
+        "seconds": 10.2
+      },
+      {
+        "case": "video-real-subtitles",
+        "item_count": 1,
+        "provider_outcomes": [
+          {
+            "http_status": 200,
+            "outcome": "content"
+          }
+        ],
+        "status": "passed",
+        "runs": [
+          {
+            "run_id": "01M51NA5SA2QP3N0CGSYP2YPR7",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "http_status": 200,
+            "billing": {},
+            "cost": {
+              "value": 0.005,
+              "currency": "USD"
+            }
+          }
+        ],
+        "seconds": 10.09
+      },
+      {
+        "case": "real-403-receipt-retained",
+        "status": "passed",
+        "run_id": "01M51NAFM8CCX0KM6BG60Q0K63",
+        "billing": {
+          "reportedCost": {
+            "currency": "USD",
+            "value": 0,
+            "unit": "MICRO_DOLLAR"
+          }
+        }
+      },
+      {
+        "case": "real-receipt-reconciliation",
+        "client_failure_injected": true,
+        "status": "passed",
+        "run_id": "01M51NAHRRJT1C7TSDHXVKV9NW",
+        "paid_posts": 1
+      },
+      {
+        "case": "home-web-preparation",
+        "input": "帮我准备与安克创新采购王总讨论门店收银SaaS方案，目标确认三家门店试点。我们提供门店收银SaaS，时间与预算待定，不需要再补问。先联网读取 https://www.anker-in.com/ 核实主要业务，再保存准备包。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [
+          {
+            "name": "read_source",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "search_memory",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "search_materials",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "save_preparation",
+            "status": "done",
+            "error": null
+          }
+        ],
+        "answer": "准备包已保存，可以打开查看。",
+        "sources": [
+          {
+            "source_id": "research:3df14130-d2f2-4424-b3d2-243a004077b1",
+            "title": "Home - Anker Innovations",
+            "url": "https://www.anker-in.com/",
+            "reading_range": "page_excerpt",
+            "fetched_at": "2026-10-16T06:10:35.056596+00:00"
+          }
+        ],
+        "runs": [
+          {
+            "kind": "read",
+            "external_id": "01M51NAXQF56NBH0HXNPN64EJW",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "cache_reuse": null,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "http_status": 200
+          }
+        ],
+        "saved_once": true,
+        "report_sections": 6,
+        "status": "passed",
+        "seconds": 27.89
+      },
+      {
+        "case": "home-offline-preparation",
+        "input": "不要联网。帮我准备与客户甲采购王总讨论门店收银SaaS，目标确认三家门店试点。时间预算未定，按已有信息保存准备包。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [
+          {
+            "name": "search_memory",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "search_materials",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "save_preparation",
+            "status": "done",
+            "error": null
+          }
+        ],
+        "answer": "准备包已保存，可以打开查看。",
+        "sources": [],
+        "runs": [],
+        "saved_once": true,
+        "report_sections": 6,
+        "status": "passed",
+        "seconds": 25.61
+      },
+      {
+        "case": "greeting",
+        "input": "你好，今天有点紧张，用一句话安慰我。",
+        "task_status": "failed",
+        "task_error": {
+          "code": "AGENT_UNAVAILABLE",
+          "message": "暂时无法连接模型网关，请稍后重试",
+          "retryable": true
+        },
+        "steps": [],
+        "status": "failed",
+        "error_code": "AssertionError",
+        "message": "{'code': 'AGENT_UNAVAILABLE', 'message': '暂时无法连接模型网关，请稍后重试', 'retryable': True}",
+        "seconds": 5.1
+      },
+      {
+        "case": "rewrite",
+        "input": "把“这个价格不能再降了”改得委婉，只改表达，不需要公司资料。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [],
+        "answer": "可以，几个说法供你挑：\n\n1. **先给原因，再说立场**  \n   \"这个价格已经是我们能做到的底线了，再往下空间确实很有限。\"\n\n2. **把「不能降」换成「给你争取过了」**  \n   \"价格这块我帮您尽量争取过了，目前这个数已经是最优的了。\"\n\n3. **突出价值对冲价格**  \n   \"价格上确实没有太多空间了，但这也是因为我们已经把该含的服务都含进去了。\"\n\n4. **留个台阶，避免把话说死**  \n   \"单看价格暂时没有调整空间，不过我们可以看看在交付节奏或服务内容上能不能帮您更省心。\"\n\n如果告诉我这是对客户、老板还是供应商说的，我可以再帮你调一下语气。",
+        "sources": [],
+        "runs": [],
+        "status": "passed",
+        "seconds": 10.14
+      },
+      {
+        "case": "single-url",
+        "input": "请读取 https://www.anker.com/about-us ，用三句话概括该页业务，附来源，不用额外搜索或公司数据库。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [
+          {
+            "name": "read_source",
+            "status": "done",
+            "error": null
+          }
+        ],
+        "answer": "根据该页面内容概括如下 [1]：\n\n1. Anker（母公司为 Anker Innovations）业务围绕充电与能源产品展开，旗下包含 Anker Charging、Anker SOLIX、eufy、eufyMake、soundcore 等多个品牌线 [1]。\n2. 页面重点展示其快充技术矩阵，包括 GaNPrime™ 2.0（140W 持续快充）、PowerIQ™ 5.0、ActiveShield™ 5.0 温控保护，以及 TurboBoost™ 充电底座回充技术 [1]。\n3. 同时强调设计导向与环保理念，如超薄保护膜、三合一无线充电器以及采用环保材料的绿色充电创新 [1]。\n\n来源：https://www.anker.com/about-us（实际获取日期 2026-10-16）[1]。",
+        "sources": [
+          {
+            "source_id": "research:0a67f847-5e6a-4d02-93e8-a00ade35d991",
+            "title": "Anker Innovations - Anker US",
+            "url": "https://www.anker.com/about-us",
+            "reading_range": "page_excerpt",
+            "fetched_at": "2026-10-16T06:11:42.097645+00:00"
+          }
+        ],
+        "runs": [
+          {
+            "kind": "read",
+            "external_id": "01M51NCZD27JDPNS7R2B5AX7M5",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "cache_reuse": null,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "http_status": 200
+          }
+        ],
+        "status": "passed",
+        "seconds": 12.68
+      },
+      {
+        "case": "workspace-web-preparation",
+        "input": "帮我准备与安克创新采购王总讨论门店收银SaaS方案，目标确认三家门店试点。我们提供门店收银SaaS，时间与预算待定。先联网读取 https://www.anker-in.com/ 核实主要业务，再保存准备包。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [
+          {
+            "name": "read_source",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "search_materials",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "save_preparation",
+            "status": "done",
+            "error": null
+          }
+        ],
+        "answer": "准备包已保存，可以打开查看。",
+        "sources": [
+          {
+            "source_id": "research:dabfa2fd-3caf-47b6-84e6-81444ac97bf6",
+            "title": "Home - Anker Innovations",
+            "url": "https://www.anker-in.com/",
+            "reading_range": "page_excerpt",
+            "fetched_at": "2026-10-16T06:10:34.966588+00:00"
+          }
+        ],
+        "runs": [
+          {
+            "kind": "read",
+            "external_id": "01M51NAXPQC7A6VPVMCHWY99JN",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "cache_reuse": null,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "http_status": 200
+          }
+        ],
+        "saved_once": true,
+        "report_sections": 6,
+        "status": "passed",
+        "seconds": 89.46
+      },
+      {
+        "case": "reddit-feedback",
+        "input": "在Reddit搜索soundcore Liberty 4 NC用户反馈，简短总结两点并引用来源。如果正文不支持，直接说明只能基于摘要，不要反复尝试。无需公司数据库。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [
+          {
+            "name": "search_company",
+            "status": "done",
+            "error": null
+          }
+        ],
+        "answer": "说明一下结果：这次 Reddit 搜索没有返回针对 **Liberty 4 NC** 的具体用户反馈，返回的内容大多与这款产品无关（GTA 4、Dragon Age、iPhone、Final Fantasy 等）[2][3][4][5]。\n\n唯一与 Soundcore 相关的是 **Liberty 5 Pro** 的评测，而非 4 NC，且只是摘要片段，提到 Soundcore 长期以「旗舰级硬件、更低价格」切入市场、主打高性价比主动降噪 [1]。这不能等同于 Liberty 4 NC 的用户反馈。\n\n所以基于当前搜索摘要，我**无法总结出两点 Liberty 4 NC 的用户反馈**——搜索结果里没有这款产品的实际评论。Reddit 正文当前也不支持读取，我没有反复尝试，只拿到摘要层面。\n\n如果你想继续，我可以：\n- 换更具体的关键词再搜一次（比如加上「Liberty 4 NC」引号、或换 Google 搜测评）；\n- 或者你给我具体帖子链接，我尽量读正文。\n\n需要我换个方式再试一次吗？",
+        "sources": [
+          {
+            "source_id": "research:8b070763-48b1-449e-9fa2-0526840965ec",
+            "title": "My Soundcore Liberty 5 Pro Review",
+            "url": "https://www.reddit.com/r/soundcore/comments/1tpi8nw/my_soundcore_liberty_5_pro_review/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+          },
+          {
+            "source_id": "research:3d7464fe-0bf9-45f6-8add-7da7604355f8",
+            "title": "GTA 4 Native Port Review (Liberty Recompiled)",
+            "url": "https://www.reddit.com/r/AndroidNativePorts/comments/1x1igd1/gta_4_native_port_review_liberty_recompiled/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+          },
+          {
+            "source_id": "research:3ee2a5c4-4256-48f6-8626-4e1d3490fe2c",
+            "title": "Dragon Age 4: Veilguard has officially flopped and now BioWare and EA are in deep financial trouble. A user in /r/DragonAgeVeilguard identified the problem: CHUDs. A thread with 0 upvotes and 1000+ co",
+            "url": "https://www.reddit.com/r/SubredditDrama/comments/1ig1u5z/dragon_age_4_veilguard_has_officially_flopped_and/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+          },
+          {
+            "source_id": "research:4f0717c1-64fd-4f3e-92f8-711f490e9224",
+            "title": "4 months with my iPhone 15 Pro ( A review from a lifelong android user )",
+            "url": "https://www.reddit.com/r/iphone/comments/1izey59/4_months_with_my_iphone_15_pro_a_review_from_a/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+          },
+          {
+            "source_id": "research:1c172e10-5842-4920-a92b-cd557fdc4f1d",
+            "title": "Final Fantasy XVI's CCU peak ended up being 27,508 and ended up being the #4 biggest debut for Square Enix on Steam CCU wise and 3,2k Mostly Positive reviews so far. The game has been the second bigge",
+            "url": "https://www.reddit.com/r/Games/comments/1fmz6hq/final_fantasy_xvis_ccu_peak_ended_up_being_27508/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+          }
+        ],
+        "runs": [
+          {
+            "kind": "search",
+            "external_id": "01M51NDBPM3GVZDC5HFDTSNNDS",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "cache_reuse": null,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "http_status": 200
+          }
+        ],
+        "status": "passed",
+        "seconds": 17.28
+      },
+      {
+        "case": "video-agent",
+        "input": "读取 https://www.youtube.com/watch?v=OUrAxCvAA0Q 的英文字幕，总结评测里的两个缺点。必须依据字幕，不凭标题猜。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [
+          {
+            "name": "get_video_transcript",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "read_material_part",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "read_material_part",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "read_material_part",
+            "status": "done",
+            "error": null
+          }
+        ],
+        "answer": "读完了整段英文字幕，这段视频评测的是 Soundcore Liberty 4 NC 耳机。UP 主自己在总结 pros and cons 时明确说「really the biggest drawback there's two」（最大的缺点有两个）[4]：\n\n1. **音质（sound quality）——「nothing special」**\n   UP 主说音质平平，默认 EQ 低音过重、发闷（boomy、muddy），人声被淹没，高音缺乏细节和乐器分离度；即使换了他觉得稍好的智能测试 EQ，仍不够自然、不够清晰。对他来说这不是他最喜欢的耳机声音 [3][4]。\n\n2. **充电盒上的物理按钮（physical button on the case）**\n   UP 主明确说「有些人可能喜欢，但对我个人来说这是缺点」[4]。\n\n另外他还在前面顺带提了一个较小的弱点：**通透模式（transparency mode）不够通透**，听起来只有约 50% 的通透度，人声和周围声音不如他希望的那样清晰 [3]。但他在最终「两个最大缺点」的总结里，落在音质和充电盒物理按钮这两点上。",
+        "sources": [
+          {
+            "source_id": "research:16ee4da1-e1fb-4ca1-817f-b153e102e7a5",
+            "title": "What's The Catch? Great ANC, Great Features, but... (Soundcore Liberty 4 NC)",
+            "url": "https://www.youtube.com/watch?v=OUrAxCvAA0Q",
+            "reading_range": "video_transcript",
+            "fetched_at": "2026-10-16T06:12:02.808864+00:00"
+          },
+          {
+            "source_id": "research:16ee4da1-e1fb-4ca1-817f-b153e102e7a5",
+            "title": "What's The Catch? Great ANC, Great Features, but... (Soundcore Liberty 4 NC)",
+            "url": "https://www.youtube.com/watch?v=OUrAxCvAA0Q",
+            "reading_range": "source_excerpt",
+            "fetched_at": "2026-10-16T06:12:02.808864+00:00"
+          },
+          {
+            "source_id": "research:16ee4da1-e1fb-4ca1-817f-b153e102e7a5",
+            "title": "What's The Catch? Great ANC, Great Features, but... (Soundcore Liberty 4 NC)",
+            "url": "https://www.youtube.com/watch?v=OUrAxCvAA0Q",
+            "reading_range": "source_excerpt",
+            "fetched_at": "2026-10-16T06:12:02.808864+00:00"
+          },
+          {
+            "source_id": "research:16ee4da1-e1fb-4ca1-817f-b153e102e7a5",
+            "title": "What's The Catch? Great ANC, Great Features, but... (Soundcore Liberty 4 NC)",
+            "url": "https://www.youtube.com/watch?v=OUrAxCvAA0Q",
+            "reading_range": "source_excerpt",
+            "fetched_at": "2026-10-16T06:12:02.808864+00:00"
+          }
+        ],
+        "runs": [
+          {
+            "kind": "youtube",
+            "external_id": "01M51NDMCZ6ER1J9PC44S3BGVG",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "cache_reuse": null,
+            "billing": {},
+            "http_status": 200
+          }
+        ],
+        "status": "passed",
+        "seconds": 33.46
+      },
+      {
+        "case": "fresh-company-news",
+        "input": "请联网搜索安克创新最近一个月的业务动态，使用最新结果，列出两条有日期和来源的内容；核实不了日期就明确说明，不用公司数据库。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [
+          {
+            "name": "search_company",
+            "status": "done",
+            "error": null
+          },
+          {
+            "name": "search_company",
+            "status": "done",
+            "error": null
+          }
+        ],
+        "answer": "联网已返回结果，下面是最近一个月内两条日期和来源都明确的业务动态：\n\n**1. 安克联合飞书推出 AI 会议耳机**\n- 日期：2026 年 10 月 12 日\n- 内容：安克创新联合飞书推出 AI 会议耳机，官方售价 1799 元，行业首款原生搭载飞书 AI 的会议耳机（Thus™ AI 芯片驱动）。\n- 来源：PingWest（品玩）[2]\n\n**2. 广发证券研报：给予\"买入\"评级，储能接棒增长**\n- 日期：约 2026 年 10 月 15 日（检索时显示\"22 小时前\"）\n- 内容：广发证券研报指出，安克创新已从移动充电单品龙头，成长为覆盖充电储能、智能家居、智能影音三大业务的浅海多品类平台，\"储能接棒增长\"。\n- 来源：Moomoo（转载研报）[3]\n\n两条均在最近一个月（2026 年 9 月 16 日至 10 月 16 日）内，日期可核实。第 2 条为相对时间\"22 小时前\"换算，如果你需要精确到小时的发布日期，我可以进一步读取原文确认。",
+        "sources": [
+          {
+            "source_id": "research:650076f3-8895-4b76-b2de-566bea245a41",
+            "title": "安克创新(300866)_最新价格_行情_走势图—东方财富网",
+            "url": "https://quote.eastmoney.com/sz300866.html?jump_to_web=true",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+          },
+          {
+            "source_id": "research:f63bafeb-caae-4d77-a61c-f0892053588e",
+            "title": "安克联合飞书推出AI 会议耳机：Thus™ AI 芯片驱动，重构办公新体验",
+            "url": "https://www.pingwest.com/a/318273",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+          },
+          {
+            "source_id": "research:0232b79b-5190-4364-a7da-37081e1a6118",
+            "title": "研报掘金丨广发证券：予安克创新“买入”评级，储能接棒增长 - Moomoo",
+            "url": "https://www.moomoo.com/hans/news/post/1001274881",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+          },
+          {
+            "source_id": "research:9dd3d50b-1165-4a43-9513-e5ea912b1864",
+            "title": "在安克创新上班是一种怎样体验？安克创新内推 - 牛客网",
+            "url": "https://www.nowcoder.com/discuss/924428644934488064",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+          },
+          {
+            "source_id": "research:4f383a5e-c947-4c26-ac5a-af07db1383ba",
+            "title": "安克官宣首位品牌代言人张凌赫，共启聆听新体验 - IT之家",
+            "url": "https://www.ithome.com/1/003/503.htm",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+          },
+          {
+            "source_id": "research:83d82c85-6a92-45cf-8e1f-981ac157d3c5",
+            "title": "Anker 正在重新整理旗下產品版圖， 將五大品牌逐步整合 ... - Facebook",
+            "url": "https://www.facebook.com/MyTechDaily/posts/anker-%E6%AD%A3%E5%9C%A8%E9%87%8D%E6%96%B0%E6%95%B4%E7%90%86%E6%97%97%E4%B8%8B%E7%94%A2%E5%93%81%E7%89%88%E5%9C%96%E5%B0%87%E4%BA%94%E5%A4%A7%E5%93%81%E7%89%8C%E9%80%90%E6%AD%A5%E6%95%B4%E5%90%88%E5%88%B0anker%E9%80%99%E5%80%8B%E5%90%8D%E7%A8%B1%E4%B9%8B%E4%B8%8B%E4%BD%A0%E7%86%9F%E6%82%89%E7%9A%84-eufysoundcoresolix%E6%9C%AA%E4%BE%86%E6%8E%A8%E5%87%BA%E7%9A%84%E6%96%B0%E7%94%A2%E5%93%81%E4%B9%9F%E6%9C%83%E9%99%B8%E7%BA%8C%E6%94%B9%E7%94%A8-ank/1758180075287599/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+          },
+          {
+            "source_id": "research:e891fea7-9ee8-4da9-b776-3add5421fb9c",
+            "title": "Anker 強效筆電充電器優惠中行動辦公隨時滿電 - Yahoo股市",
+            "url": "https://tw.stock.yahoo.com/news/anker-%E5%BC%B7%E6%95%88%E7%AD%86%E9%9B%BB%E5%85%85%E9%9B%BB%E5%99%A8%E5%84%AA%E6%83%A0%E4%B8%AD-%E8%A1%8C%E5%8B%95%E8%BE%A6%E5%85%AC%E9%9A%A8%E6%99%82%E6%BB%BF%E9%9B%BB-005110327.html",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+          },
+          {
+            "source_id": "research:2ddb7e77-d473-4e0b-aca7-fca3cbd05c18",
+            "title": "Anker推限量版100W充電器整合智慧顯示與電池健康管理| 商傳媒",
+            "url": "https://today.line.me/tw/v3/article/8nMg5DM",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+          },
+          {
+            "source_id": "research:1c64ee35-e260-43bf-ac42-3be8e68feb01",
+            "title": "300亿的安克重仓AI音频，张凌赫代言",
+            "url": "https://www.52audio.com/archives/1790603205627.html",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+          },
+          {
+            "source_id": "research:340029ba-bcd3-4c6b-abd9-959cd7c1a658",
+            "title": "/C O R R E C T I O N - tm:rw/ - PR Newswire",
+            "url": "https://www.prnewswire.com/news-releases/tmrw-turns-its-times-square-flagship-into-ten-live-studios-shoppable-on-tiktok-shop-302899147.html",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+          }
+        ],
+        "runs": [
+          {
+            "kind": "search",
+            "external_id": "01M51NE3Y1EZ978QDWS57GM6MC",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "cache_reuse": null,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "http_status": 200
+          },
+          {
+            "kind": "search",
+            "external_id": "01M51NDZM82J9DWV2HED5NACFG",
+            "status": "COMPLETED",
+            "outcome": "content",
+            "cache_reuse": null,
+            "billing": {
+              "reportedCost": {
+                "currency": "USD",
+                "value": 1000,
+                "unit": "MICRO_DOLLAR"
+              }
+            },
+            "http_status": 200
+          }
+        ],
+        "status": "passed",
+        "seconds": 27.89
+      }
+    ]
+  },
+  "targeted_rerun": {
+    "synthetic_and_public_only": true,
+    "checks": [
+      {
+        "case": "greeting",
+        "input": "你好，今天有点紧张，用一句话安慰我。",
+        "task_status": "completed",
+        "task_error": null,
+        "steps": [],
+        "answer": "紧张说明你在乎这件事，也在认真对待它——这本身就是你已经准备好的证明。",
+        "sources": [],
+        "runs": [],
+        "status": "passed",
+        "seconds": 3.05
+      }
+    ]
+  },
+  "final_by_case": [
+    {
+      "case": "search-bing",
+      "item_count": 5,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51N9MN2HQ5KJ9C68Q6X1MCP",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 4.36
+    },
+    {
+      "case": "search-google",
+      "item_count": 5,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51N9MMJT7HF3VAK56G7WPMK",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 6.07
+    },
+    {
+      "case": "search-baidu",
+      "item_count": 5,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51N9MNJXS557VQ6SD0HXP4H",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 8.15
+    },
+    {
+      "case": "search-reddit",
+      "item_count": 5,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51N9RYHAPBNKF5SGYEKBKDC",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 5.59
+    },
+    {
+      "case": "search-youtube",
+      "item_count": 5,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51N9TG6WPXXD7V137BXWSPS",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 4.24
+    },
+    {
+      "case": "search-wechat",
+      "item_count": 5,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51N9WJ2WXG09BG8B8VFRP8P",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 5.3
+    },
+    {
+      "case": "read-fresh-official",
+      "item_count": 1,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51N9YK669G3MKSX6NE8YQP1",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 4.69
+    },
+    {
+      "case": "company-stripe",
+      "item_count": 1,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51NA1NJKSKRASV1EDHXVKG7",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 100000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 2.5
+    },
+    {
+      "case": "company-anker",
+      "item_count": 1,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51NA37HZ1Y5N2WPVYENGC69",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 100000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 2.67
+    },
+    {
+      "case": "company-empty-match",
+      "item_count": 0,
+      "provider_outcomes": [
+        {
+          "http_status": 404,
+          "outcome": "empty"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51NA43E801X6ER27AH6HF07",
+          "status": "COMPLETED",
+          "outcome": "empty",
+          "http_status": 404,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 0,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 2.08
+    },
+    {
+      "case": "search-bilibili",
+      "item_count": 5,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51N9YBJ1DPDZSY02MZEHB56",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "cost": null
+        }
+      ],
+      "seconds": 10.2
+    },
+    {
+      "case": "video-real-subtitles",
+      "item_count": 1,
+      "provider_outcomes": [
+        {
+          "http_status": 200,
+          "outcome": "content"
+        }
+      ],
+      "status": "passed",
+      "runs": [
+        {
+          "run_id": "01M51NA5SA2QP3N0CGSYP2YPR7",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "http_status": 200,
+          "billing": {},
+          "cost": {
+            "value": 0.005,
+            "currency": "USD"
+          }
+        }
+      ],
+      "seconds": 10.09
+    },
+    {
+      "case": "real-403-receipt-retained",
+      "status": "passed",
+      "run_id": "01M51NAFM8CCX0KM6BG60Q0K63",
+      "billing": {
+        "reportedCost": {
+          "currency": "USD",
+          "value": 0,
+          "unit": "MICRO_DOLLAR"
+        }
+      }
+    },
+    {
+      "case": "real-receipt-reconciliation",
+      "client_failure_injected": true,
+      "status": "passed",
+      "run_id": "01M51NAHRRJT1C7TSDHXVKV9NW",
+      "paid_posts": 1
+    },
+    {
+      "case": "home-web-preparation",
+      "input": "帮我准备与安克创新采购王总讨论门店收银SaaS方案，目标确认三家门店试点。我们提供门店收银SaaS，时间与预算待定，不需要再补问。先联网读取 https://www.anker-in.com/ 核实主要业务，再保存准备包。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [
+        {
+          "name": "read_source",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "search_memory",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "search_materials",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "save_preparation",
+          "status": "done",
+          "error": null
+        }
+      ],
+      "answer": "准备包已保存，可以打开查看。",
+      "sources": [
+        {
+          "source_id": "research:3df14130-d2f2-4424-b3d2-243a004077b1",
+          "title": "Home - Anker Innovations",
+          "url": "https://www.anker-in.com/",
+          "reading_range": "page_excerpt",
+          "fetched_at": "2026-10-16T06:10:35.056596+00:00"
+        }
+      ],
+      "runs": [
+        {
+          "kind": "read",
+          "external_id": "01M51NAXQF56NBH0HXNPN64EJW",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "cache_reuse": null,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "http_status": 200
+        }
+      ],
+      "saved_once": true,
+      "report_sections": 6,
+      "status": "passed",
+      "seconds": 27.89
+    },
+    {
+      "case": "home-offline-preparation",
+      "input": "不要联网。帮我准备与客户甲采购王总讨论门店收银SaaS，目标确认三家门店试点。时间预算未定，按已有信息保存准备包。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [
+        {
+          "name": "search_memory",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "search_materials",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "save_preparation",
+          "status": "done",
+          "error": null
+        }
+      ],
+      "answer": "准备包已保存，可以打开查看。",
+      "sources": [],
+      "runs": [],
+      "saved_once": true,
+      "report_sections": 6,
+      "status": "passed",
+      "seconds": 25.61
+    },
+    {
+      "case": "greeting",
+      "input": "你好，今天有点紧张，用一句话安慰我。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [],
+      "answer": "紧张说明你在乎这件事，也在认真对待它——这本身就是你已经准备好的证明。",
+      "sources": [],
+      "runs": [],
+      "status": "passed",
+      "seconds": 3.05
+    },
+    {
+      "case": "rewrite",
+      "input": "把“这个价格不能再降了”改得委婉，只改表达，不需要公司资料。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [],
+      "answer": "可以，几个说法供你挑：\n\n1. **先给原因，再说立场**  \n   \"这个价格已经是我们能做到的底线了，再往下空间确实很有限。\"\n\n2. **把「不能降」换成「给你争取过了」**  \n   \"价格这块我帮您尽量争取过了，目前这个数已经是最优的了。\"\n\n3. **突出价值对冲价格**  \n   \"价格上确实没有太多空间了，但这也是因为我们已经把该含的服务都含进去了。\"\n\n4. **留个台阶，避免把话说死**  \n   \"单看价格暂时没有调整空间，不过我们可以看看在交付节奏或服务内容上能不能帮您更省心。\"\n\n如果告诉我这是对客户、老板还是供应商说的，我可以再帮你调一下语气。",
+      "sources": [],
+      "runs": [],
+      "status": "passed",
+      "seconds": 10.14
+    },
+    {
+      "case": "single-url",
+      "input": "请读取 https://www.anker.com/about-us ，用三句话概括该页业务，附来源，不用额外搜索或公司数据库。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [
+        {
+          "name": "read_source",
+          "status": "done",
+          "error": null
+        }
+      ],
+      "answer": "根据该页面内容概括如下 [1]：\n\n1. Anker（母公司为 Anker Innovations）业务围绕充电与能源产品展开，旗下包含 Anker Charging、Anker SOLIX、eufy、eufyMake、soundcore 等多个品牌线 [1]。\n2. 页面重点展示其快充技术矩阵，包括 GaNPrime™ 2.0（140W 持续快充）、PowerIQ™ 5.0、ActiveShield™ 5.0 温控保护，以及 TurboBoost™ 充电底座回充技术 [1]。\n3. 同时强调设计导向与环保理念，如超薄保护膜、三合一无线充电器以及采用环保材料的绿色充电创新 [1]。\n\n来源：https://www.anker.com/about-us（实际获取日期 2026-10-16）[1]。",
+      "sources": [
+        {
+          "source_id": "research:0a67f847-5e6a-4d02-93e8-a00ade35d991",
+          "title": "Anker Innovations - Anker US",
+          "url": "https://www.anker.com/about-us",
+          "reading_range": "page_excerpt",
+          "fetched_at": "2026-10-16T06:11:42.097645+00:00"
+        }
+      ],
+      "runs": [
+        {
+          "kind": "read",
+          "external_id": "01M51NCZD27JDPNS7R2B5AX7M5",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "cache_reuse": null,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "http_status": 200
+        }
+      ],
+      "status": "passed",
+      "seconds": 12.68
+    },
+    {
+      "case": "workspace-web-preparation",
+      "input": "帮我准备与安克创新采购王总讨论门店收银SaaS方案，目标确认三家门店试点。我们提供门店收银SaaS，时间与预算待定。先联网读取 https://www.anker-in.com/ 核实主要业务，再保存准备包。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [
+        {
+          "name": "read_source",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "search_materials",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "save_preparation",
+          "status": "done",
+          "error": null
+        }
+      ],
+      "answer": "准备包已保存，可以打开查看。",
+      "sources": [
+        {
+          "source_id": "research:dabfa2fd-3caf-47b6-84e6-81444ac97bf6",
+          "title": "Home - Anker Innovations",
+          "url": "https://www.anker-in.com/",
+          "reading_range": "page_excerpt",
+          "fetched_at": "2026-10-16T06:10:34.966588+00:00"
+        }
+      ],
+      "runs": [
+        {
+          "kind": "read",
+          "external_id": "01M51NAXPQC7A6VPVMCHWY99JN",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "cache_reuse": null,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "http_status": 200
+        }
+      ],
+      "saved_once": true,
+      "report_sections": 6,
+      "status": "passed",
+      "seconds": 89.46
+    },
+    {
+      "case": "reddit-feedback",
+      "input": "在Reddit搜索soundcore Liberty 4 NC用户反馈，简短总结两点并引用来源。如果正文不支持，直接说明只能基于摘要，不要反复尝试。无需公司数据库。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [
+        {
+          "name": "search_company",
+          "status": "done",
+          "error": null
+        }
+      ],
+      "answer": "说明一下结果：这次 Reddit 搜索没有返回针对 **Liberty 4 NC** 的具体用户反馈，返回的内容大多与这款产品无关（GTA 4、Dragon Age、iPhone、Final Fantasy 等）[2][3][4][5]。\n\n唯一与 Soundcore 相关的是 **Liberty 5 Pro** 的评测，而非 4 NC，且只是摘要片段，提到 Soundcore 长期以「旗舰级硬件、更低价格」切入市场、主打高性价比主动降噪 [1]。这不能等同于 Liberty 4 NC 的用户反馈。\n\n所以基于当前搜索摘要，我**无法总结出两点 Liberty 4 NC 的用户反馈**——搜索结果里没有这款产品的实际评论。Reddit 正文当前也不支持读取，我没有反复尝试，只拿到摘要层面。\n\n如果你想继续，我可以：\n- 换更具体的关键词再搜一次（比如加上「Liberty 4 NC」引号、或换 Google 搜测评）；\n- 或者你给我具体帖子链接，我尽量读正文。\n\n需要我换个方式再试一次吗？",
+      "sources": [
+        {
+          "source_id": "research:8b070763-48b1-449e-9fa2-0526840965ec",
+          "title": "My Soundcore Liberty 5 Pro Review",
+          "url": "https://www.reddit.com/r/soundcore/comments/1tpi8nw/my_soundcore_liberty_5_pro_review/",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+        },
+        {
+          "source_id": "research:3d7464fe-0bf9-45f6-8add-7da7604355f8",
+          "title": "GTA 4 Native Port Review (Liberty Recompiled)",
+          "url": "https://www.reddit.com/r/AndroidNativePorts/comments/1x1igd1/gta_4_native_port_review_liberty_recompiled/",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+        },
+        {
+          "source_id": "research:3ee2a5c4-4256-48f6-8626-4e1d3490fe2c",
+          "title": "Dragon Age 4: Veilguard has officially flopped and now BioWare and EA are in deep financial trouble. A user in /r/DragonAgeVeilguard identified the problem: CHUDs. A thread with 0 upvotes and 1000+ co",
+          "url": "https://www.reddit.com/r/SubredditDrama/comments/1ig1u5z/dragon_age_4_veilguard_has_officially_flopped_and/",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+        },
+        {
+          "source_id": "research:4f0717c1-64fd-4f3e-92f8-711f490e9224",
+          "title": "4 months with my iPhone 15 Pro ( A review from a lifelong android user )",
+          "url": "https://www.reddit.com/r/iphone/comments/1izey59/4_months_with_my_iphone_15_pro_a_review_from_a/",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+        },
+        {
+          "source_id": "research:1c172e10-5842-4920-a92b-cd557fdc4f1d",
+          "title": "Final Fantasy XVI's CCU peak ended up being 27,508 and ended up being the #4 biggest debut for Square Enix on Steam CCU wise and 3,2k Mostly Positive reviews so far. The game has been the second bigge",
+          "url": "https://www.reddit.com/r/Games/comments/1fmz6hq/final_fantasy_xvis_ccu_peak_ended_up_being_27508/",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:11:54.707339+00:00"
+        }
+      ],
+      "runs": [
+        {
+          "kind": "search",
+          "external_id": "01M51NDBPM3GVZDC5HFDTSNNDS",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "cache_reuse": null,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "http_status": 200
+        }
+      ],
+      "status": "passed",
+      "seconds": 17.28
+    },
+    {
+      "case": "video-agent",
+      "input": "读取 https://www.youtube.com/watch?v=OUrAxCvAA0Q 的英文字幕，总结评测里的两个缺点。必须依据字幕，不凭标题猜。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [
+        {
+          "name": "get_video_transcript",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "read_material_part",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "read_material_part",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "read_material_part",
+          "status": "done",
+          "error": null
+        }
+      ],
+      "answer": "读完了整段英文字幕，这段视频评测的是 Soundcore Liberty 4 NC 耳机。UP 主自己在总结 pros and cons 时明确说「really the biggest drawback there's two」（最大的缺点有两个）[4]：\n\n1. **音质（sound quality）——「nothing special」**\n   UP 主说音质平平，默认 EQ 低音过重、发闷（boomy、muddy），人声被淹没，高音缺乏细节和乐器分离度；即使换了他觉得稍好的智能测试 EQ，仍不够自然、不够清晰。对他来说这不是他最喜欢的耳机声音 [3][4]。\n\n2. **充电盒上的物理按钮（physical button on the case）**\n   UP 主明确说「有些人可能喜欢，但对我个人来说这是缺点」[4]。\n\n另外他还在前面顺带提了一个较小的弱点：**通透模式（transparency mode）不够通透**，听起来只有约 50% 的通透度，人声和周围声音不如他希望的那样清晰 [3]。但他在最终「两个最大缺点」的总结里，落在音质和充电盒物理按钮这两点上。",
+      "sources": [
+        {
+          "source_id": "research:16ee4da1-e1fb-4ca1-817f-b153e102e7a5",
+          "title": "What's The Catch? Great ANC, Great Features, but... (Soundcore Liberty 4 NC)",
+          "url": "https://www.youtube.com/watch?v=OUrAxCvAA0Q",
+          "reading_range": "video_transcript",
+          "fetched_at": "2026-10-16T06:12:02.808864+00:00"
+        },
+        {
+          "source_id": "research:16ee4da1-e1fb-4ca1-817f-b153e102e7a5",
+          "title": "What's The Catch? Great ANC, Great Features, but... (Soundcore Liberty 4 NC)",
+          "url": "https://www.youtube.com/watch?v=OUrAxCvAA0Q",
+          "reading_range": "source_excerpt",
+          "fetched_at": "2026-10-16T06:12:02.808864+00:00"
+        },
+        {
+          "source_id": "research:16ee4da1-e1fb-4ca1-817f-b153e102e7a5",
+          "title": "What's The Catch? Great ANC, Great Features, but... (Soundcore Liberty 4 NC)",
+          "url": "https://www.youtube.com/watch?v=OUrAxCvAA0Q",
+          "reading_range": "source_excerpt",
+          "fetched_at": "2026-10-16T06:12:02.808864+00:00"
+        },
+        {
+          "source_id": "research:16ee4da1-e1fb-4ca1-817f-b153e102e7a5",
+          "title": "What's The Catch? Great ANC, Great Features, but... (Soundcore Liberty 4 NC)",
+          "url": "https://www.youtube.com/watch?v=OUrAxCvAA0Q",
+          "reading_range": "source_excerpt",
+          "fetched_at": "2026-10-16T06:12:02.808864+00:00"
+        }
+      ],
+      "runs": [
+        {
+          "kind": "youtube",
+          "external_id": "01M51NDMCZ6ER1J9PC44S3BGVG",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "cache_reuse": null,
+          "billing": {},
+          "http_status": 200
+        }
+      ],
+      "status": "passed",
+      "seconds": 33.46
+    },
+    {
+      "case": "fresh-company-news",
+      "input": "请联网搜索安克创新最近一个月的业务动态，使用最新结果，列出两条有日期和来源的内容；核实不了日期就明确说明，不用公司数据库。",
+      "task_status": "completed",
+      "task_error": null,
+      "steps": [
+        {
+          "name": "search_company",
+          "status": "done",
+          "error": null
+        },
+        {
+          "name": "search_company",
+          "status": "done",
+          "error": null
+        }
+      ],
+      "answer": "联网已返回结果，下面是最近一个月内两条日期和来源都明确的业务动态：\n\n**1. 安克联合飞书推出 AI 会议耳机**\n- 日期：2026 年 10 月 12 日\n- 内容：安克创新联合飞书推出 AI 会议耳机，官方售价 1799 元，行业首款原生搭载飞书 AI 的会议耳机（Thus™ AI 芯片驱动）。\n- 来源：PingWest（品玩）[2]\n\n**2. 广发证券研报：给予\"买入\"评级，储能接棒增长**\n- 日期：约 2026 年 10 月 15 日（检索时显示\"22 小时前\"）\n- 内容：广发证券研报指出，安克创新已从移动充电单品龙头，成长为覆盖充电储能、智能家居、智能影音三大业务的浅海多品类平台，\"储能接棒增长\"。\n- 来源：Moomoo（转载研报）[3]\n\n两条均在最近一个月（2026 年 9 月 16 日至 10 月 16 日）内，日期可核实。第 2 条为相对时间\"22 小时前\"换算，如果你需要精确到小时的发布日期，我可以进一步读取原文确认。",
+      "sources": [
+        {
+          "source_id": "research:650076f3-8895-4b76-b2de-566bea245a41",
+          "title": "安克创新(300866)_最新价格_行情_走势图—东方财富网",
+          "url": "https://quote.eastmoney.com/sz300866.html?jump_to_web=true",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+        },
+        {
+          "source_id": "research:f63bafeb-caae-4d77-a61c-f0892053588e",
+          "title": "安克联合飞书推出AI 会议耳机：Thus™ AI 芯片驱动，重构办公新体验",
+          "url": "https://www.pingwest.com/a/318273",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+        },
+        {
+          "source_id": "research:0232b79b-5190-4364-a7da-37081e1a6118",
+          "title": "研报掘金丨广发证券：予安克创新“买入”评级，储能接棒增长 - Moomoo",
+          "url": "https://www.moomoo.com/hans/news/post/1001274881",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+        },
+        {
+          "source_id": "research:9dd3d50b-1165-4a43-9513-e5ea912b1864",
+          "title": "在安克创新上班是一种怎样体验？安克创新内推 - 牛客网",
+          "url": "https://www.nowcoder.com/discuss/924428644934488064",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+        },
+        {
+          "source_id": "research:4f383a5e-c947-4c26-ac5a-af07db1383ba",
+          "title": "安克官宣首位品牌代言人张凌赫，共启聆听新体验 - IT之家",
+          "url": "https://www.ithome.com/1/003/503.htm",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:12.867070+00:00"
+        },
+        {
+          "source_id": "research:83d82c85-6a92-45cf-8e1f-981ac157d3c5",
+          "title": "Anker 正在重新整理旗下產品版圖， 將五大品牌逐步整合 ... - Facebook",
+          "url": "https://www.facebook.com/MyTechDaily/posts/anker-%E6%AD%A3%E5%9C%A8%E9%87%8D%E6%96%B0%E6%95%B4%E7%90%86%E6%97%97%E4%B8%8B%E7%94%A2%E5%93%81%E7%89%88%E5%9C%96%E5%B0%87%E4%BA%94%E5%A4%A7%E5%93%81%E7%89%8C%E9%80%90%E6%AD%A5%E6%95%B4%E5%90%88%E5%88%B0anker%E9%80%99%E5%80%8B%E5%90%8D%E7%A8%B1%E4%B9%8B%E4%B8%8B%E4%BD%A0%E7%86%9F%E6%82%89%E7%9A%84-eufysoundcoresolix%E6%9C%AA%E4%BE%86%E6%8E%A8%E5%87%BA%E7%9A%84%E6%96%B0%E7%94%A2%E5%93%81%E4%B9%9F%E6%9C%83%E9%99%B8%E7%BA%8C%E6%94%B9%E7%94%A8-ank/1758180075287599/",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+        },
+        {
+          "source_id": "research:e891fea7-9ee8-4da9-b776-3add5421fb9c",
+          "title": "Anker 強效筆電充電器優惠中行動辦公隨時滿電 - Yahoo股市",
+          "url": "https://tw.stock.yahoo.com/news/anker-%E5%BC%B7%E6%95%88%E7%AD%86%E9%9B%BB%E5%85%85%E9%9B%BB%E5%99%A8%E5%84%AA%E6%83%A0%E4%B8%AD-%E8%A1%8C%E5%8B%95%E8%BE%A6%E5%85%AC%E9%9A%A8%E6%99%82%E6%BB%BF%E9%9B%BB-005110327.html",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+        },
+        {
+          "source_id": "research:2ddb7e77-d473-4e0b-aca7-fca3cbd05c18",
+          "title": "Anker推限量版100W充電器整合智慧顯示與電池健康管理| 商傳媒",
+          "url": "https://today.line.me/tw/v3/article/8nMg5DM",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+        },
+        {
+          "source_id": "research:1c64ee35-e260-43bf-ac42-3be8e68feb01",
+          "title": "300亿的安克重仓AI音频，张凌赫代言",
+          "url": "https://www.52audio.com/archives/1790603205627.html",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+        },
+        {
+          "source_id": "research:340029ba-bcd3-4c6b-abd9-959cd7c1a658",
+          "title": "/C O R R E C T I O N - tm:rw/ - PR Newswire",
+          "url": "https://www.prnewswire.com/news-releases/tmrw-turns-its-times-square-flagship-into-ten-live-studios-shoppable-on-tiktok-shop-302899147.html",
+          "reading_range": "search_snippet",
+          "fetched_at": "2026-10-16T06:12:19.463231+00:00"
+        }
+      ],
+      "runs": [
+        {
+          "kind": "search",
+          "external_id": "01M51NE3Y1EZ978QDWS57GM6MC",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "cache_reuse": null,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "http_status": 200
+        },
+        {
+          "kind": "search",
+          "external_id": "01M51NDZM82J9DWV2HED5NACFG",
+          "status": "COMPLETED",
+          "outcome": "content",
+          "cache_reuse": null,
+          "billing": {
+            "reportedCost": {
+              "currency": "USD",
+              "value": 1000,
+              "unit": "MICRO_DOLLAR"
+            }
+          },
+          "http_status": 200
+        }
+      ],
+      "status": "passed",
+      "seconds": 27.89
+    }
+  ],
+  "cloud": {
+    "base": "https://47.129.137.212",
+    "synthetic_only": true,
+    "cases": [
+      {
+        "case": "workspace-web-preparation",
+        "input": "帮我准备与安克创新采购王总讨论门店收银SaaS方案，目标确认三家门店试点。我们提供门店收银SaaS，时间预算待定。先联网读取 https://www.anker-in.com/ 核实主要业务再保存准备包。无需额外公司数据库。",
+        "task_status": "completed",
+        "error": null,
+        "steps": [
+          {
+            "id": "903ba9c4-e602-4895-af92-64396cab8134",
+            "name": "read_source",
+            "title": "读取公开正文",
+            "status": "done",
+            "count": 1
+          },
+          {
+            "id": "31b57388-6c28-40c4-ab71-803ca582e098",
+            "name": "search_materials",
+            "title": "读取相关资料",
+            "status": "done",
+            "count": 0
+          },
+          {
+            "id": "72dd549b-1cea-48f4-88b0-2b9019bdc1c0",
+            "name": "search_memory",
+            "title": "查找相关记忆",
+            "status": "done",
+            "count": 0
+          },
+          {
+            "id": "61b9283c-3941-4a5a-bd4b-8211c131ba63",
+            "name": "save_preparation",
+            "title": "保存会前准备包",
+            "status": "done",
+            "count": 0
+          }
+        ],
+        "answer": "准备包已保存，可以打开查看。",
+        "sources": [
+          {
+            "source_id": "research:c19835ba-7f68-4276-9282-4e575c9fc640",
+            "title": "Home - Anker Innovations",
+            "url": "https://www.anker-in.com/",
+            "reading_range": "page_excerpt",
+            "fetched_at": "2026-10-16T06:12:12.816143+00:00"
+          }
+        ],
+        "saved_once": true,
+        "same_home_and_chat_id": true,
+        "sections": 6,
+        "status": "passed",
+        "cleanup_status": 410,
+        "seconds": 33.49
+      },
+      {
+        "case": "home-offline-preparation",
+        "input": "不要联网，帮我准备和客户甲采购王总讨论门店收银SaaS，目标确认三家门店试点。时间预算待定，只用这些信息保存准备包。",
+        "task_status": "completed",
+        "error": null,
+        "steps": [
+          {
+            "id": "c9572a44-4f61-4ea5-9f62-519a57af7541",
+            "name": "search_materials",
+            "title": "读取相关资料",
+            "status": "done",
+            "count": 0
+          },
+          {
+            "id": "9eb081bc-2eb9-4e51-a3a9-168920f6ca61",
+            "name": "search_memory",
+            "title": "查找相关记忆",
+            "status": "done",
+            "count": 0
+          },
+          {
+            "id": "e40f2626-72dc-4d8c-996f-1710714e5dde",
+            "name": "save_preparation",
+            "title": "保存会前准备包",
+            "status": "done",
+            "count": 0
+          }
+        ],
+        "answer": "准备包已保存，可以打开查看。",
+        "sources": [],
+        "saved_once": true,
+        "same_home_and_chat_id": true,
+        "sections": 6,
+        "status": "passed",
+        "cleanup_status": 410,
+        "seconds": 27.26
+      },
+      {
+        "case": "reddit-honest-fallback",
+        "input": "在Reddit搜索soundcore Liberty 4 NC的用户反馈，简短总结两点并引用来源。正文不支持就只用搜索摘要并说明，别反复抓取，无需公司数据库。",
+        "task_status": "completed",
+        "error": null,
+        "steps": [
+          {
+            "id": "2c9e3429-6f08-4b9a-a521-812ac2a47fc3",
+            "name": "search_company",
+            "title": "搜索公司资料",
+            "status": "done",
+            "count": 5
+          }
+        ],
+        "answer": "Reddit 正文无法读取，以下只基于搜索摘要（非完整帖子或评论）：\n\n1. **双设备连接/触控有可用性问题**：有用户反映 Liberty 4 NC 存在双设备播放循环、触控传感器异常等体验问题，并称更像是使用层面的毛病而非硬件问题 [1]。\n2. **音质与降噪获认可，但原装耳塞有抱怨**：有人对比 Liberty 3 Pro 后认为 4 NC 声音更均衡、ANC 更强，但原装耳塞戴得不舒服，需另找替换方案 [3]。\n\n来源：[1] r/soundcore 双设备与触控问题帖；[3] r/anker 耳塞替换帖。均仅为搜索摘要，未读取完整正文或评论。",
+        "sources": [
+          {
+            "source_id": "research:ae8e3565-4328-45bd-a443-f1f93e1b8281",
+            "title": "Soundcore Liberty 4 NC – Dual Device & Touch Sensor Weirdness (And Some Ideas to Fix)",
+            "url": "https://www.reddit.com/r/soundcore/comments/1pcb6m1/soundcore_liberty_4_nc_dual_device_touch_sensor/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:13:11.474171+00:00"
+          },
+          {
+            "source_id": "research:76a914b6-bd4d-4a34-be94-915ba912cd0d",
+            "title": "Was wondering if the soundcore liberty 4 NC is still worth it in 2026 / is there options that I might consider looking at?",
+            "url": "https://www.reddit.com/r/soundcore/comments/1sjp2j8/was_wondering_if_the_soundcore_liberty_4_nc_is/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:13:11.474171+00:00"
+          },
+          {
+            "source_id": "research:ff04d283-5cc5-4d3a-b19d-369093a5d0a9",
+            "title": "Liberty 4 NC Ear Tips Solution",
+            "url": "https://www.reddit.com/r/anker/comments/15f45ox/liberty_4_nc_ear_tips_solution/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:13:11.474171+00:00"
+          },
+          {
+            "source_id": "research:ffd0658f-0aac-4646-857c-c0372b2f9ec0",
+            "title": "Best College Football Home Records Since 2020: Georgia 22-0 || Alabama 25-1 || Oregon 21-1 || Clemson 24-2 || Ohio St. 22-2 || Utah 20-2 || Oklahoma St. 23-3 || UTSA 23-3 || Michigan 22-3 || Oklahoma ",
+            "url": "https://www.reddit.com/r/CFB/comments/1akpu5d/best_college_football_home_records_since_2020/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:13:11.474171+00:00"
+          },
+          {
+            "source_id": "research:b67a0d3b-82de-409e-b868-cdfc3ad4493f",
+            "title": "Help me Decide : Liberty 4 nc or Cmf bud pro 2",
+            "url": "https://www.reddit.com/r/Earbuds/comments/1vwxsmy/help_me_decide_liberty_4_nc_or_cmf_bud_pro_2/",
+            "reading_range": "search_snippet",
+            "fetched_at": "2026-10-16T06:13:11.474171+00:00"
+          }
+        ],
+        "status": "passed",
+        "cleanup_status": 410,
+        "seconds": 20.73
+      },
+      {
+        "case": "home-web-preparation",
+        "input": "帮我准备与安克创新采购王总讨论门店收银SaaS方案，目标确认三家门店试点。我们提供门店收银SaaS，时间预算待定。先联网读取 https://www.anker-in.com/ 核实主要业务再保存准备包。无需额外公司数据库。",
+        "task_status": "completed",
+        "error": null,
+        "steps": [
+          {
+            "id": "0c7657e1-f438-4665-8498-c935c7d95520",
+            "name": "read_source",
+            "title": "读取公开正文",
+            "status": "done",
+            "count": 1
+          },
+          {
+            "id": "3e85aec8-1a97-4146-8fc0-68406e6aaf76",
+            "name": "search_materials",
+            "title": "读取相关资料",
+            "status": "done",
+            "count": 0
+          },
+          {
+            "id": "df997a8f-cf19-483c-a976-d37bbd6ec429",
+            "name": "search_memory",
+            "title": "查找相关记忆",
+            "status": "done",
+            "count": 0
+          },
+          {
+            "id": "8cf2c1a9-d340-4f56-9bd0-8b0de2ec69a4",
+            "name": "save_preparation",
+            "title": "保存会前准备包",
+            "status": "done",
+            "count": 0
+          }
+        ],
+        "answer": "准备包已保存，可以打开查看。",
+        "sources": [
+          {
+            "source_id": "research:10e54fbd-acdd-43c5-8160-43b1dcf95933",
+            "title": "Home - Anker Innovations",
+            "url": "https://www.anker-in.com/",
+            "reading_range": "page_excerpt",
+            "fetched_at": "2026-10-16T06:13:11.399493+00:00"
+          }
+        ],
+        "saved_once": true,
+        "same_home_and_chat_id": true,
+        "sections": 6,
+        "status": "passed",
+        "cleanup_status": 410,
+        "seconds": 97.42
+      }
+    ]
+  },
+  "offline_regression": {
+    "passed": 220,
+    "warnings": 2,
+    "provider_boundaries": "controlled HTTP/model responses in unit regressions"
+  },
+  "earlier_iteration_failures": [
+    {
+      "case": "search-baidu",
+      "observation": "HTTP 200 with empty results for 安克创新 官网; not counted passed. A different normal query returned content in final acceptance."
+    }
+  ],
+  "deployment": {
+    "release": "/opt/candid/releases/20261016-monid-recovery",
+    "source_files": 16,
+    "service": "active",
+    "health": "ok",
+    "sqlite_backup": "/var/backups/candid-before-monid-recovery.sqlite3"
+  }
+}

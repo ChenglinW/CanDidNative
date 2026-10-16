@@ -3,6 +3,7 @@ from pydantic import BaseModel,ConfigDict,Field
 from companion import Companion
 from agent_runtime.tools import ToolSpec,ToolResult
 from memory import Fault
+from agent_runtime.research_policy import require_preparation_research
 
 class Section(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -36,6 +37,7 @@ def register_companion_tools(registry,store):
         known={s['source_id']:s for s in sources}
         if any(s not in known for s in args['source_ids']): raise Fault('SOURCE_UNAVAILABLE','准备依据尚未读取',409)
         refs=[{'source_id':s,'source_version':known[s]['source_version']} for s in args['source_ids']]
+        require_preparation_research(store,context,refs)
         data={k:v for k,v in args.items() if k not in {'source_ids','user_quote','time_quote'}}
         if not args['time_quote'] or args['time_quote'] not in user: data['scheduled_at']=None
         # Only names explicitly present in this user's conversation become meeting metadata.
@@ -52,5 +54,5 @@ def register_companion_tools(registry,store):
         tasks.update(context.owner_id,context.task_id,{'preparation_stage':'ready'})
         return ToolResult('ok',{'preparation_package_id':pack['id'],'version':pack['version'],'saved':True,'note':'Chat卡片与首页已同步，不再重复生成准备包。'})
     registry.register(ToolSpec('save_preparation','保存会前准备包',
-        '用户准备销售沟通或面试时，先检索资料；从对话补齐对象和目标。时间、顾虑可未知，不强制追问。生成至少目标、对象背景、提纲、关键问题、表达建议和待核实事项等章节；有实际来源的事实需引用已读取source_ids，建议和未知项需明确区分。保存后会自动发布Chat卡片及首页同一准备包。准备意图由服务端绑定，user_quote可留空。日期含时区且time_quote为实际用户时间原话；对象和目标确实未知时先调用request_input，不能编造对象或目标。',
-        Preparation,prepare,frozenset({'chat','communication_prep'}),mutates_data=True))
+        '用户准备销售沟通或面试时，先检索资料；明确要求联网或核实官网时先取得对应真实来源并加入source_ids，之后才保存；从对话补齐对象和目标。时间、顾虑可未知，不强制追问。生成至少目标、对象背景、提纲、关键问题、表达建议和待核实事项等章节；有实际来源的事实需引用已读取source_ids，建议和未知项需明确区分。保存后会自动发布Chat卡片及首页同一准备包。准备意图由服务端绑定，user_quote可留空。日期含时区且time_quote为实际用户时间原话；对象和目标确实未知时先调用request_input，不能编造对象或目标。',
+        Preparation,prepare,frozenset({'chat','communication_prep','company_research'}),mutates_data=True))

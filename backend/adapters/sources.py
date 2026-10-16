@@ -44,6 +44,7 @@ def state_of(row):
 
 
 def source(kind, row, *, reading_range='snippet', limit=2200):
+    if kind=='research' and row.get('reading_range')=='search_snippet':reading_range='search_snippet'
     sid = kind + ':' + row['id']
     v = version(row)
     trust = 'CONFIRMED' if row.get('trust') == L3 else 'INFERRED' if row.get('trust') == L2 else 'EVIDENCE'
