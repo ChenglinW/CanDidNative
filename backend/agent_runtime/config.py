@@ -13,6 +13,15 @@ def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
+UNBOUNDED_FIELDS = {'max_rounds', 'max_calls_per_round', 'max_tool_calls', 'timeout_seconds'}
+
+
+def budget_min(value, ceiling):
+    if value is None:return ceiling
+    if ceiling is None:return value
+    return min(value, ceiling)
+
+
 def public_endpoint(url):
     parts = urlsplit(url)
     host = parts.hostname or ''
@@ -25,16 +34,16 @@ def public_endpoint(url):
 
 @dataclass(frozen=True)
 class Budget:
-    max_rounds: int
-    max_calls_per_round: int
-    max_tool_calls: int
+    max_rounds: int | None
+    max_calls_per_round: int | None
+    max_tool_calls: int | None
     max_input_chars: int
     history_messages: int
     history_chars: int
     occasion_chars: int
     max_context_chars: int
     max_tool_result_chars: int
-    timeout_seconds: int
+    timeout_seconds: int | None
     model_timeout_seconds: int
     tool_timeout_seconds: int
     context_rules_chars: int = 6000
@@ -49,7 +58,7 @@ class Budget:
     summary_max_tokens: int = 4096
 
     def __post_init__(self):
-        if any(type(v) is not int or v < 1 for v in asdict(self).values()):
+        if any(not (v is None and k in UNBOUNDED_FIELDS) and (type(v) is not int or v < 1) for k,v in asdict(self).items()):
             raise Fault('AGENT_CONFIG_INVALID', 'Agent 预算必须是正整数', 503)
 
 
@@ -96,11 +105,11 @@ class RuntimeConfig:
             raw = json.loads(self.path.read_text('utf8'))
             self.version = raw['version']
             self.profiles = {name: Budget(**value) for name, value in raw['profiles'].items()}
-            # This envelope applies to the whole task, including Skill switches and resumes.
+            # Context/request bounds survive Skill switches. Null counters/time mean unlimited execution.
             limits = raw.get('task_limits', {})
             if not set(limits) <= {'max_rounds', 'max_tool_calls', 'timeout_seconds'}:
                 raise ValueError('Invalid task limits')
-            envelope = {key: max(asdict(profile)[key] for profile in self.profiles.values())
+            envelope = {key: (None if any(asdict(p)[key] is None for p in self.profiles.values()) else max(asdict(p)[key] for p in self.profiles.values()))
                         for key in asdict(self.profiles['chat'])}
             self.task_budget = Budget(**(envelope | limits))
             self.digest = fingerprint(raw)
@@ -120,5 +129,5 @@ class RuntimeConfig:
         if kind not in self.profiles:
             raise Fault('AGENT_TASK_UNSUPPORTED', '该任务类型尚未配置', 422)
         ceiling = asdict(self.task_budget)
-        return Budget(**{key: min(value, ceiling[key])
+        return Budget(**{key: budget_min(value, ceiling[key])
                          for key, value in asdict(self.profiles[kind]).items()})

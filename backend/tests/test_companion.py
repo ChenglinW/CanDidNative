@@ -273,7 +273,7 @@ def test_preparation_cannot_finish_with_only_unsaved_model_prose(domain):
             if state['status'] not in {'queued','running'}:break
             time.sleep(.02)
         assert state['status']=='completed',state.get('error')
-        assert gateway.calls>=3 and domain.snapshot(A)['next_preparation']
+        assert gateway.calls>=2 and domain.snapshot(A)['next_preparation']
         assert len(domain.store.rows('chat_messages',A,preparation_package_id=domain.snapshot(A)['next_preparation']['id']))==1
     finally:agent.close()
 
@@ -387,8 +387,10 @@ def test_preparation_participants_only_use_explicit_user_names(domain):
     registry=Registry();register_companion_tools(registry,domain.store)
     thread=domain.thread(A)
     user='帮我准备王总（采购）和李工（IT）的沟通，目标确认服务范围。'
-    domain.store.put('chat_messages',A,{'thread_id':thread['id'],'role':'user','content':user,'sources':[],'tool_steps':[]},L1)
-    ctx=SimpleNamespace(owner_id=A,thread_id=thread['id'],task_id='participants-test',remaining=lambda:10)
+    from tasks.store import TaskStore
+    tasks=TaskStore(domain.store);task,_=tasks.enqueue(A,thread['id'],ident(),user,{})
+    tasks.start(A,task['id'],1)
+    ctx=SimpleNamespace(owner_id=A,thread_id=thread['id'],task_id=task['id'],attempt=1,remaining=lambda:10)
     args=Preparation(**{**pack(),'user_quote':user,'participants':['王总（采购）','李工（IT）','虚构联系人']}).model_dump()
     result=registry.spec.handler(ctx,args,[])
     saved=domain.store.get('companion_preparations',A,result.data['preparation_package_id'])

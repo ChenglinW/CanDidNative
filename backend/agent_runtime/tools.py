@@ -86,8 +86,9 @@ class ToolRegistry:
             return ToolResult.failure('TOOL_FORBIDDEN', '当前任务不能使用这个工具')
         try:
             args = spec.input_model.model_validate(arguments).model_dump(exclude_none=True)
-        except ValidationError:
-            return ToolResult.failure('TOOL_ARGUMENTS_INVALID', '工具参数类型或字段不正确')
+        except ValidationError as exc:
+            fields=', '.join('.'.join(map(str,e['loc']))+':'+e['type'] for e in exc.errors(include_input=False,include_url=False))
+            return ToolResult.failure('TOOL_ARGUMENTS_INVALID', '工具参数需要修正：'+fields[:1000], True)
         timeout = min(spec.timeout_seconds, context.budget.tool_timeout_seconds, context.remaining())
         # The worker receives its own source list. Timed-out calls cannot change the answer's sources.
         collected = json.loads(json.dumps(sources, ensure_ascii=False))
@@ -128,6 +129,8 @@ class ToolRegistry:
             if exc.code in {'MEMORY_DELETED', 'AGENT_CANCELLED', 'AGENT_TIMEOUT'}:
                 future.cancel()
                 raise
+            if exc.code in {'USER_INTENT_REQUIRED','SOURCE_UNAVAILABLE','SOURCE_SUPERSEDED','DATE_INVALID','WORKSPACE_ARCHIVED','VERSION_CONFLICT'}:
+                return ToolResult.failure(exc.code,exc.message,True)
             return ToolResult.failure('TOOL_DATA_UNAVAILABLE', '未找到可访问的资料', exc.status >= 500)
         except Exception:
             # Provider responses, user content and exception repr never enter model-visible errors.

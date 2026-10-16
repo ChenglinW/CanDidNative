@@ -1,0 +1,14 @@
+{
+  "base": "https://47.129.137.212",
+  "synthetic_owner": true,
+  "result_bundle": ".build/TestResults/Preparation-Cloud-Verified.xcresult",
+  "exit_code": 0,
+  "seconds": 129.35,
+  "status": "passed",
+  "saved_once": true,
+  "sections": 6,
+  "task_status": "completed",
+  "attempts": 2,
+  "same_home_and_chat_card": true,
+  "cleanup_status": 410
+}

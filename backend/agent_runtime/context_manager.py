@@ -70,8 +70,24 @@ class ContextManager:
         if previous:
             boundary = max(boundary, len(previous['covered_message_ids']))
             recent = safe[boundary:]
-        summary = self.summaries.extend(owner, context.thread_id, safe[:boundary], previous,
-                                        budget, context.remaining, context.cancellation, context.workspace_id) if boundary else None
+        fallback=[]
+        try:
+            summary = self.summaries.extend(owner, context.thread_id, safe[:boundary], previous,
+                                            budget, context.remaining, context.cancellation, context.workspace_id) if boundary else None
+        except Fault as error:
+            from .runtime import TextAgent
+            if error.code!='AGENT_COMPACTION_FAILED' or not TextAgent.preparation_requested(input_text):raise
+            # A failed AI summary must not block preparing a meeting or become
+            # invented memory. Keep bounded, verbatim user excerpts with real IDs.
+            from adapters.sources import version
+            summary=None
+            for row in reversed(safe[:boundary]):
+                if row['role']!='user' or row.get('excluded_from_summary'):continue
+                fallback.append({'message_id':row['id'],'quote':row['content'][:300],
+                    'source_id':'message:'+row['id'],'source_version':version(row)})
+                if len(fallback)>=12:break
+            self.store.update('agent_tasks',owner,context.task_id,{'context_summary_status':'raw_user_excerpts',
+                'context_summary_error':error.code})
         sources, retrieval = [], {'status':'not_requested','items':[]}
         policy = snapshot['context_policy']
         if policy['automatic_memory']:
@@ -98,7 +114,7 @@ class ContextManager:
             if used + n <= budget.context_memory_chars:
                 chosen.append(item);used += n
         sources = [{**item, 'citation':f'[{i+1}]'} for i,item in enumerate(chosen)]
-        references = reference_set(sources)
+        references = [*reference_set(sources),*reference_set(fallback)]
         for message in recent:
             references.extend(reference_set(message.get('sources', [])))
         if summary:
@@ -134,10 +150,12 @@ class ContextManager:
         if summary:
             section('任务摘要', json.dumps({'structured':summary['structured'], 'source_refs':summary['source_refs'],
                     'note':'AI 整理的对话状态，不是长期记忆；旧回答中的 citation 不能代替本轮新来源。'}, ensure_ascii=False), budget.context_summary_chars, True)
+        if fallback:
+            section('历史原话片段',json.dumps({'items':list(reversed(fallback)), 'note':'摘要未生成，以下只是部分用户原文，不是完整历史或新记忆；细节可按 source_id 读取，不猜测遗漏内容。'},ensure_ascii=False),budget.context_summary_chars,True)
         section('相关已确认资料', json.dumps({'status':retrieval['status'], 'items':sources,
                 'note':'只加入本轮相关条目，片段不等于完整原文。'}, ensure_ascii=False), budget.context_memory_chars, True)
         for message in recent:
-            if message['role']=='user' and message.get('task_id')==context.task_id:continue
+            if message['role']=='user' and message.get('task_id')==context.task_id and not message.get('response_to'):continue
             text = message['content']
             if message['role'] == 'assistant':
                 text = re.sub(r'\[(\d+)\]', r'[历史引用 \1；需重新读取来源]', text)

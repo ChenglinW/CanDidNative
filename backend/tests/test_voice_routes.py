@@ -98,7 +98,7 @@ def test_barge_cancel_preserves_partial_and_unrelated_thread(system):
     assert agent.tasks.get(OWNER,task['id'])['status']=='cancelled'
 
 def test_only_final_answer_commits_speech_not_planner_deltas(system):
-    client,agent,store,gateway,speech,thread=system;value=body(thread,'帮我准备沟通')
+    client,agent,store,gateway,speech,thread=system;value=body(thread,'帮我复盘沟通')
     task=post(client,value).json();wait(agent,task['id'],'completed')
     events=agent.tasks.events.after(OWNER,task['id'],0)
     assert gateway.calls==[True,False]
@@ -167,3 +167,21 @@ def test_spoken_answer_uses_same_grounded_task_with_short_reply_instruction(syst
     assert '连续语音对话的最终回答' in gateway.last_messages[-1]['content']
     assert '姓名、数字' in gateway.last_messages[-1]['content']
     assert any(m['content']=='收到。' for m in store.rows('chat_messages',OWNER,thread_id=thread))
+
+
+def test_voice_preparation_saves_report_before_committing_final_speech(system):
+    client,agent,store,gateway,speech,thread=system
+    def complete(messages,tools=True,*,on_delta=None,**kw):
+        gateway.calls.append(tools)
+        if not store.rows('companion_preparations',OWNER):
+            args={'client':'客户甲','goal':'确认试点范围','scenario':'sales','sections':[{'title':'目标','text':'确认范围'},{'title':'问题','text':'有哪些需求？'},{'title':'待核实','text':'时间未知'}]}
+            return {'role':'assistant','content':'','tool_calls':[{'id':'prepare','function':{'name':'save_preparation','arguments':json.dumps(args)}}]}
+        if on_delta:on_delta('准备包已保存。')
+        return {'role':'assistant','content':'准备包已保存。'}
+    gateway.complete=complete
+    task=post(client,body(thread,'帮我准备客户甲沟通，目标确认试点范围。')).json()
+    wait(agent,task['id'],'completed')
+    assert len(store.rows('companion_preparations',OWNER))==1
+    events=agent.tasks.events.after(OWNER,task['id'],0)
+    assert gateway.calls==[True]
+    assert ''.join(e['data']['text'] for e in events if e['kind']=='speech.segment')=='准备包已保存，可以打开查看。'

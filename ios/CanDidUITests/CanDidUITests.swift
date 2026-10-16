@@ -459,6 +459,52 @@ final class CanDidUITests: XCTestCase {
         capture(app,"workspace-general-selected")
     }
 
+    func testActualHTTPPreparationShortcutCollectsInputAndSavesPackage() throws {
+        guard ProcessInfo.processInfo.environment["CANDID_RUN_HTTP_UI"]=="1" else {throw XCTSkip("Requires acceptance backend")}
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=[]
+        let cloud=ProcessInfo.processInfo.environment["CANDID_CLOUD_ACCEPTANCE"]=="1"
+        app.launchEnvironment=["CANDID_LOCAL_BACKEND":cloud ? "0":"1","CANDID_CLOUD_ACCEPTANCE":cloud ? "1":"0","CANDID_BACKEND_PORT":"8879","CANDID_BACKEND_TOKEN":cloud ? ProcessInfo.processInfo.environment["CANDID_BACKEND_TOKEN"]! : "candid-v2-local-acceptance","CANDID_ACCEPTANCE_CACHE":UUID().uuidString]
+        app.launch()
+        let skip=app.buttons["直接开始，之后再介绍"]
+        let entrance=app.buttons["准备客户"];let initialDeadline=Date().addingTimeInterval(60)
+        while !entrance.exists && Date()<initialDeadline {
+            if skip.exists && skip.isHittable {skip.tap()}
+            Thread.sleep(forTimeInterval:0.5)
+        }
+        if !entrance.exists {capture(app,"preparation-entry-diagnostic")}
+        XCTAssertTrue(entrance.exists);entrance.tap()
+        func waitWithOneNetworkRetry(_ target:XCUIElement,seconds:TimeInterval,searchHistory:Bool=false)->Bool {
+            var deadline=Date().addingTimeInterval(seconds);var retried=false
+            while Date()<deadline {
+                if target.exists {return true}
+                if searchHistory && app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@","准备包已保存")).firstMatch.exists {
+                    app.scrollViews.allElementsBoundByIndex.first(where:{$0.identifier != "workspace-carousel" && $0.frame.height>140})?.swipeDown()
+                }
+                let timeout=app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@","模型响应超时")).firstMatch
+                if !retried && timeout.exists && app.buttons["重试"].firstMatch.isHittable {
+                    app.buttons["重试"].firstMatch.tap();retried=true;deadline=Date().addingTimeInterval(seconds)
+                }
+                Thread.sleep(forTimeInterval:0.5)
+            }
+            return target.exists
+        }
+        XCTAssertTrue(waitWithOneNetworkRetry(app.staticTexts["等待你的补充"],seconds:120),"缺少对象和目标时应正常补问")
+        let input=app.descendants(matching:.any).matching(identifier:"给 Candid 的消息").firstMatch
+        input.tap();input.typeText("沟通对象是验收客户甲的采购王总，目标确认三家门店的试点范围。时间和预算未定，无需联网，请按这些信息直接生成并保存准备包。")
+        app.buttons["发送消息"].tap()
+        let card=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","chat-preparation-")).firstMatch
+        XCTAssertTrue(waitWithOneNetworkRetry(card,seconds:180,searchHistory:true),"补充后必须产生真正保存的准备包")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@","准备包尚未成功保存")).firstMatch.exists)
+        let packageID=card.identifier.replacingOccurrences(of:"chat-preparation-",with:"")
+        capture(app,"preparation-shortcut-saved")
+        card.tap();XCTAssertTrue(app.navigationBars["会前准备包"].waitForExistence(timeout:15))
+        XCTAssertTrue(app.staticTexts["确认三家门店的试点范围"].exists)
+        capture(app,"preparation-shortcut-report")
+        app.navigationBars.buttons.firstMatch.tap();app.buttons["收起对话"].tap()
+        XCTAssertTrue(app.buttons["preparation-card-"+packageID].waitForExistence(timeout:15))
+    }
+
     func testV2ActualHTTPAppAgentPreparationAndSourceAnswer() throws {
         guard ProcessInfo.processInfo.environment["CANDID_RUN_HTTP_UI"]=="1" else {throw XCTSkip("Run scripts/v2-test-server.py and set CANDID_RUN_HTTP_UI=1 for actual HTTP acceptance")}
         continueAfterFailure=false

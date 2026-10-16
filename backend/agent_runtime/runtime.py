@@ -1,4 +1,4 @@
-"""Bounded text execution; preserves the current mobile chat HTTP contract."""
+"""Progress-aware text execution; preserves the current mobile chat HTTP contract."""
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 import json
@@ -13,7 +13,7 @@ from tasks.sources import AgentSourceStore
 from tools.memory_tools import memory_registry
 from tools.skill_tools import register_skill_tool
 from tools.input_tools import register_input_tool
-from .config import Budget, RuntimeConfig, fingerprint, public_endpoint
+from .config import Budget, RuntimeConfig, budget_min, fingerprint, public_endpoint
 from .context import RunContext
 from .cancellation import Cancellation
 from tasks.events import ACTIVE, TERMINAL
@@ -154,13 +154,14 @@ class TextAgent:
         profiles = dict(context.budget_profiles)
         profile = profiles.get(snapshot['name'], profiles.get('chat', context.budget))
         ceiling = asdict(context.budget_ceiling or context.budget)
-        budget = Budget(**{key: min(value, ceiling[key]) for key, value in asdict(profile).items()})
+        budget = Budget(**{key: budget_min(value, ceiling[key]) for key, value in asdict(profile).items()})
         if self.workspaces.get(context.owner_id,context.workspace_id).get('is_companion'):
             allowed-= {'read_project','update_action','arrange_meeting','update_participant','record_project_update'}
         return replace(context, task_kind=snapshot['name'], allowed_tools=frozenset(allowed), budget=budget)
 
     def _budget_usage(self, context, rounds, calls):
-        # Reserve before a billed operation. A failed/uncertain call still consumes allowance.
+        # Record billed operations cumulatively, including failed/uncertain calls.
+        # These counters are accounting, not execution caps.
         with self.memory.transaction(context.owner_id):
             context.remaining()
             self.tasks.require_running(context.owner_id, context.task_id, context.attempt)
@@ -204,21 +205,61 @@ class TextAgent:
             voice_final = voice_final or bool(re.fullmatch(r'(你好|嗨|谢谢|早上好|晚上好|再见)[！!。 .]*', task.get('input',{}).get('content','')))
         from voice.committer import SpeechCommitter
         turn = max(checkpoint['round'] if checkpoint else 0, usage.get('model_rounds', 0))
-        while turn < context.budget.max_rounds:
+        # Counts remain cumulative accounting, never execution gates. A human resume
+        # starts a new progress assessment while retaining successful checkpoints.
+        seen=set((checkpoint or {}).get('progress_seen',[]))
+        stalled=0
+        preparation=self.preparation_requested(task['input']['content'])
+        def finish_preparation():
+            # The report is already durable. Its acknowledgement must not depend
+            # on another model call or repeat a long report over its own card.
+            content='准备包已保存，可以打开查看。'
+            self.tasks.text(context,content)
+            if context.voice:
+                spoken=SpeechCommitter(self,context,sources,input_references)
+                spoken.push(content);spoken.finish()
+            return content,sources,steps
+        if preparation:
+            from companion import Companion
+            existing=self.memory.rows('companion_preparations',context.owner_id,client_request_id='agent:'+context.task_id)
+            if existing:
+                if not Companion(self.memory).current(context.owner_id,existing[0]['evidence_refs'],context.workspace_id):
+                    raise Fault('SOURCE_SUPERSEDED','已保存报告的依据已变化，请重新发送需求以整理新版报告',409)
+                return finish_preparation()
+        if preparation:
+            self.tasks.update(context.owner_id,context.task_id,{'preparation_intent_bound':True})
+            messages.append({'role':'system','content':'当前是用户明确要求的准备任务。对象或目标确实缺失时必须用 request_input 一次补问，已有回答不能重复问；时间和顾虑可以未知。已有信息足够时检索本空间资料，调用 save_preparation 保存，只有服务端保存并回读成功才可报告完成。user_quote 可留空，不要编写用户原话。'})
+        draft=task.get('preparation_draft')
+        if draft:
+            from companion import Companion
+            domain=Companion(self.memory)
+            if domain.current(context.owner_id,draft['references'],context.workspace_id):
+                pack=domain.save_preparation(context.owner_id,context.thread_id,'agent:'+context.task_id,draft['data'],draft['references'],guard=lambda:(context.remaining(),self.tasks.require_running(context.owner_id,context.task_id,context.attempt)))
+                return finish_preparation()
+            else:
+                self.tasks.update(context.owner_id,context.task_id,{'preparation_draft':None,'rejected_preparation_draft':draft})
+                messages.append({'role':'system','content':'上次报告的依据已修订或不可访问。请重新检索当前可读资料并重新保存；不可复用旧来源或把旧报告当作当前事实。'})
+        def no_progress():
+            nonlocal stalled
+            stalled+=1
+            if stalled>=3:
+                raise Fault('AGENT_STALLED','连续尝试没有取得进展，已有内容已保留；可补充信息或继续重试',502)
+        while True:
             budget = context.budget
             self.memory.check_owner(context.owner_id)
             self.context_manager.validate(context.owner_id, [*input_references,*reference_set(sources)], context.workspace_id)
             remaining = context.remaining()
             if len(json.dumps(messages, ensure_ascii=False)) > budget.max_context_chars:
                 raise Fault('AGENT_CONTEXT_LIMIT', '这次任务资料较多，请缩小问题范围', 422)
-            enabled = not voice_final and turn < budget.max_rounds - 1 and total_calls < budget.max_tool_calls
+            enabled = not voice_final
             schemas = [s.schema() for s in self.registry.available(context)]
             enabled=enabled and bool(schemas)
             self.tasks.emit(context,'text.reset',{'phase':'answer'}, {'partial_text':'','phase':'answer'})
             self._budget_usage(context, turn + 1, total_calls)
             committed = SpeechCommitter(self, context, sources, input_references) if context.voice and not enabled else None
+            report_saved = not preparation or bool(self.memory.rows('companion_preparations',context.owner_id,client_request_id='agent:'+context.task_id))
             def delta(text):
-                if not context.voice or committed:
+                if report_saved and (not context.voice or committed):
                     self.tasks.text(context,text)
                 if committed: committed.push(text)
             # Spoken replies are the same persisted text, grounded in the same tool results.
@@ -236,6 +277,7 @@ class TextAgent:
                 self.tasks.emit(context,'text.reset',{'phase':'tools'},{'partial_text':'','phase':'tools'})
                 if not enabled:
                     raise Fault('AGENT_INVALID_OUTPUT','模型返回了未完成的工具请求，消息已保留，可以重试',502)
+                no_progress()
                 # Do not execute strings from the content channel as tools. Reissue through
                 # the normal schema-validated protocol and the existing bounded budget.
                 messages.append({'role':'system','content':'上一轮输出包含内部 DSML 工具标记，客户端无法执行。需要工具时必须使用 API 的 tool_calls 字段，不能在 content 中输出工具语法；已有资料足够时直接用自然语言回答并引用来源。'})
@@ -245,10 +287,11 @@ class TextAgent:
                 content = result['content'].strip()
                 if not content:
                     raise Fault('AGENT_INVALID_OUTPUT', '模型没有返回回答，可以重试', 502)
-                if self.workspaces.get(context.owner_id,context.workspace_id).get('is_companion') and self.preparation_requested(task['input']['content']):
+                if preparation:
                     saved=self.memory.rows('companion_preparations',context.owner_id,client_request_id='agent:'+context.task_id)
                     if not saved:
-                        if not enabled:raise Fault('PREPARATION_NOT_SAVED','准备包尚未成功保存，原文保留；请重试继续整理',502)
+                        no_progress()
+                        voice_final=False
                         messages.append(result)
                         messages.append({'role':'system','content':'本轮是明确的准备任务，尚无持久化准备包。不要仅以一段报告结束：信息已够时必须调用 save_preparation；对象或目标确实缺失才使用 request_input 集中补问，时间可留空。只引用实际已读来源。'})
                         turn+=1
@@ -263,15 +306,14 @@ class TextAgent:
                     continue
                 if committed: committed.finish()
                 return content, sources, steps
-            if not isinstance(calls, list) or not enabled or len(calls) > budget.max_calls_per_round or total_calls + len(calls) > budget.max_tool_calls:
-                raise Fault('AGENT_TOOL_LIMIT', '本次查询步骤过多，请缩小问题范围', 502)
+            if not isinstance(calls, list) or not enabled:
+                raise Fault('AGENT_INVALID_OUTPUT', '模型工具请求格式不完整，可以重试', 502)
             self.tasks.emit(context,'text.reset',{'phase':'tools'},{'partial_text':'','phase':'tools'})
             messages.append(result)
             pending_skill_prompt = None
             input_request = None
+            advanced=False
             for call in calls:
-                if total_calls >= context.budget.max_tool_calls:
-                    raise Fault('AGENT_TOOL_LIMIT', '本次查询步骤过多，请缩小问题范围', 502)
                 total_calls += 1
                 self._budget_usage(context, turn + 1, total_calls)
                 if not isinstance(call, dict) or not isinstance(call.get('function'), dict) or not isinstance(call.get('id'), str):
@@ -281,6 +323,7 @@ class TextAgent:
                 steps.append(step)
                 self._activity(context, steps)
                 self.tasks.emit(context,'tool.started',{'name':name,'step_id':step['id']})
+                args=None
                 try:
                     args = json.loads(call['function']['arguments'])
                     if not isinstance(args, dict):
@@ -289,6 +332,9 @@ class TextAgent:
                     output = ToolResult.failure('TOOL_ARGUMENTS_INVALID', '工具参数必须是 JSON 对象')
                 else:
                     output = self.registry.execute(context, name, args, sources)
+                result_key=fingerprint({'tool':name,'arguments':args if isinstance(args,dict) else call['function'].get('arguments'),'result':output.as_dict()})
+                if not output.error and result_key not in seen:advanced=True
+                seen.add(result_key)
                 if name == 'request_input' and output.status=='waiting_input':
                     if input_request:
                         output = ToolResult.failure('INPUT_ALREADY_REQUESTED','每轮只能等待一个用户问题')
@@ -333,13 +379,18 @@ class TextAgent:
                 self.tasks.emit(context,'sources.updated',{'sources':sources})
                 messages.append({'role': 'tool', 'tool_call_id': call['id'],
                                  'content': json.dumps(output.as_dict(), ensure_ascii=False)})
+            if preparation and self.memory.rows('companion_preparations',context.owner_id,client_request_id='agent:'+context.task_id):
+                return finish_preparation()
             if pending_skill_prompt:
                 messages.append({'role': 'system', 'content': pending_skill_prompt})
-            saved = {'messages':messages,'sources':sources,'references':input_references,'steps':steps,
+            if advanced:stalled=0
+            else:no_progress()
+            saved = {'progress_seen':sorted(seen),'messages':messages,'sources':sources,'references':input_references,'steps':steps,
                      'total_calls':total_calls,'round':turn+1,'effective_budget':asdict(context.budget),
                      'active_skill_digest':fingerprint(active_skill) if active_skill else None}
             if input_request:
                 with self.memory.transaction(context.owner_id):
+                    if preparation:self.tasks.update(context.owner_id,context.task_id,{'preparation_stage':'awaiting_input','preparation_draft':None})
                     self.tasks.pause(context,input_request,saved)
                     if context.voice:
                         voice=self.tasks.get(context.owner_id,context.task_id).get('voice_context',{})
@@ -349,7 +400,6 @@ class TextAgent:
                 return None
             self.tasks.emit(context,'phase',{'phase':'answer'},{'checkpoint':saved})
             turn += 1
-        raise Fault('AGENT_TOOL_LIMIT', '本次查询步骤过多，请缩小问题范围', 502)
 
     def _schedule(self, owner, task):
         key = (owner,task['id'],task['attempt'])
@@ -382,7 +432,8 @@ class TextAgent:
     @staticmethod
     def preparation_requested(text):
         import re
-        if re.search(r'(帮我|为我|直接)准备|生成.{0,8}准备包',text):return True
+        if re.search(r'(不要|不用|先别|暂不|先不|别)(再)?(生成|保存|准备)',text):return False
+        if re.search(r'(帮我|为我|直接)准备|生成.{0,8}准备包|(?:修改|更新|完善|保存|继续|重做).{0,8}准备包|准备包.{0,8}(?:修改|更新|完善|保存|重做)',text):return True
         if re.search(r'如何|怎么|步骤|流程|能否|会不会',text):return False
         return bool(re.search(r'准备.{0,10}(下一场|客户|面试|会谈)',text))
 
@@ -429,6 +480,18 @@ class TextAgent:
                 self._capacity.release()
             return self.tasks.public(task)
 
+    def _upgrade_preparation_retry(self, owner, task, preserve_input=False):
+        old=task['config_snapshot']
+        if old.get('runtime_version') != 'agent-runtime@10-recovery' or not self.preparation_requested(task['input']['content']):return task
+        current=self.dependency_snapshot()
+        if old.get('model_digest')!=current['model_digest'] or old.get('memory_adapter')!=current['memory_adapter']:return task
+        space=self._validate_workspace(owner,task)
+        snapshot=self.snapshot(self.config.budget('chat'),owner,space)
+        with self.memory.transaction(owner):
+            return self.tasks.update(owner,task['id'],{'prior_execution_snapshot':old,'config_snapshot':snapshot,
+                'checkpoint':task.get('checkpoint') if preserve_input else None,'active_skill_snapshot':None,'active_skill_source_refs':[], 'task_kind':'chat',
+                'execution_policy_upgrade':'progress-aware-preparation-v1','rebuild_preparation_context':preserve_input})
+
     def resume(self, owner, task_id, request_id, expected_attempt=None):
         with self._lock_guard:
             task = self.tasks.get(owner,task_id)
@@ -438,6 +501,7 @@ class TextAgent:
                 raise Fault('AGENT_STATE_CONFLICT','任务执行版本已变化，请刷新后继续',409)
             if task['status']=='waiting_input' and task.get('input_request'):
                 raise Fault('AGENT_INPUT_REQUIRED','请先回答当前问题',409)
+            task=self._upgrade_preparation_retry(owner,task)
             self._validate_retry_dependencies(task['config_snapshot'],self.dependency_snapshot())
             self._validate_workspace(owner,task)
             if task.get('checkpoint'):
@@ -478,6 +542,7 @@ class TextAgent:
                 return self.tasks.public(task)
             if task['status']!='waiting_input' or task['attempt']!=expected_attempt or (task.get('input_request') or {}).get('id')!=input_id:
                 raise Fault('AGENT_STATE_CONFLICT','等待的问题已变化，请刷新后补充',409)
+            task=self._upgrade_preparation_retry(owner,task,preserve_input=True)
             self._validate_retry_dependencies(task['config_snapshot'],self.dependency_snapshot())
             self._validate_workspace(owner,task)
             if self._closing or not self._capacity.acquire(blocking=False):
@@ -492,7 +557,7 @@ class TextAgent:
                     self.memory.put('chat_messages',owner,{'thread_id':task['thread_id'],'role':'user','content':text,
                         'client_request_id':request_id,'task_id':task_id,'turn_id':task['turn_id'],
                         'sources':[],'tool_steps':[],'response_to':input_id},L1)
-                    self.tasks.update(owner,task_id,{'checkpoint':checkpoint,'input_request':None,
+                    self.tasks.update(owner,task_id,{'checkpoint':None if task.get('rebuild_preparation_context') else checkpoint,'rebuild_preparation_context':False,'input_request':None,
                         'input_responses':[*task.get('input_responses',[]),{'request_id':request_id,'input_id':input_id,'text':text}],
                         **({'voice_context':{**voice,'client_request_id':request_id}} if voice else {})})
                     task,fresh = self.tasks.resume(owner,task_id,request_id)
@@ -565,7 +630,7 @@ class TextAgent:
                 context = RunContext(owner,thread_id,task_id,task['turn_id'],snapshot['model_digest'],
                     snapshot['runtime_version'],budget,occasion_id=occasion_id,
                     task_kind=task.get('task_kind','chat'),skill_index_snapshot=tuple(snapshot['skill_index']),
-                    deadline=time.monotonic()+ceiling.timeout_seconds,cancellation=cancellation,attempt=attempt,workspace_id=task['workspace_id'],
+                    deadline=(time.monotonic()+ceiling.timeout_seconds if ceiling.timeout_seconds is not None else float('inf')),cancellation=cancellation,attempt=attempt,workspace_id=task['workspace_id'],
                     allow_mutations=True,budget_profiles=profiles,budget_ceiling=ceiling,voice=bool(task.get('voice_context',{}).get('continuous')))
                 active_skill = task.get('active_skill_snapshot')
                 if active_skill:

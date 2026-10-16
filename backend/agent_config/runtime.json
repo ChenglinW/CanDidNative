@@ -1,22 +1,22 @@
 {
-  "version": "agent-runtime@10-recovery",
+  "version": "agent-runtime@11-progress",
   "task_limits": {
-    "max_rounds": 8,
-    "max_tool_calls": 20,
-    "timeout_seconds": 600
+    "max_rounds": null,
+    "max_tool_calls": null,
+    "timeout_seconds": null
   },
   "profiles": {
     "chat": {
-      "max_rounds": 4,
-      "max_calls_per_round": 4,
-      "max_tool_calls": 12,
+      "max_rounds": null,
+      "max_calls_per_round": null,
+      "max_tool_calls": null,
       "max_input_chars": 12000,
       "history_messages": 20,
       "history_chars": 24000,
       "occasion_chars": 4000,
       "max_context_chars": 120000,
       "max_tool_result_chars": 64000,
-      "timeout_seconds": 600,
+      "timeout_seconds": null,
       "model_timeout_seconds": 90,
       "tool_timeout_seconds": 120,
       "context_rules_chars": 6000,
@@ -31,16 +31,16 @@
       "summary_max_tokens": 4096
     },
     "company_research": {
-      "max_rounds": 8,
-      "max_calls_per_round": 4,
-      "max_tool_calls": 20,
+      "max_rounds": null,
+      "max_calls_per_round": null,
+      "max_tool_calls": null,
       "max_input_chars": 12000,
       "history_messages": 20,
       "history_chars": 24000,
       "occasion_chars": 4000,
       "max_context_chars": 180000,
       "max_tool_result_chars": 64000,
-      "timeout_seconds": 600,
+      "timeout_seconds": null,
       "model_timeout_seconds": 90,
       "tool_timeout_seconds": 120,
       "context_rules_chars": 6000,

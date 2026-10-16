@@ -53,7 +53,7 @@ class Companion:
                 discoveries.append({**row, 'reference_status': 'current' if self.current(owner, row['evidence_refs']) else 'superseded'})
         return {'expressions': expressions, 'discoveries': discoveries}
 
-    def save_preparation(self, owner, thread_id, request_id, data, references):
+    def save_preparation(self, owner, thread_id, request_id, data, references, guard=None):
         thread = self.store.get('chat_threads', owner, thread_id)
         space = self.spaces.get(owner, thread['workspace_id'])
         if space['status'] != 'active':
@@ -66,6 +66,7 @@ class Companion:
                 data = {**data, 'scheduled_at': parsed.isoformat()}
             except ValueError: raise Fault('DATE_INVALID', '时间需要包含时区，未定可留空', 422)
         with self.store.transaction(owner):
+            if guard:guard()
             prior = self.store.rows('companion_preparations', owner, client_request_id=request_id)
             if prior: return prior[0]
             if not self.current(owner, references, thread['workspace_id']): raise Fault('SOURCE_SUPERSEDED', '准备依据已变化，请重新整理', 409)
