@@ -18,6 +18,73 @@ private final class OnboardingStubProtocol: URLProtocol {
 }
 
 final class SoundcoreAudioTests: XCTestCase {
+    @MainActor func testDismissedTaskRecoveryPersistsAndIsScopedToAttemptAndThread() throws {
+        let store=Store(localDirectory:FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        store.chatThread=ChatThread(id:"recovery-test-"+UUID().uuidString,title:"Test",status:"idle",activity:[],message_count:0,updated_at:"")
+        var task=AgentTask(id:"stopped",thread_id:store.chatThread!.id,turn_id:"turn",status:"cancelled",attempt:1,tool_steps:[])
+        XCTAssertFalse(store.isChatTaskDismissed(task))
+        store.dismissChatTask(task)
+        XCTAssertTrue(store.isChatTaskDismissed(task))
+        task.attempt=2;XCTAssertFalse(store.isChatTaskDismissed(task))
+        task.attempt=1;task.thread_id="other";XCTAssertFalse(store.isChatTaskDismissed(task))
+        store.clearChatRecovery()
+    }
+    @MainActor func testShortVoiceMigrationDropsAudioAndRetainsOnlyUnresolvedReceipts() throws {
+        let root=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
+        let folder=root.appendingPathComponent("VoiceInputs")
+        try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+        let audio=folder.appendingPathComponent(UUID().uuidString+".pcm")
+        try Data([0,1,2]).write(to:audio)
+        let records=[VoiceRecovery(id:"unfinished",path:audio.path,created:Date(),backend:"test",thread:"one",workspace:"a",text:"未完成",unknown:false),VoiceRecovery(id:"receipt",path:"",created:Date(),backend:"test",thread:"one",workspace:"a",text:"等待回执",requestID:"r",unknown:true)]
+        let file=root.appendingPathComponent("VoiceRecovery.json")
+        try JSONEncoder().encode(records).write(to:file)
+        let voice=VoiceSessionController()
+        XCTAssertFalse(FileManager.default.fileExists(atPath:audio.path))
+        XCTAssertEqual(voice.recoveries.map(\.id),["receipt"])
+        XCTAssertEqual(voice.recoveries.first?.path,"")
+        voice.removeRecovery("receipt")
+    }
+    @MainActor func testUnsentVoiceTextPreservesTypedDraftInOriginalWorkspace() throws {
+        let store=Store(localDirectory:FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let thread="voice-draft-"+UUID().uuidString
+        store.chatThread=ChatThread(id:thread,title:"Test",status:"idle",activity:[],message_count:0,updated_at:"")
+        store.saveChatDraft("正在输入")
+        store.restoreUnsentVoiceText("语音文字",threadID:thread)
+        XCTAssertEqual(store.chatDraft,"正在输入\n语音文字")
+        store.restoreUnsentVoiceText("语音文字",threadID:thread)
+        XCTAssertEqual(store.chatDraft,"正在输入\n语音文字")
+        store.restoreUnsentVoiceText("其他空间语音",threadID:"other")
+        XCTAssertEqual(store.chatDraft,"正在输入\n语音文字")
+        store.clearChatRecovery()
+    }
+    @MainActor func testVoiceReceiptReconciliationNeverResendsAndDoesNotLoseTypedText() async throws {
+        URLProtocol.registerClass(OnboardingStubProtocol.self)
+        defer {URLProtocol.unregisterClass(OnboardingStubProtocol.self);OnboardingStubProtocol.handler=nil}
+        for state in ["accepted","unknown","accepted-during-cancel"] {
+            let store=Store(localDirectory:FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+            store.base="http://onboarding-test.invalid";store.remote=true
+            let tid="receipt-"+UUID().uuidString
+            store.chatThread=ChatThread(id:tid,title:"Receipt",status:"idle",activity:[],message_count:0,updated_at:"")
+            store.saveChatDraft("typed")
+            let row=VoiceRecovery(id:UUID().uuidString,path:"",created:Date(),backend:store.voice.identity(store.api),thread:tid,workspace:"workspace",text:"spoken",requestID:UUID().uuidString,unknown:true)
+            let file=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("VoiceRecovery.json")
+            try JSONEncoder().encode([row]).write(to:file)
+            var posts:[String]=[]
+            OnboardingStubProtocol.handler={request in
+                let path=request.url!.path
+                if request.httpMethod=="POST" {posts.append(path);return try JSONSerialization.data(withJSONObject:["status":"cancelled","task_id":state=="accepted-during-cancel" ? "accepted-task" as Any : NSNull()])}
+                if path.contains("/requests/") {return try JSONSerialization.data(withJSONObject:["status":state=="accepted" ? "accepted":"unknown"])}
+                return try JSONSerialization.data(withJSONObject:["thread":["id":tid,"title":"Receipt","status":"idle","activity":[],"message_count":0,"updated_at":""],"messages":[],"tasks":[]])
+            }
+            let voice=VoiceSessionController();voice.refreshRecoveries(store:store)
+            for _ in 0..<100 {if voice.recoveries.isEmpty && !store.chatLoading {break};try await Task.sleep(for:.milliseconds(10))}
+            XCTAssertTrue(voice.recoveries.isEmpty)
+            XCTAssertFalse(posts.contains(where:{$0=="/v1/voice/turns"}))
+            XCTAssertEqual(posts.count,state=="accepted" ? 0:1)
+            XCTAssertEqual(store.chatDraft,state=="unknown" ? "typed\nspoken":"typed")
+            store.clearChatRecovery()
+        }
+    }
     func testRelativeMeetingTimeUsesUnambiguous24HourClock() throws {
         let tomorrow=try XCTUnwrap(Calendar.current.date(byAdding:.day,value:1,to:Date()))
         let afternoon=try XCTUnwrap(Calendar.current.date(bySettingHour:14,minute:7,second:0,of:tomorrow))

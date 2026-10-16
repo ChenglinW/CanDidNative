@@ -2,8 +2,8 @@
   "name": "communication_prep",
   "title": "准备沟通",
   "description": "根据沟通目标、用户资料及相关记忆，准备提纲、关键问题和有依据的表达。",
-  "version": "2.0.0",
-  "body_sha256": "e17a961c4a75140b2f6dffefb30321aeaf9ce6f0daaf7414d01a4cde9cb22e99",
+  "version": "2.1.0",
+  "body_sha256": "eac18bcf58cebc10c9f42b8a6524ef6588f830b323220910994ba7d7c947bba6",
   "inputs": {
     "type": "object",
     "properties": {

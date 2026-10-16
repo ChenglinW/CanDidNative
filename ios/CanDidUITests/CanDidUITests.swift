@@ -402,6 +402,63 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.buttons["记忆库"].waitForExistence(timeout:10))
     }
 
+    func testChatPanelHasExplicitEntryAndDismissedStopDoesNotReturn() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated","-candid-stopped-chat","-candid-clear-task-hints"];app.launchEnvironment=[:];app.launch()
+        XCTAssertTrue(app.buttons["toggle-home-chat"].waitForExistence(timeout:15))
+        app.buttons["toggle-home-chat"].tap()
+        XCTAssertFalse(app.keyboards.firstMatch.exists,"查看历史不应弹键盘")
+        let close=app.buttons["dismiss-task-preview-stopped"]
+        if !close.waitForExistence(timeout:5) {print(app.debugDescription);capture(app,"chat-stop-diagnostic")}
+        XCTAssertTrue(close.exists);close.tap()
+        XCTAssertFalse(close.exists)
+        XCTAssertTrue(app.staticTexts["先确认客户当前的目标，再讨论方案。"].exists)
+        app.buttons["收起对话"].tap()
+        app.buttons["toggle-home-chat"].tap()
+        XCTAssertFalse(close.exists)
+        capture(app,"chat-panel-stopped-dismissed")
+        app.terminate();app.launchArguments.removeAll{$0=="-candid-clear-task-hints"};app.launch();app.buttons["toggle-home-chat"].tap()
+        XCTAssertFalse(close.exists,"关闭恢复提示应跨重启保留")
+        XCTAssertFalse(app.staticTexts["保留了一段未完成的语音"].exists)
+    }
+    func testActualHTTPWorkspaceCarouselRetainsContextAcrossRefreshAndRelaunch() throws {
+        guard ProcessInfo.processInfo.environment["CANDID_RUN_HTTP_UI"]=="1" else{throw XCTSkip("Requires local acceptance server")}
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=[];app.launchEnvironment=["CANDID_LOCAL_BACKEND":"1","CANDID_BACKEND_PORT":"8879","CANDID_BACKEND_TOKEN":"candid-v2-local-acceptance","CANDID_ACCEPTANCE_CACHE":UUID().uuidString];app.launch()
+        let skip=app.buttons["直接开始，之后再介绍"];if skip.waitForExistence(timeout:10) {skip.tap()}
+        let toggle=app.buttons["toggle-home-chat"]
+        XCTAssertTrue(toggle.waitForExistence(timeout:30))
+        let carousel=app.scrollViews["workspace-carousel"]
+        XCTAssertTrue(carousel.waitForExistence(timeout:10))
+        let create=app.buttons["新建项目空间，直接开始聊天"]
+        for _ in 0..<12 {
+            if create.exists && create.frame.minX>=carousel.frame.minX && create.frame.maxX<=carousel.frame.maxX+1 {break}
+            carousel.swipeLeft()
+        }
+        XCTAssertTrue(create.isHittable);create.tap()
+        XCTAssertTrue(app.buttons["收起对话"].waitForExistence(timeout:15),"新建完成后应自动展开新空间")
+        let input=app.descendants(matching:.any).matching(identifier:"给 Candid 的消息").firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout:15));input.tap();input.typeText("Workspace draft A")
+        app.buttons["收起对话"].tap()
+        capture(app,"workspace-draft-a")
+        // The home refresh interval is five seconds; wait through two intervals.
+        Thread.sleep(forTimeInterval:11)
+        toggle.tap();input.tap()
+        XCTAssertEqual(input.value as? String,"Workspace draft A")
+        app.buttons["收起对话"].tap()
+        app.terminate();app.launch()
+        XCTAssertTrue(toggle.waitForExistence(timeout:30));toggle.tap();input.tap()
+        XCTAssertEqual(input.value as? String,"Workspace draft A","前后台连接恢复必须保留所选空间和草稿")
+        app.buttons["收起对话"].tap()
+        // Select the general assistant from the management list, independently of swipe distance.
+        app.buttons["工作区管理"].tap();app.buttons["空间列表与归档"].tap()
+        app.buttons["workspace-list-general"].tap()
+        toggle.tap();input.tap()
+        XCTAssertNotEqual(input.value as? String,"Workspace draft A","空间草稿必须隔离")
+        app.buttons["收起对话"].tap()
+        capture(app,"workspace-general-selected")
+    }
+
     func testV2ActualHTTPAppAgentPreparationAndSourceAnswer() throws {
         guard ProcessInfo.processInfo.environment["CANDID_RUN_HTTP_UI"]=="1" else {throw XCTSkip("Run scripts/v2-test-server.py and set CANDID_RUN_HTTP_UI=1 for actual HTTP acceptance")}
         continueAfterFailure=false

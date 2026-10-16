@@ -50,6 +50,7 @@ struct ChatRecovery: Codable {
     var readPosition: String?
     var taskID: String?; var cursor = 0; var attempt = 0; var partial = ""
     var pendingText: String?; var requestID: String?; var draft = ""
+    var dismissedTasks: [String]?
     var actionTaskID: String?
     var actionAttempt: Int?
     var actionID: String?; var actionKind: String?; var inputID: String?; var actionText: String?
@@ -70,6 +71,23 @@ extension Store {
         } ?? [:]
         rows[id] = value
         if let data = try? JSONEncoder().encode(rows) { UserDefaults.standard.set(data, forKey: recoveryKey) }
+    }
+    func dismissChatTask(_ task: AgentTask) {
+        guard let id=chatThread?.id, task.thread_id==id else{return}
+        var saved=recovery(id)
+        saved.dismissedTasks=Array(Set((saved.dismissedTasks ?? [])+[task.id+":"+String(task.attempt)]))
+        saveRecovery(id,saved)
+        // Publish without removing the task or its original answer.
+        chatTasks=Array(chatTasks)
+    }
+    func isChatTaskDismissed(_ task:AgentTask)->Bool {
+        (recovery(task.thread_id).dismissedTasks ?? []).contains(task.id+":"+String(task.attempt))
+    }
+    func restoreUnsentVoiceText(_ text:String,threadID:String) {
+        guard !text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else{return}
+        let existing=chatThread?.id==threadID ? chatDraft : recovery(threadID).draft
+        let combined=existing.isEmpty ? text : existing.contains(text) ? existing : existing+"\n"+text
+        saveVoiceDraft(combined,threadID:threadID)
     }
     func saveVoiceDraft(_ text:String,threadID:String?) {
         guard let threadID else { return };var value=recovery(threadID);value.draft=text;saveRecovery(threadID,value)
@@ -150,7 +168,7 @@ extension Store {
             requestedID = ProcessInfo.processInfo.environment["CANDID_CHAT_THREAD_ID"]
             #endif
             if let id = requestedID { try await loadChat(id) }
-            else {let snapshot:CompanionSnapshot=try await api.call("/v1/companion");companion=snapshot;try await reloadProjectSpaces();if chatThread?.id != snapshot.thread.id {try await loadChat(snapshot.thread.id)}}
+            else {let snapshot:CompanionSnapshot=try await api.call("/v1/companion");companion=snapshot;try await reloadProjectSpaces();try await restoreWorkspaceSelection()}
             connectionReady = true
             #if DEBUG && targetEnvironment(simulator)
             if let message = ProcessInfo.processInfo.environment["CANDID_CHAT_MESSAGE"], !message.isEmpty { sendChat(message) }
@@ -432,16 +450,12 @@ struct ChatView: View {
                                 Button("取消排队") { store.stopChat(task) }.frame(minHeight: 44).disabled(store.chatControlBusy)
                             }.padding(14).background(Warm.white, in: RoundedRectangle(cornerRadius: 16))
                         }
-                        ForEach(store.chatTasks.filter { store.currentProjectSpace?.status == "active" && ["failed", "interrupted", "cancelled"].contains($0.status) }) { task in
-                            VStack(alignment: .leading, spacing: 7) {
-                                Text(task.error?.message ?? "任务未完成").font(.subheadline)
-                                Text(task.input?.content ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                                if let partial = task.partial_text, !partial.isEmpty { Text("未完成的文字").font(.caption); Text(partial).textSelection(.enabled) }
-                                Text("继续会重新请求模型；已完成的资料查询按保存进度恢复。").font(.caption).foregroundStyle(.secondary)
-                                Button("重新发送原问题") { store.sendChat(task.input?.content ?? "") }.frame(minHeight: 44).disabled(store.chatControlBusy)
-                                Button("继续这次任务", systemImage: "arrow.clockwise") { store.continueChat(task) }
-                                    .frame(minHeight: 44).disabled(store.chatControlBusy || task.error?.retryable == false || store.chatTask?.status == "running" || store.chatTask?.status == "waiting_input")
-                            }.padding(14).background(Warm.white, in: RoundedRectangle(cornerRadius: 16))
+                        ForEach(store.chatTasks.filter { task in
+                            store.currentProjectSpace?.status == "active" && ["failed", "interrupted", "cancelled"].contains(task.status)
+                            && !store.isChatTaskDismissed(task)
+                            && !store.chatMessages.contains(where: { $0.role == "assistant" && $0.task_id == task.id })
+                        }) { task in
+                            taskRecovery(task)
                         }
                         if let error = store.chatError {
                             VStack(alignment: .leading, spacing: 8) {
@@ -505,7 +519,7 @@ struct ChatView: View {
                 Button("空间列表与归档", systemImage: "square.stack") {
                     Task { try? await store.reloadChats(); history = true }
                 }.disabled(store.chatControlBusy)
-                if let space = store.currentProjectSpace, space.status == "active" {
+                if let space = store.currentProjectSpace, space.status == "active", space.is_companion != true {
                     Button("修改名称与方向", systemImage: "pencil") { editingSpace = true }.disabled(store.chatControlBusy)
                     Button("可读取的资料", systemImage: "books.vertical") { materials = true }
                     Button("归档这个空间", systemImage: "archivebox") { Task { await store.archiveProjectSpace() } }
@@ -530,6 +544,23 @@ struct ChatView: View {
             }
         }.frame(maxWidth: .infinity).padding(.bottom, 35)
     }
+    private func taskRecovery(_ task:AgentTask)->some View {
+        VStack(alignment:.leading,spacing:4) {
+            HStack {
+                Label(task.status == "cancelled" ? "已停止" : "回复中断",systemImage:task.status == "cancelled" ? "stop.circle":"exclamationmark.circle").font(.caption).foregroundStyle(RecordingFormat.secondary)
+                Spacer()
+                Button {store.dismissChatTask(task)} label:{Image(systemName:"xmark").frame(width:44,height:44)}
+                    .accessibilityLabel("关闭恢复提示").accessibilityIdentifier("dismiss-task-"+task.id)
+            }
+            if !store.chatMessages.contains(where:{$0.role=="assistant" && $0.task_id==task.id}), let partial=task.partial_text,!partial.isEmpty {Text(partial).font(.body).textSelection(.enabled)}
+            if task.status != "cancelled" {Text(task.error?.message ?? "连接中断，已有内容已保留。").font(.caption).foregroundStyle(RecordingFormat.secondary)}
+            HStack {
+                Button(task.status == "cancelled" ? "继续":"重试") {store.continueChat(task)}
+                    .frame(minWidth:44,minHeight:44).disabled(store.chatControlBusy || task.error?.retryable == false || store.chatBusy)
+                if task.status != "cancelled" {Button("重新发送原问题") {store.dismissChatTask(task);store.sendChat(task.input?.content ?? "")}.frame(minHeight:44).disabled(store.chatControlBusy)}
+            }.font(.caption).frame(minHeight:44)
+        }
+    }
     @ViewBuilder private func messageView(_ message: ChatMessage) -> some View {
         if message.role == "user" {
             HStack {
@@ -543,7 +574,10 @@ struct ChatView: View {
                 HStack(spacing: 6) { Mascot(size: 23); Text("Candid").font(.caption).foregroundStyle(.secondary) }
                 VStack(alignment: .leading, spacing: 14) {
                     if message.incomplete != true { SpeechMessageButton(speech:store.speech,message:message) }
-                    if message.incomplete == true { Label("未完成 · 已停止", systemImage: "stop.circle").font(.caption).foregroundStyle(.secondary) }
+                    if message.incomplete == true {
+                        if let task=store.chatTasks.first(where:{$0.id==message.task_id}), !store.isChatTaskDismissed(task) {taskRecovery(task)}
+                        else {Label("未完成",systemImage:"stop.circle").font(.caption).foregroundStyle(.secondary)}
+                    }
                     if let id=message.preparation_package_id {NavigationLink{CompanionPreparationPage(id:id)}label:{Label("查看会前准备包",systemImage:"doc.text")}.frame(minHeight:44).accessibilityIdentifier("chat-preparation-"+id)}
                     if let id=message.recording_id {NavigationLink{CompanionRecordingPage(id:id)}label:{Label("查看这场复盘",systemImage:"waveform")}.frame(minHeight:44).accessibilityIdentifier("chat-recording-"+id)}
                     Text(LocalizedStringKey(message.content)).font(.body).lineSpacing(6).textSelection(.enabled)
@@ -644,11 +678,11 @@ struct ProjectSpace: Codable, Identifiable {
     var version: Int; var context_version: Int; var status: String; var created_at: String
     var task_status: String; var message_count: Int; var last_message: String; var queued_count: Int
     var client_request_id: String?; var archive_analysis_status: String?
-    var is_scope_context:Bool?;var scope_label:String?
+    var is_scope_context:Bool?;var is_companion:Bool?;var scope_label:String?
     var activityLabel: String {
         switch task_status { case "thinking": return queued_count > 1 ? "正在处理 · 有补充排队" : "正在处理"
         case "waiting_input": return "等待你的补充"; case "error": return "有任务待处理"
-        default: return message_count == 0 ? "开始一个新的沟通方向" : "\(message_count) 条消息" }
+        default: if is_companion == true {return "通用助手 · 全部资料"};return message_count == 0 ? "开始一个新的沟通方向" : "\(message_count) 条消息" }
     }
 }
 struct MaterialScope: Decodable { var mode: String; var workspace_ids: [String]; var revision: Int }
@@ -658,7 +692,7 @@ struct WorkspaceMaterial: Decodable, Identifiable {
 }
 
 extension Store {
-    var activeProjectSpaces: [ProjectSpace] { projectSpaces.filter { $0.status == "active" && $0.is_scope_context != true } }
+    var activeProjectSpaces: [ProjectSpace] { projectSpaces.filter { $0.status == "active" && ($0.is_scope_context != true || $0.is_companion == true) }.sorted { ($0.is_companion == true ? 0 : 1, $0.created_at, $0.id) < ($1.is_companion == true ? 0 : 1, $1.created_at, $1.id) } }
     var currentProjectSpace: ProjectSpace? {
         projectSpaces.first { $0.id == chatThread?.workspace_id || $0.default_thread_id == chatThread?.id }
     }
@@ -670,19 +704,19 @@ extension Store {
     func restoreWorkspaceSelection() async throws {
         let saved = UserDefaults.standard.string(forKey: recoveryKey + "-last-space")
         if let space = activeProjectSpaces.first(where: { $0.id == saved }) { try await loadChat(space.default_thread_id) }
-        else if let space = activeProjectSpaces.last { try await loadChat(space.default_thread_id) }
+        else if let space = activeProjectSpaces.first { try await loadChat(space.default_thread_id) }
     }
     func selectProjectSpace(_ id: String) async {
-        guard !chatControlBusy, let space = projectSpaces.first(where: { $0.id == id }), chatThread?.id != space.default_thread_id else { return }
+        guard !chatControlBusy, !chatLoading, !voice.active, let space = projectSpaces.first(where: { $0.id == id }), chatThread?.id != space.default_thread_id else { return }
         do { try await loadChat(space.default_thread_id) } catch { chatError = error.localizedDescription }
     }
     func createProjectSpace() async {
-        guard remote, !chatControlBusy else { return }
-        chatControlBusy = true; chatError = nil
+        guard remote, !chatControlBusy, !chatLoading, !voice.active else { return }
+        chatControlBusy = true; chatLoading = true; chatError = nil
         let key = recoveryKey + "-new-space-request"
         let requestID = UserDefaults.standard.string(forKey: key) ?? UUID().uuidString
         UserDefaults.standard.set(requestID, forKey: key)
-        defer { chatControlBusy = false }
+        defer { chatControlBusy = false; chatLoading = false }
         do {
             let space: ProjectSpace = try await api.call("/v1/project-spaces", method: "POST", body: ["client_request_id":requestID])
             UserDefaults.standard.removeObject(forKey: key)
@@ -715,7 +749,7 @@ extension Store {
     }
 }
 
-private struct WorkspaceCarousel: View {
+struct WorkspaceCarousel: View {
     var spaces: [ProjectSpace]; var selectedID: String?; var compact: Bool; var disabled: Bool
     var select: (String) -> Void; var create: () -> Void
     @State private var position: String?
@@ -783,7 +817,7 @@ private struct WorkspaceCarousel: View {
                             .background(space.id == selectedID ? Warm.lavender : Warm.white,in:RoundedRectangle(cornerRadius:18))
                             .overlay(RoundedRectangle(cornerRadius:18).stroke(space.id == selectedID ? Warm.purple.opacity(0.5) : Warm.ink.opacity(0.12)))
                     }.buttonStyle(.plain).frame(width:min(max(width-52,220),460)).id(space.id)
-                        .accessibilityLabel(space.name).accessibilityValue(space.activityLabel)
+                        .accessibilityIdentifier("workspace-"+space.id).accessibilityLabel(space.name).accessibilityValue(space.activityLabel)
                         .accessibilityAddTraits(space.id == selectedID ? .isSelected : [])
                 }
                 Button(action:create) {
@@ -799,7 +833,7 @@ private struct WorkspaceCarousel: View {
                         .overlay(RoundedRectangle(cornerRadius:18).stroke(Warm.ink.opacity(0.22),style:StrokeStyle(lineWidth:1,dash:[5,4])))
                 }.buttonStyle(.plain).frame(width:min(max(width-52,220),460)).id(newID).accessibilityLabel("新建项目空间，直接开始聊天")
             }.scrollTargetLayout()
-        }.scrollIndicators(.hidden).contentMargins(.horizontal,18,for:.scrollContent)
+        }.accessibilityIdentifier("workspace-carousel").scrollIndicators(.hidden).contentMargins(.horizontal,18,for:.scrollContent)
             .scrollTargetBehavior(.viewAligned).scrollPosition(id:$position,anchor:.center).scrollDisabled(disabled)
             .disabled(disabled)
     }
@@ -814,7 +848,7 @@ private struct WorkspaceCarousel: View {
     }
 }
 
-private struct WorkspaceList: View {
+struct WorkspaceList: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     var body: some View {
@@ -825,7 +859,7 @@ private struct WorkspaceList: View {
                     ForEach(store.activeProjectSpaces) { space in
                         Button { Task { await store.selectProjectSpace(space.id); dismiss() } } label: {
                             VStack(alignment:.leading,spacing:5) { Text(space.name); Text(space.activityLabel).font(.caption).foregroundStyle(.secondary) }
-                        }
+                        }.accessibilityIdentifier(space.is_companion == true ? "workspace-list-general":"workspace-list-"+space.id)
                     }
                     Button("新建空间",systemImage:"plus") { Task { await store.createProjectSpace(); if store.chatError == nil { dismiss() } } }.disabled(store.chatControlBusy)
                 }
@@ -844,7 +878,7 @@ private struct WorkspaceList: View {
     }
 }
 
-private struct WorkspaceEditor: View {
+struct WorkspaceEditor: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     let space: ProjectSpace
@@ -866,7 +900,7 @@ private struct WorkspaceEditor: View {
     }
 }
 
-private struct WorkspaceMaterials: View {
+struct WorkspaceMaterials: View {
     @EnvironmentObject var store: Store
     let space: ProjectSpace
     @Environment(\.dismiss) private var dismiss

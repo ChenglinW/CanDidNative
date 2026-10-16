@@ -394,3 +394,36 @@ def test_preparation_participants_only_use_explicit_user_names(domain):
     saved=domain.store.get('companion_preparations',A,result.data['preparation_package_id'])
     assert saved['participants']==['王总（采购）','李工（IT）']
     assert Preparation(**{**pack(),'user_quote':user}).participants==[]
+
+
+def test_workspace_preparations_publish_to_own_thread_without_superseding_other_spaces(domain):
+    general=domain.thread(A)
+    one=domain.spaces.create(A,'客户甲','试点','one')
+    two=domain.spaces.create(A,'客户乙','报价','two')
+    a=domain.save_preparation(A,one['default_thread_id'],'a',pack(),[])
+    b=domain.save_preparation(A,two['default_thread_id'],'b',pack(),[])
+    c=domain.save_preparation(A,one['default_thread_id'],'c',pack(),[])
+    assert b['version']==1 and c['version']==2
+    assert domain.store.get('companion_preparations',A,a['id'])['status']=='superseded'
+    assert domain.store.get('companion_preparations',A,b['id'])['status']=='ready'
+    assert len(domain.store.rows('chat_messages',A,thread_id=one['default_thread_id']))==2
+    assert len(domain.store.rows('chat_messages',A,thread_id=two['default_thread_id']))==1
+    assert domain.store.rows('chat_messages',A,thread_id=general['id'])==[]
+    assert domain.snapshot(A)['preparations']
+    domain.spaces.archive(A,one['id'],one['version'])
+    with pytest.raises(Fault):domain.save_preparation(A,one['default_thread_id'],'archived',pack(),[])
+    with pytest.raises(Fault):domain.save_preparation(B,two['default_thread_id'],'foreign',pack(),[])
+
+
+def test_workspace_preparation_rejects_cross_space_evidence_until_explicitly_linked(domain):
+    from adapters.sources import version
+    general=domain.thread(A)
+    one=domain.spaces.create(A,'甲','目标甲','one')
+    two=domain.spaces.create(A,'乙','目标乙','two')
+    doc=Materials(domain.store,domain.spaces).save(A,one['id'],'甲的预算','预算为18万元')
+    refs=[{'source_id':'document:'+doc['id'],'source_version':version(doc)}]
+    with pytest.raises(Fault):domain.save_preparation(A,two['default_thread_id'],'blocked',pack(),refs)
+    assert Materials(domain.store,domain.spaces).search(A,two['id'],'预算',[])['items']==[]
+    assert Materials(domain.store,domain.spaces).search(A,general['workspace_id'],'预算',[])['items']
+    domain.spaces.set_scope(A,'document:'+doc['id'],'spaces',[one['id'],two['id']],0)
+    assert domain.save_preparation(A,two['default_thread_id'],'linked',pack(),refs)['workspace_id']==two['id']

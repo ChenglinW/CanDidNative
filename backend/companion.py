@@ -23,9 +23,9 @@ class Companion:
                     'query_scope': {'mode': 'companion'}, 'scope_label': '所有沟通与资料'})
             return self.store.get('chat_threads', owner, space['default_thread_id'])
 
-    def current(self, owner, refs):
+    def current(self, owner, refs, workspace_id=None):
         return all(r['status'] == 'current' for r in self.adapter.references_status(
-            owner, refs, self.thread(owner)['workspace_id']))
+            owner, refs, workspace_id or self.thread(owner)['workspace_id']))
 
     def snapshot(self, owner):
         thread = self.thread(owner)
@@ -54,8 +54,10 @@ class Companion:
         return {'expressions': expressions, 'discoveries': discoveries}
 
     def save_preparation(self, owner, thread_id, request_id, data, references):
-        if thread_id != self.thread(owner)['id']:
-            raise Fault('CHAT_REQUIRED', '请在 Candid 对话中准备', 409)
+        thread = self.store.get('chat_threads', owner, thread_id)
+        space = self.spaces.get(owner, thread['workspace_id'])
+        if space['status'] != 'active':
+            raise Fault('WORKSPACE_ARCHIVED', '请先恢复空间后再准备', 409)
         when = data.get('scheduled_at')
         if when:
             try:
@@ -66,15 +68,15 @@ class Companion:
         with self.store.transaction(owner):
             prior = self.store.rows('companion_preparations', owner, client_request_id=request_id)
             if prior: return prior[0]
-            if not self.current(owner, references): raise Fault('SOURCE_SUPERSEDED', '准备依据已变化，请重新整理', 409)
+            if not self.current(owner, references, thread['workspace_id']): raise Fault('SOURCE_SUPERSEDED', '准备依据已变化，请重新整理', 409)
             same = next((p for p in self.store.rows('companion_preparations', owner)
-                         if p['client'] == data['client'] and p.get('scheduled_at') == data.get('scheduled_at') and p['status'] == 'ready'), None)
-            pack = self.store.put('companion_preparations', owner, {**data, 'status': 'ready',
+                         if p.get('workspace_id', self.thread(owner)['workspace_id']) == thread['workspace_id'] and p['client'] == data['client'] and p.get('scheduled_at') == data.get('scheduled_at') and p['status'] == 'ready'), None)
+            pack = self.store.put('companion_preparations', owner, {**data, 'workspace_id': thread['workspace_id'], 'thread_id': thread_id, 'status': 'ready',
                 'version': (same['version'] + 1) if same else 1, 'client_request_id': request_id,
                 'evidence_refs': references, 'producer': 'agent/preparation', 'rubric_version': 'companion-prep@2'}, L2, source='ai')
             if same: self.store.update('companion_preparations', owner, same['id'], {'status': 'superseded'})
             self.message(owner, 'preparation:' + pack['id'], '准备包已整理：' + pack['client'],
-                         preparation_package_id=pack['id'])
+                         target_thread_id=thread_id, preparation_package_id=pack['id'])
             return pack
 
     def finish(self, owner, pid, expected):
@@ -83,9 +85,9 @@ class Companion:
             if pack['version'] != expected: raise Fault('VERSION_CONFLICT', '准备包已更新，请刷新', 409)
             return self.store.update('companion_preparations', owner, pid, {'status': 'completed', 'version': expected + 1})
 
-    def message(self, owner, key, content, **artifact):
+    def message(self, owner, key, content, target_thread_id=None, **artifact):
         # Caller holds transaction: one commit covers the artifact and its publication.
-        thread = self.thread(owner)
+        thread = self.store.get('chat_threads',owner,target_thread_id) if target_thread_id else self.thread(owner)
         prior = self.store.rows('chat_messages', owner, publication_key=key)
         if prior: return prior[0]
         message = self.store.put('chat_messages', owner, {'thread_id': thread['id'], 'role': 'assistant',

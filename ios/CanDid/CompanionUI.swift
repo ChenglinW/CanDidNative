@@ -18,6 +18,7 @@ struct CompanionPreparation: Decodable, Identifiable {
   var status: String
   var version: Int
   var reference_status: String?
+  var workspace_id: String?
 }
 struct CompanionSnapshot: Decodable {
   var thread: ChatThread
@@ -53,14 +54,15 @@ extension Store {
     guard DeviceRecordingMap.identity(connection) == DeviceRecordingMap.identity(api) else {
       return
     }
+    voice.refreshRecoveries(store:self)
     companion = snapshot
     companionRecordings = recordings.filter { $0.fixture != true }
     companionMemory = memories
-    if chatThread?.id != snapshot.thread.id {
-      try await reloadProjectSpaces()
-      try await loadChat(snapshot.thread.id)
-    } else if !chatControlBusy && !chatLoading && !chatBusy && chatRequest == nil {
-      try await refreshCompanionChat(snapshot.thread.id)
+    // Refresh metadata without resetting the user's selected context.
+    try await reloadProjectSpaces()
+    if chatThread == nil {try await restoreWorkspaceSelection()}
+    else if !chatControlBusy && !chatLoading && !chatBusy && chatRequest == nil, let id=chatThread?.id {
+      try await refreshCompanionChat(id)
     }
   }
 }
@@ -203,15 +205,26 @@ struct CompanionHome: View {
   @State private var open = false
   @State private var issue: String?
   @State private var device = false
+  @State private var workspaceList = false
+  @State private var workspaceEditor = false
+  @State private var workspaceMaterials = false
   @FocusState private var focused: Bool
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private func revealChat(_ value: Bool) {
-    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.3)) { open = value }
+    withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.9)) { open = value }
     if !value { focused = false }
   }
   private var records: [RecordingRecord] { Array(store.companionRecordings.prefix(3)) }
-  private var empty: Bool { store.companion?.next_preparation == nil && records.isEmpty }
+  private var nextPreparation:CompanionPreparation? {
+    let all=store.companion?.preparations ?? []
+    if store.currentProjectSpace?.is_companion == true || store.currentProjectSpace == nil {return store.companion?.next_preparation}
+    let scoped=all.filter{$0.workspace_id==store.currentProjectSpace?.id && $0.status=="ready" && $0.reference_status != "superseded"}
+    let now=Date()
+    let future=scoped.filter{(ProductDate.parse($0.scheduled_at ?? "") ?? .distantPast)>=now}.sorted{($0.scheduled_at ?? "", -$0.version)<($1.scheduled_at ?? "", -$1.version)}
+    return future.first ?? scoped.filter{$0.scheduled_at==nil}.last
+  }
+  private var empty: Bool { nextPreparation == nil && records.isEmpty }
   var body: some View {
     VStack(spacing: 0) {
       HStack(spacing: 10) {
@@ -262,24 +275,23 @@ struct CompanionHome: View {
             }
           }.opacity(open ? 0 : 1).accessibilityHidden(open)
           ChatView(onSettings: onSettings, embedded: true, showsComposer: false)
-            .padding(.top, 44)
-            .overlay(alignment: .topTrailing) {
-              Button {
-                revealChat(false)
-              } label: {
-                Image(systemName: "chevron.down").font(.system(size: 13)).frame(
-                  width: 32, height: 32
-                ).background(Warm.white, in: Circle()).overlay(
-                  Circle().stroke(CompanionStyle.line.opacity(0.6)))
-              }.frame(width: 44, height: 44).padding(.trailing, 12).accessibilityLabel("收起对话")
+            .padding(.top, 52)
+            .overlay(alignment: .top) {
+              HStack {
+                VStack(alignment:.leading,spacing:2) {
+                  Text("对话").companionFont(15,weight:.semibold)
+                  Text(store.currentProjectSpace?.name ?? "Candid").companionFont(11).foregroundStyle(RecordingFormat.secondary).lineLimit(1)
+                }
+                Spacer()
+                Button {revealChat(false)} label:{Label("收起",systemImage:"chevron.down").companionFont(13).frame(minHeight:44)}
+                  .accessibilityLabel("收起对话")
+              }.padding(.horizontal,18).frame(height:52).contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance:20).onEnded{if $0.translation.height>45 {revealChat(false)}})
             }
             .background(Warm.paper).opacity(open ? 1 : 0).allowsHitTesting(open)
             .accessibilityHidden(!open)
             .offset(y: open || reduceMotion ? 0 : geometry.size.height)
-            .simultaneousGesture(
-              DragGesture(minimumDistance: 45).onEnded { value in
-                if value.startLocation.y < 55 && value.translation.height > 65 { revealChat(false) }
-              })
+
         }
       }.clipped()
       dock
@@ -288,6 +300,9 @@ struct CompanionHome: View {
       .sheet(isPresented: $device) {
         NavigationStack { CompanionDeviceGuide().toolbar { Button("返回") { device = false } } }
       }
+      .sheet(isPresented:$workspaceList) {WorkspaceList()}
+      .sheet(isPresented:$workspaceEditor) {if let space=store.currentProjectSpace {WorkspaceEditor(space:space)}}
+      .sheet(isPresented:$workspaceMaterials) {if let space=store.currentProjectSpace {WorkspaceMaterials(space:space)}}
       .task(id: String(store.remote) + store.base) {
         guard store.remote else { return }
         while !Task.isCancelled {
@@ -329,7 +344,7 @@ struct CompanionHome: View {
         }.frame(maxWidth: .infinity)
         Spacer(minLength: 30)
       } else {
-        if let pack = store.companion?.next_preparation {
+        if let pack = nextPreparation {
           HStack {
             Text("下一场")
             Spacer()
@@ -367,6 +382,27 @@ struct CompanionHome: View {
   }
   private var dock: some View {
     VStack(spacing: 10) {
+      HStack {
+        Button {revealChat(!open)} label:{Label(open ? "返回首页":"查看对话",systemImage:open ? "chevron.down":"chevron.up").companionFont(12).frame(minHeight:44)}
+          .accessibilityIdentifier("toggle-home-chat")
+        Spacer()
+        Menu {
+          Button("空间列表与归档") {workspaceList=true}
+          if store.currentProjectSpace?.is_companion != true {
+            Button("修改名称与方向") {workspaceEditor=true}
+            Button("可读取的资料") {workspaceMaterials=true}
+            Button("归档这个空间") {Task {await store.archiveProjectSpace()}}
+              .disabled(store.chatBusy || store.voice.active)
+          }
+        } label:{Label("工作区",systemImage:"square.stack").companionFont(12).frame(minHeight:44)}
+          .accessibilityLabel("工作区管理").disabled(store.voice.active || store.chatControlBusy || store.chatLoading)
+      }.padding(.horizontal,18)
+      if !store.activeProjectSpaces.isEmpty {
+        WorkspaceCarousel(spaces:store.activeProjectSpaces,selectedID:store.currentProjectSpace?.id,compact:true,
+          disabled:store.chatControlBusy || store.chatLoading || store.voice.active,
+          select:{id in focused=false;Task{await store.selectProjectSpace(id)}},
+          create:{focused=false;Task{await store.createProjectSpace();revealChat(true)}})
+      }
       SpeechPlaybackBar(speech:store.speech)
       CompanionQuickActions(
         hasRecording: !records.isEmpty, prepare: { send("帮我准备下一场沟通。") },
@@ -1436,6 +1472,13 @@ struct CompanionEvidencePage: View {
         CompanionSnapshot.self,
         ["thread": thread, "preparations": [pack], "next_preparation": pack])
       chatThread = companion?.thread
+      projectSpaces = decode([ProjectSpace].self,[["id":"preview-context","name":"Candid","goal":"通用助手","default_thread_id":"preview-chat","version":1,"context_version":1,"status":"active","created_at":"2026-10-16","task_status":"idle","message_count":0,"last_message":"","queued_count":0,"is_scope_context":true,"is_companion":true]])
+      if ProcessInfo.processInfo.arguments.contains("-candid-clear-task-hints") {clearChatRecovery()}
+      if ProcessInfo.processInfo.arguments.contains("-candid-stopped-chat") {
+        chatMessages=decode([ChatMessage].self,[["id":"preview-answer","role":"assistant","content":"先确认客户当前的目标，再讨论方案。","sources":[],"tool_steps":[],"created_at":"","incomplete":true,"task_id":"preview-stopped"]])
+        chatTasks=decode([AgentTask].self,[["id":"preview-stopped","thread_id":"preview-chat","turn_id":"preview-turn","status":"cancelled","attempt":1,"tool_steps":[],"input":["content":"帮我准备沟通"]]])
+      }
+
       var longSegments:[[String:Any]]=[]
       for index in 0..<60 {
         var segment:[String:Any]=[:]

@@ -1,0 +1,9 @@
+{
+  "synthetic_owner": true,
+  "base": "https://47.129.137.212",
+  "status": "passed",
+  "model_task_status": "completed",
+  "preparation_in_selected_workspace": true,
+  "other_threads_unchanged": true,
+  "cleanup_status": 410
+}

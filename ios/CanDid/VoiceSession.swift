@@ -13,18 +13,12 @@ private final class VoiceInput {
     let id=UUID();let request=UUID();let generation=UUID()
     var segments:[VoiceASRSegment]=[];var results:[UUID:String]=[:];var previews:[UUID:String]=[:]
     var current:VoiceASRSegment?;var committed=false;var failed=false;var lastEndSample=0
-    let path:URL;let handle:FileHandle;var bytes=0;var lastWrittenSample=0;var question:VoiceQuestion?;var requestBody:[String:Any]?
-    init() throws {
-        let folder=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("VoiceInputs")
-        try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
-        path=folder.appendingPathComponent(id.uuidString+".pcm")
-        guard FileManager.default.createFile(atPath:path.path,contents:nil,attributes:[.protectionKey:FileProtectionType.complete]) else{throw PrototypeError.message("无法保留这句话。")}
-        handle=try FileHandle(forWritingTo:path)
-    }
-    deinit {try? handle.close()}
+    var bytes=0;var lastWrittenSample=0;var question:VoiceQuestion?;var requestBody:[String:Any]?
+    init() throws {}
     var preview:String {segments.map{results[$0.id] ?? previews[$0.id] ?? ""}.joined()}
-    func write(_ pcm:Data) throws {guard bytes+pcm.count<=20_000_000 else{throw PrototypeError.message("这段发言过长，已保留输入，请分段说。")};try handle.write(contentsOf:pcm);bytes+=pcm.count}
-    func clear() {try? handle.close();try? FileManager.default.removeItem(at:path)}
+    func write(_ pcm:Data) throws {guard bytes+pcm.count<=20_000_000 else{throw PrototypeError.message("这段发言过长，请分段说。")};bytes+=pcm.count}
+    func clear() {bytes=0}
+
 }
 
 @MainActor final class VoiceSessionController:ObservableObject {
@@ -54,7 +48,6 @@ private final class VoiceInput {
     private var vad:VoiceActivityDetector?
     private var input:VoiceInput?
     private var inflight:Set<UUID>=[]
-    var visibleRecoveries:[VoiceRecovery] {recoveries.filter{$0.id != input?.id.uuidString && !inflight.contains(UUID(uuidString:$0.id) ?? UUID())}}
     private var preRoll=Data()
     private var sample=0
     private var voiced=0
@@ -265,7 +258,9 @@ private final class VoiceInput {
             if pendingCancel.contains(value.request) || cancelledRequests.contains(value.request) {removeRecovery(value.id.uuidString);value.clear();return}
             let definitive=error.localizedDescription.contains("VOICE_INPUT_CHANGED") || error.localizedDescription.contains("REQUEST_CONFLICT") || error.localizedDescription.contains("WORKSPACE_ARCHIVED")
             preserve(value,text:text,request:definitive ? nil:value.request.uuidString,unknown:!definitive,scope:scope)
-            if epoch==stamp {notice="发送结果未确认，已保留这句话；请核对后继续。";phase = .failed}
+            if definitive {store?.restoreUnsentVoiceText(text,threadID:thread)}
+            if epoch==stamp {notice=definitive ? "语音未发送，文字已留在输入框。":"正在核对消息发送状态…";phase = .failed}
+            refreshRecoveries()
         }
     }
     private func interruptReply(clearResponse:Bool=true) {
@@ -323,7 +318,7 @@ private final class VoiceInput {
     }
     func pause(reason:String?=nil) {
         guard active else{return};interruptReply(clearResponse:false);epoch=UUID();beginTask?.cancel();holding=false
-        if let input,!input.committed {preserve(input,text:input.preview,request:nil,unknown:false);input.segments.forEach{$0.abort()};self.input=nil}
+        if let input,!input.committed {input.segments.forEach{$0.abort()};input.clear();self.input=nil;preview=""}
         segments.values.forEach{$0.cancel()};segments=[:];stopOutput();capture?.stop();releaseAudio();microphonePaused=true;phase = .paused;notice=reason
         if mode == .hold {mode=nil}
     }
@@ -335,60 +330,56 @@ private final class VoiceInput {
     }
     func exit() {pause();mode=nil;showContinuous=false;phase = .idle;microphonePaused=false;reply=nil}
     func contextChanged() {if active {exit();notice="已退出语音，开始时的消息仍保留在原空间。"}}
-    private func failInput(_ text:String) {input?.failed=true;pause(reason:text);phase = .failed}
+    private func failInput(_ text:String) {
+        let recognized=input?.preview ?? preview
+        if !recognized.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {if let thread {store?.restoreUnsentVoiceText(recognized,threadID:thread)}}
+        input?.failed=true;pause(reason:recognized.isEmpty ? "没听清，请再说一次。":"语音未发送，文字已留在输入框。");phase = .failed
+    }
     private func preserve(_ value:VoiceInput,text:String,request:String?,unknown:Bool,scope:VoiceScope?=nil) {
-        guard let thread=scope?.thread ?? thread,let workspace=scope?.workspace ?? workspace else{return}
+        value.clear() // Short voice is transient; only unresolved request metadata survives.
+        guard let request, let thread=scope?.thread ?? thread,let workspace=scope?.workspace ?? workspace else{return}
         recoveries.removeAll{$0.id==value.id.uuidString}
-        recoveries.append(VoiceRecovery(id:value.id.uuidString,path:value.path.path,created:Date(),backend:scope?.backend ?? backend,thread:thread,workspace:workspace,text:text,requestID:request,unknown:unknown))
-        persistRecoveries();purgeRecoveries()
+        recoveries.append(VoiceRecovery(id:value.id.uuidString,path:"",created:Date(),backend:scope?.backend ?? backend,thread:thread,workspace:workspace,text:text,requestID:request,unknown:unknown))
+        persistRecoveries()
     }
+
     private func persistRecoveries() {try? FileManager.default.createDirectory(at:recoveryURL.deletingLastPathComponent(),withIntermediateDirectories:true);if let data=try? JSONEncoder().encode(recoveries) {try? data.write(to:recoveryURL,options:[.atomic,.completeFileProtection])}}
-    func refreshRecoveries() {purgeRecoveries()}
-    private func purgeRecoveries() {
-        var bytes=0;var keep:[VoiceRecovery]=[]
-        for item in recoveries.sorted(by:{$0.created>$1.created}) {
-            let size=(try? FileManager.default.attributesOfItem(atPath:item.path)[.size] as? Int) ?? 0
-            if Date().timeIntervalSince(item.created)<=86400 && bytes+size<=20_000_000 && keep.count<50 {keep.append(item);bytes+=size}
-            else {try? FileManager.default.removeItem(atPath:item.path)}
-        }
-        let retained=Set(keep.map{$0.path})
-        let folder=recoveryURL.deletingLastPathComponent().appendingPathComponent("VoiceInputs")
-        for file in (try? FileManager.default.contentsOfDirectory(at:folder,includingPropertiesForKeys:nil)) ?? [] where file.pathExtension=="pcm" && !retained.contains(file.path) {try? FileManager.default.removeItem(at:file)}
-        if keep.count<recoveries.count {notice="已清理过期或超出保留空间的未完成语音。"}
-        recoveries=keep;persistRecoveries()
-    }
-    func retranscribe(_ row:VoiceRecovery,store:Store) {
-        guard !active,row.requestID==nil,row.backend==identity(store.api),row.workspace==store.currentProjectSpace?.id else{notice="请先结束语音，并返回原空间后恢复。";return}
-        recoveryTask?.cancel();let api=store.api;let captured=identity(api)
+    func refreshRecoveries(store attachedStore:Store?=nil) {
+        if let attachedStore {store=attachedStore}
+        guard recoveryTask == nil,let store,store.remote else{return}
+        let connection=store.api;let expected=identity(connection)
         recoveryTask=Task {
-            let segment=VoiceASRSegment(api:api,session:UUID(),turn:UUID(),epoch:UUID(),startSample:0)
-            defer {segment.abort();recoveryTask=nil}
-            do {
-                let data=try Data(contentsOf:URL(fileURLWithPath:row.path));guard !data.isEmpty else{removeRecovery(row.id);notice="没有可恢复的音频，请重新说。";return};notice="正在恢复这句话的转写…";segment.open()
-                try await segment.waitUntilReady()
-                for offset in stride(from:0,to:data.count,by:3200) {
-                    try Task.checkCancellation()
-                    guard identity(store.api)==captured,store.currentProjectSpace?.id==row.workspace else{throw CancellationError()}
-                    segment.append(data.subdata(in:offset..<min(data.count,offset+3200)));try await Task.sleep(for:.milliseconds(100))
-                }
-                segment.seal();let text=try await segment.result()
-                guard identity(store.api)==captured,store.currentProjectSpace?.id==row.workspace else{return}
-                store.saveChatDraft(text);notice="恢复转写已完成，检查文字后即可发送。"
-            } catch {notice="恢复未完成，原输入仍保留。"}
+            defer{recoveryTask=nil}
+            for row in recoveries where row.backend==expected && row.requestID != nil {
+                guard !inflight.contains(UUID(uuidString:row.id) ?? UUID()) else{continue}
+                do {
+                    let data=try await connection.raw("/v1/voice/threads/"+row.thread+"/requests/"+row.requestID!)
+                    guard identity(store.api)==expected else{return}
+                    let result=try JSONSerialization.jsonObject(with:data) as? [String:Any]
+                    if result?["status"] as? String == "unknown" {
+                        // An idempotent cancellation tombstone prevents a delayed POST from sending twice.
+                        let cancelled=try await connection.raw("/v1/voice/threads/"+row.thread+"/requests/"+row.requestID!+"/cancel",method:"POST")
+                        guard identity(store.api)==expected else{return}
+                        let cancellation=try JSONSerialization.jsonObject(with:cancelled) as? [String:Any]
+                        if cancellation?["task_id"] as? String == nil {
+                            store.restoreUnsentVoiceText(row.text,threadID:row.thread)
+                            if store.chatThread?.id==row.thread {notice="语音未发送，文字已留在输入框。"}
+                        }
+                    }
+                    removeRecovery(row.id)
+                    if store.chatThread?.id==row.thread && notice=="正在核对消息发送状态…" {notice=nil}
+                    if store.chatThread?.id==row.thread && !store.chatLoading && !store.chatControlBusy {try? await store.loadChat(row.thread)}
+                } catch { /* Keep only request metadata for the next automatic reconciliation. */ }
+            }
         }
     }
-    func removeRecovery(_ id:String) {for row in recoveries where row.id==id {try? FileManager.default.removeItem(atPath:row.path)};recoveries.removeAll{$0.id==id};persistRecoveries()}
-    func recoverText(_ row:VoiceRecovery,store:Store) async {
-        guard row.backend==identity(store.api),row.workspace==store.currentProjectSpace?.id else {notice="请返回这句话原来的空间与后端后恢复。";return}
-        do {
-            if let request=row.requestID {
-                let data=try await store.api.raw("/v1/voice/threads/"+row.thread+"/requests/"+request)
-                let value=try JSONSerialization.jsonObject(with:data) as? [String:Any]
-                if value?["status"] as? String=="accepted" {removeRecovery(row.id);try? await store.loadChat(row.thread);notice="已找到之前提交的消息。";return}
-                if value?["status"] as? String=="cancelled" {removeRecovery(row.id);notice="这句话已经取消。";return}
-                notice="尚未确认发送结果，请稍后再次核对；没有重新发送。";return
-            }
-            if !row.text.isEmpty {store.saveChatDraft(row.text);notice="已恢复可编辑文字，请核对后发送；原音频仍保留。"} else {notice="原音频仍保留，可选择重新转写或重说。"}
-        } catch {notice="尚无法核对发送结果，请稍后再试。"}
+    private func purgeRecoveries() {
+        // Migrate old short-audio recovery files without touching meeting recordings.
+        for row in recoveries where !row.path.isEmpty {try? FileManager.default.removeItem(atPath:row.path)}
+        recoveries=recoveries.filter{$0.requestID != nil}.map{var row=$0;row.path="";return row}
+        let folder=recoveryURL.deletingLastPathComponent().appendingPathComponent("VoiceInputs")
+        for file in (try? FileManager.default.contentsOfDirectory(at:folder,includingPropertiesForKeys:nil)) ?? [] where file.pathExtension=="pcm" {try? FileManager.default.removeItem(at:file)}
+        persistRecoveries()
     }
+    func removeRecovery(_ id:String) {for row in recoveries where row.id==id && !row.path.isEmpty {try? FileManager.default.removeItem(atPath:row.path)};recoveries.removeAll{$0.id==id};persistRecoveries()}
 }

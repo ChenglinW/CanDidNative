@@ -7,8 +7,10 @@ struct VoicePresentation:ViewModifier {
     @Environment(\.scenePhase) private var scene
     func body(content:Content)->some View {
         content.fullScreenCover(isPresented:$voice.showContinuous,onDismiss:{voice.exit()}) {VoiceConversationView(voice:voice).environmentObject(store)}
-            .onChange(of:scene) {_,value in if value != .active {voice.pause(reason:"已暂停收音，回来后点击继续。")} else {voice.refreshRecoveries()}}
+            .onChange(of:scene) {_,value in if value != .active {voice.pause(reason:"已暂停收音，回来后点击继续。")} else {voice.refreshRecoveries(store:store)}}
             .onChange(of:store.currentProjectSpace?.id) {_,_ in voice.contextChanged()}
+            .task {voice.refreshRecoveries(store:store)}
+            .onChange(of:store.connectionReady) {_,ready in if ready {voice.refreshRecoveries(store:store)}}
             .onChange(of:store.base) {_,_ in voice.contextChanged()}
             .onChange(of:store.remote) {_,value in if !value {voice.contextChanged()}}
 
@@ -171,9 +173,7 @@ struct VoiceInputStatus:View {
                 if !voice.preview.isEmpty {Text(voice.preview).font(.subheadline).lineLimit(4)}
             }
             if let notice=voice.notice,!voice.showContinuous {Text(notice).font(.caption).foregroundStyle(RecordingFormat.secondary)}
-            ForEach(voice.visibleRecoveries.filter{$0.backend==voice.identity(store.api) && $0.workspace==store.currentProjectSpace?.id}) {row in
-                HStack {Text(row.unknown ? "有一条语音待核对发送结果":"保留了一段未完成的语音").font(.caption);Spacer();Button("查看") {Task {await voice.recoverText(row,store:store)}}.font(.caption).frame(minHeight:44);if row.requestID==nil {Button("恢复转写") {voice.retranscribe(row,store:store)}.font(.caption).frame(minHeight:44)};Button("丢弃") {voice.removeRecovery(row.id)}.font(.caption).frame(minHeight:44)}
-            }
+
         }.padding(.horizontal,22)
     }
 }
