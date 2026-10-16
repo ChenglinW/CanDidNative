@@ -1,0 +1,548 @@
+{
+  "scope": "Offline exact replay of the 32-question smoke run; no new provider calls, no production changes",
+  "pair_counts": {
+    "gold": 24,
+    "baseline_tp": 15,
+    "hybrid_tp": 12,
+    "lost_correct_pairs": 4,
+    "recovered_correct_pairs": 1,
+    "false_merges_removed": 6
+  },
+  "false_negative_observed_routes": {
+    "model_returned_null": 11,
+    "single_group_assignment_cannot_reconcile_split_groups": 1
+  },
+  "new_losses": [
+    {
+      "ids": [
+        "08-10-107",
+        "08-11-108"
+      ],
+      "questions": [
+        "我们为什么最爱自己的母亲？",
+        "我们为什么爱我们的父母？"
+      ],
+      "english": [
+        "Why do we love our mother the most ?",
+        "Why do we love our parents ?"
+      ],
+      "gold_group": "Curiosity-Love:family",
+      "new_loss_vs_baseline": true,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我们为什么爱我们的父母？",
+      "method": "llm",
+      "best_mean_similarity": 0.827216625213623,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "10",
+          "questions": [
+            "我们为什么如此爱我们的母亲？",
+            "我们为什么最爱自己的母亲？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-11-108",
+        "08-70-269121"
+      ],
+      "questions": [
+        "我们为什么爱我们的父母？",
+        "我们为什么如此爱我们的母亲？"
+      ],
+      "english": [
+        "Why do we love our parents ?",
+        "Why do we love our mother so much ?"
+      ],
+      "gold_group": "Curiosity-Love:family",
+      "new_loss_vs_baseline": true,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我们为什么爱我们的父母？",
+      "method": "llm",
+      "best_mean_similarity": 0.827216625213623,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "10",
+          "questions": [
+            "我们为什么如此爱我们的母亲？",
+            "我们为什么最爱自己的母亲？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-41-81607",
+        "08-57-164384"
+      ],
+      "questions": [
+        "什么样的饮食习惯有助于减肥？",
+        "哪些食物最有助于减肥？"
+      ],
+      "english": [
+        "What is a good diet for losing weight ?",
+        "What are the best weight loss foods ?"
+      ],
+      "gold_group": "Advice-Weightloss:diet",
+      "new_loss_vs_baseline": true,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "哪些食物最有助于减肥？",
+      "method": "llm",
+      "best_mean_similarity": 0.7730422616004944,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "3",
+          "questions": [
+            "什么样的饮食习惯有助于减肥？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-16-51612",
+        "08-57-164384"
+      ],
+      "questions": [
+        "哪种饮食计划最适合用于减肥？",
+        "哪些食物最有助于减肥？"
+      ],
+      "english": [
+        "What is the best diet plan for weight loss ?",
+        "What are the best weight loss foods ?"
+      ],
+      "gold_group": "Advice-Weightloss:diet",
+      "new_loss_vs_baseline": true,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "哪种饮食计划最适合用于减肥？",
+      "method": "llm",
+      "best_mean_similarity": 0.7589671015739441,
+      "selected_group": "3",
+      "correct_candidates": [
+        {
+          "id": "4",
+          "questions": [
+            "哪些食物最有助于减肥？"
+          ]
+        }
+      ],
+      "observed_reason": "single_group_assignment_cannot_reconcile_split_groups"
+    }
+  ],
+  "all_hybrid_false_negatives": [
+    {
+      "ids": [
+        "08-10-107",
+        "08-11-108"
+      ],
+      "questions": [
+        "我们为什么最爱自己的母亲？",
+        "我们为什么爱我们的父母？"
+      ],
+      "english": [
+        "Why do we love our mother the most ?",
+        "Why do we love our parents ?"
+      ],
+      "gold_group": "Curiosity-Love:family",
+      "new_loss_vs_baseline": true,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我们为什么爱我们的父母？",
+      "method": "llm",
+      "best_mean_similarity": 0.827216625213623,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "10",
+          "questions": [
+            "我们为什么如此爱我们的母亲？",
+            "我们为什么最爱自己的母亲？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-11-108",
+        "08-70-269121"
+      ],
+      "questions": [
+        "我们为什么爱我们的父母？",
+        "我们为什么如此爱我们的母亲？"
+      ],
+      "english": [
+        "Why do we love our parents ?",
+        "Why do we love our mother so much ?"
+      ],
+      "gold_group": "Curiosity-Love:family",
+      "new_loss_vs_baseline": true,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我们为什么爱我们的父母？",
+      "method": "llm",
+      "best_mean_similarity": 0.827216625213623,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "10",
+          "questions": [
+            "我们为什么如此爱我们的母亲？",
+            "我们为什么最爱自己的母亲？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-6-13499",
+        "08-76-295109"
+      ],
+      "questions": [
+        "快速消耗卡路里的最佳方法是什么？",
+        "如何在六个月内减掉100磅（约45公斤）？"
+      ],
+      "english": [
+        "What is the best way to lose calories fast ?",
+        "How can you lose 100 pounds in 6 months ?"
+      ],
+      "gold_group": "Advice-Weightloss:fast",
+      "new_loss_vs_baseline": false,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "快速消耗卡路里的最佳方法是什么？",
+      "method": "llm",
+      "best_mean_similarity": 0.6241258978843689,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "7",
+          "questions": [
+            "如何在六个月内减掉100磅（约45公斤）？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-6-13499",
+        "08-6-504"
+      ],
+      "questions": [
+        "快速消耗卡路里的最佳方法是什么？",
+        "我怎样才能更快地减肥？"
+      ],
+      "english": [
+        "What is the best way to lose calories fast ?",
+        "How do I lose weight faster ?"
+      ],
+      "gold_group": "Advice-Weightloss:fast",
+      "new_loss_vs_baseline": false,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我怎样才能更快地减肥？",
+      "method": "llm",
+      "best_mean_similarity": 0.715947151184082,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "9",
+          "questions": [
+            "快速消耗卡路里的最佳方法是什么？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-76-295109",
+        "08-6-504"
+      ],
+      "questions": [
+        "如何在六个月内减掉100磅（约45公斤）？",
+        "我怎样才能更快地减肥？"
+      ],
+      "english": [
+        "How can you lose 100 pounds in 6 months ?",
+        "How do I lose weight faster ?"
+      ],
+      "gold_group": "Advice-Weightloss:fast",
+      "new_loss_vs_baseline": false,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我怎样才能更快地减肥？",
+      "method": "llm",
+      "best_mean_similarity": 0.715947151184082,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "7",
+          "questions": [
+            "如何在六个月内减掉100磅（约45公斤）？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-88-361710",
+        "08-6-34549"
+      ],
+      "questions": [
+        "我怎样才能在短时间内快速减掉20磅体重，以便参加一部电影中一个小角色的试镜？",
+        "我该如何快速减肥，以便为手术做好准备？"
+      ],
+      "english": [
+        "How can I lose 20 lbs super fast to audition for a small role in a movie ?",
+        "How do I loose weight fast for operation ?"
+      ],
+      "gold_group": "Advice-Weightloss:fast#deadline",
+      "new_loss_vs_baseline": false,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我该如何快速减肥，以便为手术做好准备？",
+      "method": "llm",
+      "best_mean_similarity": 0.7627754211425781,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "14",
+          "questions": [
+            "我怎样才能在短时间内快速减掉20磅体重，以便参加一部电影中一个小角色的试镜？",
+            "我想在两周后的一个活动中达到理想的体重，之后体重是否会反弹我并不在意。 我该怎么办？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-98-428061",
+        "08-6-34549"
+      ],
+      "questions": [
+        "我想在两周后的一个活动中达到理想的体重，之后体重是否会反弹我并不在意。 我该怎么办？",
+        "我该如何快速减肥，以便为手术做好准备？"
+      ],
+      "english": [
+        "I want to lose weight for an event coming up in 2 weeks and I really do n't care if I gain it back afterwords . What should I do ?",
+        "How do I loose weight fast for operation ?"
+      ],
+      "gold_group": "Advice-Weightloss:fast#deadline",
+      "new_loss_vs_baseline": false,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我该如何快速减肥，以便为手术做好准备？",
+      "method": "llm",
+      "best_mean_similarity": 0.7627754211425781,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "14",
+          "questions": [
+            "我怎样才能在短时间内快速减掉20磅体重，以便参加一部电影中一个小角色的试镜？",
+            "我想在两周后的一个活动中达到理想的体重，之后体重是否会反弹我并不在意。 我该怎么办？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-41-81607",
+        "08-57-164384"
+      ],
+      "questions": [
+        "什么样的饮食习惯有助于减肥？",
+        "哪些食物最有助于减肥？"
+      ],
+      "english": [
+        "What is a good diet for losing weight ?",
+        "What are the best weight loss foods ?"
+      ],
+      "gold_group": "Advice-Weightloss:diet",
+      "new_loss_vs_baseline": true,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "哪些食物最有助于减肥？",
+      "method": "llm",
+      "best_mean_similarity": 0.7730422616004944,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "3",
+          "questions": [
+            "什么样的饮食习惯有助于减肥？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-16-51612",
+        "08-57-164384"
+      ],
+      "questions": [
+        "哪种饮食计划最适合用于减肥？",
+        "哪些食物最有助于减肥？"
+      ],
+      "english": [
+        "What is the best diet plan for weight loss ?",
+        "What are the best weight loss foods ?"
+      ],
+      "gold_group": "Advice-Weightloss:diet",
+      "new_loss_vs_baseline": true,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "哪种饮食计划最适合用于减肥？",
+      "method": "llm",
+      "best_mean_similarity": 0.7589671015739441,
+      "selected_group": "3",
+      "correct_candidates": [
+        {
+          "id": "4",
+          "questions": [
+            "哪些食物最有助于减肥？"
+          ]
+        }
+      ],
+      "observed_reason": "single_group_assignment_cannot_reconcile_split_groups"
+    },
+    {
+      "ids": [
+        "08-6-147454",
+        "08-111-510058"
+      ],
+      "questions": [
+        "这真是一套很棒的饮食计划，既能快速减肥，又不会让人感到饥饿，而且也不需要一直测量食物的份量。",
+        "我该如何在一个月内减掉10公斤体重，特别是减少身体上的脂肪？ 有没有人能推荐一些适合生酮饮食的食谱或其它有效的饮食计划？"
+      ],
+      "english": [
+        "What a great diet to lose weight fast and not make you hungry or keep on measuring portions ?",
+        "How do I lose 10 kg in one month , mostly the fat from body ? Can anyone suggest for ketogenic diets sample plan or other effective plan ?"
+      ],
+      "gold_group": "Advice-Weightloss:fast#diet",
+      "new_loss_vs_baseline": false,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "这真是一套很棒的饮食计划，既能快速减肥，又不会让人感到饥饿，而且也不需要一直测量食物的份量。",
+      "method": "llm",
+      "best_mean_similarity": 0.556435227394104,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "17",
+          "questions": [
+            "我该如何在一个月内减掉10公斤体重，特别是减少身体上的脂肪？ 有没有人能推荐一些适合生酮饮食的食谱或其它有效的饮食计划？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-6-147454",
+        "08-6-165911"
+      ],
+      "questions": [
+        "这真是一套很棒的饮食计划，既能快速减肥，又不会让人感到饥饿，而且也不需要一直测量食物的份量。",
+        "我怎样才能在两周内不进行锻炼就减掉5公斤？"
+      ],
+      "english": [
+        "What a great diet to lose weight fast and not make you hungry or keep on measuring portions ?",
+        "How can I lose 5kgs in 2 weeks without workout ?"
+      ],
+      "gold_group": "Advice-Weightloss:fast#diet",
+      "new_loss_vs_baseline": false,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "这真是一套很棒的饮食计划，既能快速减肥，又不会让人感到饥饿，而且也不需要一直测量食物的份量。",
+      "method": "llm",
+      "best_mean_similarity": 0.556435227394104,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "13",
+          "questions": [
+            "我怎样才能在两周内不进行锻炼就减掉5公斤？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    },
+    {
+      "ids": [
+        "08-111-510058",
+        "08-6-165911"
+      ],
+      "questions": [
+        "我该如何在一个月内减掉10公斤体重，特别是减少身体上的脂肪？ 有没有人能推荐一些适合生酮饮食的食谱或其它有效的饮食计划？",
+        "我怎样才能在两周内不进行锻炼就减掉5公斤？"
+      ],
+      "english": [
+        "How do I lose 10 kg in one month , mostly the fat from body ? Can anyone suggest for ketogenic diets sample plan or other effective plan ?",
+        "How can I lose 5kgs in 2 weeks without workout ?"
+      ],
+      "gold_group": "Advice-Weightloss:fast#diet",
+      "new_loss_vs_baseline": false,
+      "earlier_gold_member_was_in_candidates": true,
+      "later_question": "我该如何在一个月内减掉10公斤体重，特别是减少身体上的脂肪？ 有没有人能推荐一些适合生酮饮食的食谱或其它有效的饮食计划？",
+      "method": "llm",
+      "best_mean_similarity": 0.684726893901825,
+      "selected_group": null,
+      "correct_candidates": [
+        {
+          "id": "13",
+          "questions": [
+            "我怎样才能在两周内不进行锻炼就减掉5公斤？"
+          ]
+        }
+      ],
+      "observed_reason": "model_returned_null"
+    }
+  ],
+  "ablations": [
+    {
+      "policy": "original candidate-edge average 0.6646",
+      "tp": 15,
+      "fp": 6,
+      "fn": 9,
+      "precision": 0.7142857142857143,
+      "recall": 0.625,
+      "f1": 0.6666666666666666
+    },
+    {
+      "policy": "sequential mean 0.6646; below gate new group; no LLM",
+      "tp": 16,
+      "fp": 8,
+      "fn": 8,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "f1": 0.6666666666666666
+    },
+    {
+      "policy": "sequential mean 0.85; below gate new group; no LLM",
+      "tp": 7,
+      "fp": 0,
+      "fn": 17,
+      "precision": 1,
+      "recall": 0.2916666666666667,
+      "f1": 0.45161290322580644
+    },
+    {
+      "policy": "sequential mean 0.85 + cached original LLM decisions",
+      "tp": 12,
+      "fp": 0,
+      "fn": 12,
+      "precision": 1,
+      "recall": 0.5,
+      "f1": 0.6666666666666666
+    }
+  ],
+  "caveats": [
+    "Original responses only contain group_id, not model explanations; prompt causality inferred from instructions and observed choices.",
+    "Changing threshold or prompt on this test sample to maximize scores would be test-set tuning; no such change made.",
+    "The observed 4 lost pairs come from only 2 gold groups; sample is too small for generalization."
+  ]
+}

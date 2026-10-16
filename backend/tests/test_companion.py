@@ -429,3 +429,49 @@ def test_workspace_preparation_rejects_cross_space_evidence_until_explicitly_lin
     assert Materials(domain.store,domain.spaces).search(A,general['workspace_id'],'预算',[])['items']
     domain.spaces.set_scope(A,'document:'+doc['id'],'spaces',[one['id'],two['id']],0)
     assert domain.save_preparation(A,two['default_thread_id'],'linked',pack(),refs)['workspace_id']==two['id']
+
+
+def test_faq_edits_keep_versions_and_metadata_with_conflict_and_owner_checks(domain):
+    s, line, ref = record(domain, '客户问报价，回答需要核对配置')
+    domain.save_expressions(A, s['id'], '1', {'expressions': [
+        {'title':'报价怎么比较','text':'先核对配置','quote':line['text'],'segment_id':line['id'],'kind':'客户常问'}
+    ]}, [line], 0)
+    row = domain.memory(A)['expressions'][0]
+    updated = domain.edit_faq(A, row['id'], {'expected_version':1,'text':'请先确认相同配置。',
+        'topic':'价格与保值','period':'年底活动','expires_on':'2026-12-31'})
+    assert updated['version'] == 2 and updated['user_edited']
+    assert updated['faq_history'][0]['text'] == '先核对配置'
+    assert updated['faq_topic'] == '价格与保值'
+    with pytest.raises(Fault): domain.edit_faq(A,row['id'],{'expected_version':1,'text':'覆盖'})
+    with pytest.raises(Fault): domain.edit_faq(B,row['id'],{'expected_version':2,'text':'越权'})
+    with pytest.raises(Fault): domain.edit_faq(A,row['id'],{'expected_version':2,'text':'  '})
+    with pytest.raises(Fault): domain.edit_faq(A,row['id'],{'expected_version':2,'text':'新说法','expires_on':'2026-99-99'})
+    with pytest.raises(Fault): domain.edit_faq(A,row['id'],{'expected_version':2,'topic':'伪造主题'})
+    moved = domain.edit_faq(A,row['id'],{'expected_version':2,'topic':'其他'})
+    assert moved['body'] == updated['body'] and len(moved['faq_history']) == 1
+    normal = domain.edit_expression(A,row['id'],'从表达页更新',3)
+    assert normal['faq_period'] == '年底活动' and normal['faq_expires_on'] == '2026-12-31'
+    assert normal['faq_history'][0]['text'] == '请先确认相同配置。'
+    assert domain.memory(A)['expressions'][0]['body']['text'] == '从表达页更新'
+
+
+def test_faq_http_persists_and_validates_payload(tmp_path, bind_app_store):
+    import app
+    from fastapi.testclient import TestClient
+    store = Memory(tmp_path/'faq.sqlite', tmp_path/'files')
+    bind_app_store(app,store)
+    domain = Companion(store)
+    s,line,_ = record(domain,'客户问配置差异')
+    domain.save_expressions(A,s['id'],'1',{'expressions':[{'title':'配置怎么比','text':'核对同配置',
+        'quote':line['text'],'segment_id':line['id'],'kind':'客户常问'}]},[line],0)
+    row = domain.memory(A)['expressions'][0]
+    client = TestClient(app.app)
+    headers = {'Authorization':'Bearer test-token'}
+    path = '/v1/companion/faq/'+row['id']
+    response = client.patch(path,headers=headers,json={'expected_version':1,'text':'先看配置表','topic':'车型与配置'})
+    assert response.status_code == 200,response.text
+    assert response.json()['faq_history'][0]['text'] == '核对同配置'
+    assert response.json()['reference_status'] == 'current'
+    assert client.patch(path,headers=headers,json={'expected_version':1,'text':'旧版本'}).status_code == 409
+    assert client.patch(path,headers=headers,json={'expected_version':2,'text':'','unknown':'field'}).status_code == 400
+    assert client.patch(path,headers=headers,json={'expected_version':2,'text':'新说法','expires_on':'invalid'}).status_code == 422

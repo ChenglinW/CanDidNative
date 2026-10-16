@@ -8,6 +8,12 @@ class Edit(BaseModel):
     expected_version: int = Field(ge=1)
 class ExpressionEdit(Edit):
     text: str = Field(min_length=1,max_length=4000)
+class FAQEdit(Edit):
+    text: str | None = Field(default=None, min_length=1, max_length=4000)
+    topic: str | None = Field(default=None, max_length=40)
+    period: str | None = Field(default=None, max_length=120)
+    expires_on: str | None = Field(default=None, max_length=10)
+
 class LiveSentence(BaseModel):
     text:str=Field(min_length=1,max_length=3000)
     start_ms:int=Field(ge=0)
@@ -23,7 +29,11 @@ def router(module):
     @r.get('')
     def snapshot(uid=auth): return domain().snapshot(uid)
     @r.get('/memory')
-    def memory(uid=auth): return domain().memory(uid)
+    def memory(uid=auth):
+        with module.store.transaction(uid):
+            result = domain().memory(uid)
+            result['question_grouping'] = module.business.question_grouping.snapshot(uid)
+            return result
     @r.post('/live-ask')
     def live_ask(body:LiveAsk,uid=auth):
         from memory import L1,Fault
@@ -53,6 +63,10 @@ def router(module):
         return {**row,'reference_status':'current' if domain().current(uid,row['evidence_refs']) else 'superseded'}
     @r.post('/preparations/{id}/complete')
     def complete(id:UUID,body:Edit,uid=auth): return domain().finish(uid,str(id),body.expected_version)
+    @r.patch('/faq/{id}')
+    def faq(id:UUID,body:FAQEdit,uid=auth):
+        row=domain().edit_faq(uid,str(id),body.model_dump(exclude_unset=True))
+        return {**row,'reference_status':'current' if domain().current(uid,row['evidence_refs']) else 'superseded'}
     @r.patch('/expressions/{id}')
     def expression(id:UUID,body:ExpressionEdit,uid=auth):
         row=domain().edit_expression(uid,str(id),body.text,body.expected_version)

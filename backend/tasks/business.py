@@ -19,6 +19,9 @@ class BusinessJobs:
     def __init__(self, store, gateway, workspaces):
         self.store, self.gateway, self.workspaces = store, gateway, workspaces
         self.handlers = {'archive': self.archive}
+        from question_grouping import QuestionGrouping
+        self.question_grouping = QuestionGrouping(store, self)
+        self.handlers['question_grouping'] = self.question_grouping.run
         from product import Product
         self.product = Product(store,self)
         # Speech keeps its own slot: long ASR polling cannot occupy the TTS worker.

@@ -200,7 +200,7 @@ final class CanDidUITests: XCTestCase {
         let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
         XCTAssertTrue(app.buttons["记忆库"].waitForExistence(timeout:15));app.buttons["记忆库"].tap()
         XCTAssertTrue(app.buttons["表达积累"].waitForExistence(timeout:10))
-        exerciseSegments(app,["表达积累","长期资料"])
+        exerciseSegments(app,["我","FAQ","背景资料"])
         capture(app,"solid-memory-segments")
         XCTAssertTrue(app.buttons["上传资料"].exists)
     }
@@ -279,7 +279,7 @@ final class CanDidUITests: XCTestCase {
     private func exerciseSegments(_ app:XCUIApplication,_ titles:[String]) {
         let points:[CGVector]=[CGVector(dx:0.08,dy:0.5),CGVector(dx:0.92,dy:0.5),CGVector(dx:0.5,dy:0.12),CGVector(dx:0.5,dy:0.88),CGVector(dx:0.5,dy:0.5)]
         for n in 0..<100 {
-            let title=titles[n%2];let button=app.buttons[title]
+            let title=titles[n%titles.count];let button=app.buttons[title]
             let before=button.frame
             XCTAssertTrue(button.isHittable,"segment must remain visible: \(n)")
             button.coordinate(withNormalizedOffset:points[n%points.count]).tap()
@@ -351,23 +351,65 @@ final class CanDidUITests: XCTestCase {
         continueAfterFailure=false
         let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
         app.buttons["记忆库"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["表达积累"].waitForExistence(timeout:10))
-        XCTAssertFalse(app.buttons["跨场发现"].exists,"跨场发现从卡片进入，不添加第三个分类")
-        capture(app,"fidelity-memory-populated")
-        app.buttons["表达积累"].tap()
-        app.buttons.containing(.staticText,identifier:"为什么比另一家贵？").firstMatch.tap()
+        let tabs=app
+        XCTAssertTrue(tabs.buttons["我"].waitForExistence(timeout:10))
+        XCTAssertTrue(tabs.buttons["我"].isSelected)
+        XCTAssertTrue(app.buttons["memory-expression-overview"].exists)
+        capture(app,"memory-me-overview")
+        app.buttons["memory-expression-overview"].tap()
+        XCTAssertTrue(app.buttons["说话占比"].waitForExistence(timeout:10))
+        app.buttons["说话占比"].tap()
+        XCTAssertTrue(app.staticTexts["说话占比"].exists)
+        capture(app,"memory-expression-detail")
+        app.navigationBars.buttons.firstMatch.tap()
+        tabs.buttons["FAQ"].tap()
+        XCTAssertTrue(app.textFields["memory-question-search"].waitForExistence(timeout:10))
+        capture(app,"memory-question-groups")
+        app.textFields["memory-question-search"].tap()
+        app.textFields["memory-question-search"].typeText("价格")
+        app.buttons["memory-question-preview-expression"].tap()
+        XCTAssertTrue(app.buttons["查看与修改这次应对"].firstMatch.waitForExistence(timeout:10))
+        XCTAssertEqual(app.buttons.matching(identifier:"查看与修改这次应对").count,2)
+        capture(app,"memory-question-occurrences")
+        app.buttons["查看与修改这次应对"].firstMatch.tap()
         XCTAssertTrue(app.buttons["改成我的说法"].waitForExistence(timeout:10))
-        XCTAssertFalse(app.buttons["录音"].exists)
-        capture(app,"fidelity-expression-detail")
         app.buttons["改成我的说法"].tap()
         XCTAssertTrue(app.textViews["我的表达"].waitForExistence(timeout:10))
         app.navigationBars.buttons.firstMatch.tap()
-        let inbox=app.buttons["查看全部发现与集中确认"]
-        if !inbox.isHittable{app.swipeUp()}
-        inbox.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        tabs.buttons["我"].tap()
+        capture(app,"memory-discoveries")
+        app.buttons["全部跨场发现"].tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@","选择发现：")).firstMatch.waitForExistence(timeout:10))
-        XCTAssertFalse(app.buttons["记忆库"].exists)
-        capture(app,"fidelity-discovery-inbox")
+        capture(app,"memory-discovery-inbox")
+    }
+
+    func testFAQSearchAndEditingControls() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-candid-ui-testing", "-candid-v2-populated"]
+        app.launchEnvironment = [:]
+        app.launch()
+        app.buttons["记忆库"].tap()
+        app.buttons["FAQ"].tap()
+        let search = app.textFields["memory-question-search"]
+        XCTAssertTrue(search.waitForExistence(timeout:10))
+        capture(app,"faq-home")
+        search.tap(); search.typeText("zzzz-no-result")
+        XCTAssertTrue(app.staticTexts["没有找到相关问题，换个关键词试试。"].waitForExistence(timeout:5))
+        app.buttons["清除搜索"].tap()
+        search.tap(); search.typeText("价格")
+        app.buttons["memory-question-preview-expression"].tap()
+        XCTAssertTrue(app.buttons["更新"].waitForExistence(timeout:10))
+        capture(app,"faq-detail")
+        app.buttons["更新"].tap()
+        XCTAssertTrue(app.textViews["FAQ 说法"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.textFields["适用时间（可选，如双十一活动）"].exists)
+        app.switches["设置截止日期"].tap()
+        XCTAssertTrue(app.datePickers.firstMatch.exists)
+        capture(app,"faq-edit")
+        app.buttons["取消"].tap()
+        XCTAssertTrue(app.buttons["更新"].waitForExistence(timeout:5))
     }
 
     func testV2MemoryRecordingAndDeviceBoundaries() {
@@ -376,7 +418,7 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.buttons["上传资料"].waitForExistence(timeout:10))
         XCTAssertTrue(app.buttons["我的介绍与资料"].exists)
         capture(app,"v2-memory")
-        XCTAssertFalse(app.buttons["表达积累"].exists,"空记忆库不应出现分类栏")
+        XCTAssertTrue(app.buttons["我"].exists,"空记忆库保留三个页签与真实空状态")
         app.buttons["录音"].firstMatch.tap()
         XCTAssertTrue(app.buttons["phone-recording-fallback"].waitForExistence(timeout:10))
         XCTAssertTrue(app.staticTexts["第一场经验，从这里留下。"].exists)

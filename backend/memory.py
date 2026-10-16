@@ -17,7 +17,7 @@ from llm import DeepSeek, ModelError
 CONFIG = json.loads(Path(__file__).with_name('config.json').read_text('utf8'))
 TABLES = ('profiles documents experiences assets asset_revisions question_bank baselines weaknesses '
           'occasions occasion_artifacts audiences script_versions outcomes sessions session_media marks '
-          'transcript_segments qa_units metrics diagnoses diagnosis_feedback chat_threads chat_messages agent_tasks agent_summaries agent_sources agent_events project_spaces agent_source_scopes business_jobs recording_tags recording_knowledge personal_memories provider_runs speech_outputs device_actions business_meetings recording_links project_items followup_drafts discoveries preparation_packs followup_versions companion_preparations').split()
+          'transcript_segments qa_units metrics diagnoses diagnosis_feedback chat_threads chat_messages agent_tasks agent_summaries agent_sources agent_events project_spaces agent_source_scopes business_jobs recording_tags recording_knowledge personal_memories provider_runs speech_outputs device_actions business_meetings recording_links project_items followup_drafts discoveries preparation_packs followup_versions companion_preparations question_embeddings question_groupings').split()
 IMMUTABLE = {'documents', 'session_media', 'marks', 'transcript_segments', 'agent_sources', 'agent_events','followup_versions'}
 SCENARIOS = set(CONFIG['rubrics'])
 L1, L2, L3 = 'L1_evidence', 'L2_inferred', 'L3_confirmed'
@@ -101,6 +101,8 @@ class Memory:
         CREATE UNIQUE INDEX IF NOT EXISTS agent_event_sequence ON agent_events(owner_id,
             json_extract(data,'$.task_id'),json_extract(data,'$.seq'));
         CREATE UNIQUE INDEX IF NOT EXISTS profile_one_owner ON profiles(owner_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS question_embedding_identity ON question_embeddings(
+            owner_id,json_extract(data,'$.model'),json_extract(data,'$.text_hash'));
         CREATE UNIQUE INDEX IF NOT EXISTS agent_task_request ON agent_tasks(
           owner_id,json_extract(data,'$.thread_id'),json_extract(data,'$.client_request_id'));
         CREATE TRIGGER IF NOT EXISTS diagnosis_evidence BEFORE INSERT ON diagnoses

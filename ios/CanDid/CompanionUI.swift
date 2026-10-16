@@ -36,10 +36,44 @@ struct CompanionExpression: Decodable, Identifiable {
   var evidence_refs: [ProductEvidence]
   var reference_status: String
   var user_edited: Bool?
+  var faq_topic: String?
+  var faq_period: String?
+  var faq_expires_on: String?
+  var faq_history: [CompanionFAQRevision]?
+  var edited_at: String?
+  var created_at: String?
 }
 struct CompanionMemorySnapshot: Decodable {
   var expressions: [CompanionExpression]
   var discoveries: [PersonalDiscovery]
+  var question_grouping: CompanionQuestionGrouping?
+  var delivery: CompanionDelivery?
+}
+struct CompanionQuestionGroup: Decodable, Identifiable {
+  var id: String
+  var title: String
+  var question: String
+  var expression_ids: [String]
+  var occurrences: Int
+  var recording_count: Int
+}
+struct CompanionQuestionGrouping: Decodable {
+  var groups: [CompanionQuestionGroup]
+  var status: String
+  var job_id: String?
+  var error: String?
+}
+struct CompanionDelivery: Decodable {
+  var recording_count: Int
+  var reviewed_count: Int
+  var next_step_count: Int
+  var speaking_samples: [CompanionSpeakingSample]
+}
+struct CompanionSpeakingSample: Decodable, Identifiable {
+  var id: String
+  var title: String
+  var date: String
+  var speaking_share: Double
 }
 
 extension Store {
@@ -993,113 +1027,146 @@ struct CompanionExpressionRow: View {
 struct CompanionMemory: View {
   @EnvironmentObject var store: Store
   @Environment(\.dynamicTypeSize) private var typeSize
-  @Environment(\.verticalSizeClass) private var heightClass
-  private var compactHeader:Bool {typeSize.isAccessibilitySize || heightClass == .compact}
-  @State private var tab = "长期资料"
-  @State private var filter = "全部"
+  @State private var tab = "我"
   @State private var upload = false
-  private var hasContent: Bool {
-    !store.personalState.documents.isEmpty || !store.companionRecordings.isEmpty
-      || !(store.companionMemory?.expressions.isEmpty ?? true)
-      || !(store.companionMemory?.discoveries.isEmpty ?? true)
+  private var expressions: [CompanionExpression] { store.companionMemory?.expressions ?? [] }
+  private var discoveries: [PersonalDiscovery] { store.companionMemory?.discoveries ?? [] }
+  private var groups: [CompanionQuestionGroup] {
+    if let grouped = store.companionMemory?.question_grouping { return grouped.groups }
+    return expressions.filter { $0.tags.contains("客户常问") && $0.reference_status == "current" }.map {
+      CompanionQuestionGroup(id: $0.id, title: $0.title, question: $0.quote ?? $0.title,
+        expression_ids: [$0.id], occurrences: 1, recording_count: 1)
+    }
   }
   var body: some View {
     VStack(spacing: 0) {
       CompanionPageHeader(title: "记忆库") {
-        Button {
-          upload = true
-        } label: {
-          Image(systemName: "plus").frame(width: 40, height: 40).background(
-            Warm.white, in: Circle()
-          ).overlay(Circle().stroke(CompanionStyle.line))
+        Button { upload = true } label: {
+          Image(systemName: "plus").frame(width: 40, height: 40)
+            .background(Warm.white, in: Circle()).overlay(Circle().stroke(CompanionStyle.line))
         }.frame(minWidth: 44, minHeight: 44).accessibilityLabel("上传资料")
       }
-      if hasContent {
-        VStack(alignment:.leading,spacing:16) {
-          if !compactHeader {memoryIntroduction}
-          CompanionTabs(values:["长期资料","表达积累"],selection:$tab)
-        }.padding(.horizontal,18).padding(.top,18).padding(.bottom,8)
-          .frame(maxWidth:700).frame(maxWidth:.infinity)
-      }
+      CompanionTabs(values:["我","FAQ","背景资料"],selection:$tab)
+        .padding(.horizontal,18).padding(.vertical,12).frame(maxWidth:700)
       ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          if hasContent {
-            if compactHeader {memoryIntroduction}
-            if tab == "长期资料" { documents } else { expressions }
-          } else {
-            emptyState
+        VStack(alignment: .leading, spacing: 12) {
+          if tab == "我" {
+            personalOverview
+            NavigationLink("表达积累") { ScrollView { VStack(spacing:12) {
+              ForEach(expressions) { expression in
+                NavigationLink { CompanionExpressionPage(expression:expression) } label: { CompanionExpressionRow(expression:expression) }.buttonStyle(.plain)
+              }
+            }.padding(18) }.companionReport("表达积累") }
+            NavigationLink("全部跨场发现") { CompanionDiscoveryList() }
           }
-          if !(store.companionMemory?.discoveries.isEmpty ?? true) {
-            NavigationLink("查看全部发现与集中确认") { CompanionDiscoveryList() }.companionFont(12).frame(
-              minHeight: 44)
+          else if tab == "FAQ" { CompanionFAQHome(groups:groups, upload: { upload = true }) }
+          else {
+            Text("你上传的事实依据。回答价格、配置、交期和政策时，请核对资料。").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+            documents
+            Button("上传文件") { upload = true }.buttonStyle(CompanionButtonStyle(primary:true))
           }
-          if let error = store.personalImportError {
-            Text(error).companionFont(13).foregroundStyle(.red)
-          }
-          NavigationLink("我的介绍与资料") { PersonalProfilePage() }.companionFont(12).frame(minHeight: 44)
-        }.padding(.horizontal,18).padding(.top,hasContent ? 8:18).padding(.bottom,18)
-          .frame(maxWidth:700).frame(maxWidth:.infinity)
+          if let error = store.personalImportError { Text(error).companionFont(13).foregroundStyle(.red) }
+          NavigationLink("我的介绍与资料") { PersonalProfilePage() }
+            .companionFont(12).frame(minHeight:44)
+        }.padding(.horizontal,18).padding(.bottom,24).frame(maxWidth:700).frame(maxWidth:.infinity)
       }
     }.background(Warm.paper).toolbar(.hidden, for: .navigationBar)
-      .fileImporter(
-        isPresented: $upload,
-        allowedContentTypes: [
-          .pdf, UTType(filenameExtension: "docx") ?? .data,
-          UTType(filenameExtension: "pptx") ?? .data, .plainText,
-          UTType(filenameExtension: "md") ?? .plainText,
-        ], allowsMultipleSelection: true
-      ) { result in
-        if case .success(let urls) = result {
-          Task { await store.addOnboardingFiles(urls) }
-        } else if case .failure(let error) = result, !ImportedDocumentFiles.isCancellation(error) {
-          store.personalImportError = error.localizedDescription
+      .fileImporter(isPresented:$upload, allowedContentTypes:[.pdf,
+        UTType(filenameExtension:"docx") ?? .data, UTType(filenameExtension:"pptx") ?? .data,
+        .plainText, UTType(filenameExtension:"md") ?? .plainText], allowsMultipleSelection:true) { result in
+          if case .success(let urls) = result { Task { await store.addOnboardingFiles(urls) } }
+          else if case .failure(let error) = result, !ImportedDocumentFiles.isCancellation(error) {
+            store.personalImportError = error.localizedDescription
+          }
         }
-      }
       .task {
         while !Task.isCancelled {
           await store.restorePersonalProfile()
           try? await store.reloadCompanion()
-          do { try await Task.sleep(for: .seconds(5)) } catch { break }
+          do { try await Task.sleep(for:.seconds(5)) } catch { break }
         }
       }
   }
-  private var memoryIntroduction:some View {
-    VStack(alignment:.leading,spacing:16) {
-      Text("你的资料与沟通积累").companionFont(12).foregroundStyle(RecordingFormat.secondary)
-      if let first=store.companionMemory?.discoveries.first {discoveryCard(first)}
+  private var personalOverview: some View {
+    VStack(alignment:.leading,spacing:12) {
+      NavigationLink { CompanionDeliveryPage() } label: {
+        CompanionMemoryCard {
+          HStack {
+            Text("表达").companionFont(16,weight:.semibold)
+            Spacer()
+            Text("查看详情").companionFont(12)
+            Image(systemName:"chevron.right").font(.caption)
+          }
+          HStack(spacing:18) {
+            if !typeSize.isAccessibilitySize {
+              Image(systemName:"waveform.path").font(.system(size:38,weight:.light))
+                .foregroundStyle(Warm.purple).frame(width:86,height:86)
+                .background(Warm.lavender,in:RoundedRectangle(cornerRadius:20))
+            }
+            VStack(alignment:.leading,spacing:7) {
+              Text("来自 \(store.companionMemory?.delivery?.recording_count ?? 0) 次有录音的沟通")
+                .companionFont(12).foregroundStyle(RecordingFormat.secondary)
+              Text((store.companionMemory?.delivery?.recording_count ?? 0) < 3 ? "表达雷达待积累" : "表达评分待校准").companionFont(14,weight:.semibold)
+              Text("五个维度，一起了解你的表达习惯").companionFont(12)
+                .foregroundStyle(RecordingFormat.secondary).fixedSize(horizontal:false,vertical:true)
+            }
+          }.padding(.top,6)
+        }
+      }.buttonStyle(.plain).accessibilityIdentifier("memory-expression-overview")
+      LazyVGrid(columns:typeSize.isAccessibilitySize ? [GridItem(.flexible())] : [GridItem(.flexible()),GridItem(.flexible())],alignment:.leading,spacing:10) {
+        Button { tab = "FAQ" } label: {
+          CompanionMemoryCard {
+            Text(String(groups.filter { group in
+              expressions.contains { group.expression_ids.contains($0.id) && $0.user_edited == true }
+            }.count)).companionFont(27,weight:.semibold)
+            Text("问题已有我的说法").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+          }
+        }.buttonStyle(.plain).accessibilityIdentifier("memory-my-answers")
+        CompanionMemoryCard {
+          Text("\(store.companionMemory?.delivery?.next_step_count ?? 0) / \(store.companionMemory?.delivery?.reviewed_count ?? 0)")
+            .companionFont(27,weight:.semibold)
+          Text("录音复盘提到了下一步").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+        }
+      }
+      if let first = discoveries.first(where: { $0.reference_status != "superseded" }) {
+        discoveryCard(first)
+      } else {
+        CompanionMemoryCard {
+          Label("跨场发现",systemImage:"sparkles").companionFont(15,weight:.semibold)
+          Text("多聊几场，再一起看看反复出现的习惯。").companionFont(13)
+          Text("至少两场已认领的本人原话，才会形成待核对的发现。")
+            .companionFont(12).foregroundStyle(RecordingFormat.secondary)
+        }
+      }
     }
   }
-  private var emptyState: some View {
-    VStack(spacing: 18) {
-      Mascot(size: 105).frame(maxWidth: .infinity, alignment: .leading)
-      Text("把你的经验，慢慢种在这里。").companionFont(18, weight: .bold).multilineTextAlignment(.center).frame(
-        maxWidth: .infinity)
-      Text("先添加资料。聊过的内容，会逐渐变成你的表达积累。").companionFont(13).foregroundStyle(RecordingFormat.secondary)
-        .multilineTextAlignment(.center)
-      Button {
-        upload = true
-      } label: {
-        Text("添加第一份资料").frame(maxWidth: .infinity)
-      }.buttonStyle(
-        CompanionButtonStyle(primary: true))
-    }.padding(.top, 45)
-  }
   private func discoveryCard(_ first: PersonalDiscovery) -> some View {
-    NavigationLink {
-      CompanionDiscoveryPage(discovery: first)
-    } label: {
-      CompanionPanel(color: Warm.lavender) {
+    NavigationLink { CompanionDiscoveryPage(discovery:first) } label: {
+      VStack(alignment:.leading,spacing:10) {
+        let count = Set(first.evidence_refs.compactMap(\.session_id)).count
+        Text("跨场发现 · 来自 \(count) 场沟通").companionFont(12).opacity(0.85)
+        Text(first.title).companionFont(16,weight:.semibold).fixedSize(horizontal:false,vertical:true)
         HStack {
-          Label("最近一个发现", systemImage: "leaf")
+          Text(first.reference_status == "superseded" ? "依据已修订，待重新核对" : first.status == "confirmed" ? "你已确认" : "你确认后才算数")
           Spacer()
-          Text(first.status == "pending" ? "待集中核对" : "已确认")
-        }.companionFont(11)
-        Text(first.title).companionFont(17, weight: .semibold)
-        Text(first.text).companionFont(13).lineLimit(3)
-        Text("看看依据与下一步 →").companionFont(12, weight: .semibold).foregroundStyle(Warm.purple)
-          .padding(.top, 5)
-      }
+          Text("查看依据").fontWeight(.semibold)
+          Image(systemName:"chevron.right")
+        }.companionFont(12)
+      }.padding(16).frame(maxWidth:.infinity,alignment:.leading).foregroundStyle(.white)
+        .background(Color(red:0.345,green:0.255,blue:0.753),in:RoundedRectangle(cornerRadius:14))
     }.buttonStyle(.plain)
+  }
+  @ViewBuilder private var discoveryList: some View {
+    if discoveries.isEmpty {
+      CompanionMemoryCard {
+        Text("还没有跨场发现").companionFont(17,weight:.semibold)
+        Text("完成录音复盘、认领自己的原话后，跨场习惯会逐渐出现在这里。").companionFont(13)
+      }
+    } else {
+      ForEach(discoveries) { discoveryCard($0) }
+      NavigationLink("查看全部发现与集中确认") { CompanionDiscoveryList() }
+        .companionFont(13).frame(minHeight:44)
+    }
   }
   @ViewBuilder private var documents: some View {
     if store.personalState.documents.isEmpty {
@@ -1134,38 +1201,122 @@ struct CompanionMemory: View {
       }
     }
   }
-  @ViewBuilder private var expressions: some View {
-    ScrollView(.horizontal, showsIndicators: false) {
-      HStack(spacing: 8) {
-        ForEach(["全部", "客户常问", "值得复用", "需要改善"], id: \.self) { value in
-          Button {
-            filter = value
-          } label: {
-            Text(value).companionFont(11).padding(.horizontal, 12).frame(minHeight: 32).background(
-              filter == value ? Warm.sage : Warm.white, in: Capsule()
-            ).overlay(Capsule().stroke(CompanionStyle.line))
-          }.buttonStyle(.plain).frame(minHeight: 44).accessibilityAddTraits(
-            filter == value ? .isSelected : [])
-        }
-      }
-    }
-    let rows = (store.companionMemory?.expressions ?? []).filter {
-      filter == "全部" || $0.tags.contains(filter)
-    }
-    if rows.isEmpty {
-      Text("还没有表达积累").companionFont(16, weight: .semibold)
-      Text("录音同步并完成复盘后，有原文依据的表达会自动沉淀在这里。").companionFont(13).foregroundStyle(
-        RecordingFormat.secondary)
-    }
-    ForEach(rows) { e in
-      NavigationLink {
-        CompanionExpressionPage(expression: e)
-      } label: {
-        CompanionExpressionRow(expression: e)
-      }.buttonStyle(.plain)
-    }
+}
+
+struct CompanionMemoryCard<Content:View>: View {
+  @ViewBuilder var content: Content
+  var body: some View {
+    VStack(alignment:.leading,spacing:10) { content }
+      .frame(maxWidth:.infinity,alignment:.leading).padding(15)
+      .background(Warm.white,in:RoundedRectangle(cornerRadius:14))
+      .overlay(RoundedRectangle(cornerRadius:14).stroke(CompanionStyle.line))
   }
 }
+
+struct CompanionQuestionPage: View {
+  @EnvironmentObject var store: Store
+  let group: CompanionQuestionGroup
+  var body: some View {
+    ScrollView {
+      VStack(alignment:.leading,spacing:16) {
+        Text(group.title).companionFont(25,weight:.bold)
+        Text("相似问法与每一次的应对").companionFont(13).foregroundStyle(RecordingFormat.secondary)
+        let rows = (store.companionMemory?.expressions ?? []).filter { group.expression_ids.contains($0.id) }
+        if rows.isEmpty { Text("来源已更新，请返回记忆库查看最新问题。").companionFont(14) }
+        ForEach(rows) { expression in
+          CompanionMemoryCard {
+            Text(expression.quote ?? expression.title).companionFont(16,weight:.semibold)
+            Text(expression.user_edited == true ? "我的说法" : "建议的应对 · 待实战验证")
+              .companionFont(12).foregroundStyle(Warm.purple)
+            Text(expression.body.text).companionFont(14)
+            if expression.reference_status != "current" { Text("来源已修订，待核对").companionFont(12) }
+            NavigationLink("查看与修改这次应对") { CompanionExpressionPage(expression:expression) }
+              .companionFont(13).frame(minHeight:44)
+            ForEach(Array(expression.evidence_refs.enumerated()),id:\.offset) { _, ref in
+              if let sid = ref.session_id {
+                NavigationLink("回到原文 · "+RecordingFormat.clock((ref.start_ms ?? 0)/1000)) {
+                  CompanionRecordingPage(id:sid,focusMS:ref.start_ms)
+                }.companionFont(13).frame(minHeight:44)
+              }
+            }
+          }
+        }
+      }.padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)
+    }.companionReport("客户问题")
+  }
+}
+
+struct CompanionDeliveryPage: View {
+  @EnvironmentObject var store: Store
+  @State private var selected = "语速"
+  private let axes = ["语速","停顿","口头禅","起伏","说话占比"]
+  private var delivery: CompanionDelivery? { store.companionMemory?.delivery }
+  private var detail: String {
+    switch selected {
+    case "语速": return "需要剔除静音后计算发音速率。当前转写只有句级时间，中文参考区间也仍待校准。"
+    case "停顿": return "需要区分句中停顿与答前思考。当前转写不能可靠区分，暂不评分。"
+    case "口头禅": return "转写可能省略「嗯」「啊」等词，需要核对原音后再统计每分钟次数。"
+    case "起伏": return "观察片段之间的语速变化。此维度为实验性，暂不生成分数。"
+    default: return "以下为已认领说话人的句段时长占比估算。句内静音与重叠说话会影响结果；拜访阶段的参考区间待校准，暂不评分。"
+    }
+  }
+  var body: some View {
+    ScrollView {
+      VStack(alignment:.leading,spacing:16) {
+        Text("表达").companionFont(27,weight:.bold)
+        Text("来自 \(delivery?.recording_count ?? 0) 次有录音的沟通")
+          .companionFont(13).foregroundStyle(RecordingFormat.secondary)
+        CompanionMemoryCard {
+          Image(systemName:"waveform.path").font(.system(size:40)).foregroundStyle(Warm.purple)
+            .frame(maxWidth:.infinity).padding(.vertical,12)
+          Text((delivery?.recording_count ?? 0) < 3 ? "再积累 \(max(0,3-(delivery?.recording_count ?? 0))) 场录音" : "五个维度的评分仍在校准")
+            .companionFont(17,weight:.semibold)
+          Text("至少 3 场有效测量才能展示最近表现，满 6 场后对照最早 3 场。当前暂无完整的五轴测量数据。")
+            .companionFont(13).foregroundStyle(RecordingFormat.secondary)
+        }
+        LazyVGrid(columns:[GridItem(.adaptive(minimum:95))],spacing:8) {
+          ForEach(axes,id:\.self) { axis in
+            Button { selected = axis } label: {
+              Text(axis).companionFont(13).frame(maxWidth:.infinity,minHeight:44)
+                .background(selected == axis ? Warm.lavender : Warm.white,in:RoundedRectangle(cornerRadius:10))
+                .overlay(RoundedRectangle(cornerRadius:10).stroke(selected == axis ? Warm.purple : CompanionStyle.line))
+            }.buttonStyle(.plain).accessibilityAddTraits(selected == axis ? .isSelected : [])
+          }
+        }
+        CompanionMemoryCard {
+          HStack {
+            Text(selected).companionFont(17,weight:.semibold)
+            Spacer()
+            Text(selected == "起伏" ? "实验性" : "待校准").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+          }
+          Text(detail).companionFont(14).lineSpacing(5)
+          if selected == "说话占比" {
+            let samples = delivery?.speaking_samples ?? []
+            if samples.isEmpty {
+              Text("在录音原文中认领自己的声音后，这里会显示时长占比。").companionFont(13)
+            }
+            ForEach(samples.prefix(3)) { sample in
+              NavigationLink { CompanionRecordingPage(id:sample.id) } label: {
+                HStack {
+                  VStack(alignment:.leading,spacing:4) {
+                    Text(sample.title).lineLimit(2)
+                    Text(ProductDate.display(sample.date)).foregroundStyle(RecordingFormat.secondary)
+                  }
+                  Spacer()
+                  Text("你 \(sample.speaking_share, specifier:"%.0f")%")
+                  Image(systemName:"chevron.right")
+                }.companionFont(13).frame(minHeight:52)
+              }.buttonStyle(.plain)
+            }
+          }
+        }
+        Label("只统计取得录音同意的真实沟通，示例和练习不计入。",systemImage:"info.circle")
+          .companionFont(12).foregroundStyle(RecordingFormat.secondary)
+      }.padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)
+    }.companionReport("表达")
+  }
+}
+
 struct CompanionDiscoveryList: View {
   @EnvironmentObject var store: Store
   @State private var selected: Set<String> = []
@@ -1231,7 +1382,7 @@ struct CompanionExpressionPage: View {
         Text(expression.title).companionFont(25, weight: .bold)
         if let quote = expression.quote {
           CompanionPanel {
-            Text("你当时怎么说").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+            Text("当时的原话").companionFont(12).foregroundStyle(RecordingFormat.secondary)
             Text("“" + quote + "”").companionFont(15).lineSpacing(6)
           }
         }
@@ -1288,11 +1439,12 @@ struct CompanionDiscoveryPage: View {
   @EnvironmentObject var store: Store
   let discovery: PersonalDiscovery
   @State private var edit = false
+  @State private var confirmed = false
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 22) {
         Text(discovery.title).companionFont(27, weight: .bold)
-        Text(discovery.status == "confirmed" ? "已确认的跨场发现" : "AI 跨场发现 · 待集中核对").font(.caption)
+        Text(discovery.status == "confirmed" || confirmed ? "已确认的跨场发现" : "AI 跨场发现 · 待核对").font(.caption)
           .foregroundStyle(Warm.purple)
         CompanionPanel { Text(discovery.text).companionFont(15).lineSpacing(7) }
         if discovery.reference_status == "superseded" {
@@ -1300,6 +1452,19 @@ struct CompanionDiscoveryPage: View {
         }
         Text("一起看看原话").font(.headline)
         CompanionEvidenceList(refs: discovery.evidence_refs)
+        if discovery.status == "pending" && !confirmed {
+          Text("这条判断准吗？").companionFont(16, weight: .semibold)
+          Button("是这样，确认这条发现") {
+            Task { await store.perform {
+              _ = try await store.api.raw("/v1/discoveries/decisions", method:"POST", body:[
+                "items": [["id":discovery.id,"expected_version":discovery.version,"status":"confirmed"] as [String:Any]]
+              ])
+              confirmed = true
+              try await store.reloadCompanion()
+            } }
+          }.buttonStyle(CompanionButtonStyle(primary:true))
+            .disabled(discovery.reference_status == "superseded" || store.busy)
+        }
         Button("这条发现不准确，补充说明") { edit = true }.frame(minHeight: 44)
       }.padding(22)
     }.companionReport("跨场发现").sheet(isPresented: $edit) {
@@ -1522,15 +1687,28 @@ struct CompanionEvidencePage: View {
           "expressions": [
             [
               "id": "preview-expression", "title": "为什么比另一家贵？",
-              "body": ["text": "先对齐服务与实施范围，再比较价格。"], "quote": "请先确认服务范围，再安排三家门店试点。",
+              "body": ["text": "先对齐服务与实施范围，再比较价格。"], "quote": "为什么比另一家贵？",
               "tags": ["需要改善", "客户常问"], "version": 1, "source_session_id": "preview-a",
               "evidence_refs": [ref], "reference_status": "current",
+            ],
+            [
+              "id":"preview-expression-b", "title":"为什么报价更高？",
+              "body":["text":"可以先对照两份方案包含的服务。"], "quote":"你们的价格怎么比别家高？",
+              "tags":["客户常问"], "version":1, "source_session_id":"preview-b",
+              "evidence_refs":[["source_id":"transcript:preview-line-b","session_id":"preview-b","start_ms":2000,"end_ms":5000]],
+              "reference_status":"current", "user_edited":true
             ]
           ],
+          "question_grouping":["status":"ready","groups":[[
+            "id":"preview-expression","title":"为什么比另一家贵？","question":"为什么比另一家贵？",
+            "expression_ids":["preview-expression","preview-expression-b"],"occurrences":2,"recording_count":2
+          ]]],
+          "delivery":["recording_count":3,"reviewed_count":3,"next_step_count":2,"speaking_samples":[]],
           "discoveries": [
             [
               "id": "preview-discovery", "title": "客户问价格时，先对齐包含什么。", "text": "先比较服务范围，再继续讨论报价。",
-              "status": "pending", "version": 1, "evidence_refs": [ref],
+              "status": "pending", "version": 1, "evidence_refs": [ref,
+                ["source_id":"transcript:preview-line-b","session_id":"preview-b","start_ms":2000,"end_ms":5000]],
               "reference_status": "current",
             ]
           ],

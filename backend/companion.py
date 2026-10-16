@@ -51,7 +51,39 @@ class Companion:
         for row in self.store.rows('discoveries', owner):
             if row.get('companion') and row.get('status') != 'withdrawn':
                 discoveries.append({**row, 'reference_status': 'current' if self.current(owner, row['evidence_refs']) else 'superseded'})
-        return {'expressions': expressions, 'discoveries': discoveries}
+        return {'expressions': expressions, 'discoveries': discoveries, 'delivery': self.delivery(owner)}
+
+    def delivery(self, owner):
+        """Only factual recording totals; calibrated five-axis scores are not available yet."""
+        media = {r['session_id'] for r in self.store.rows('session_media', owner)}
+        sessions = [s for s in self.store.rows('sessions', owner) if s['id'] in media
+                    and not s.get('fixture') and s.get('kind') != 'practice' and s.get('consent') == 'yes']
+        knowledge_by_session, segments_by_session = {}, {}
+        for item in self.store.rows('recording_knowledge', owner):
+            knowledge_by_session.setdefault(item['session_id'], []).append(item)
+        for item in self.store.rows('transcript_segments', owner):
+            segments_by_session.setdefault(item['session_id'], []).append(item)
+        reviewed, next_steps, samples = 0, 0, []
+        for session in sessions:
+            revision = session.get('transcript_revision', 1)
+            knowledge = [k for k in knowledge_by_session.get(session['id'], [])
+                         if str(k.get('revision')) == str(revision) and k.get('status') == 'active']
+            if knowledge:
+                reviewed += 1
+                next_steps += int(any(k.get('review', {}).get('next_steps') for k in knowledge))
+            segments = [s for s in segments_by_session.get(session['id'], [])
+                        if s.get('transcript_revision', 1) == revision]
+            if not segments or any(s.get('speaker') not in {'self', 'other'} for s in segments):
+                continue
+            own = sum(s['end_ms'] - s['start_ms'] for s in segments if s['speaker'] == 'self')
+            total = sum(s['end_ms'] - s['start_ms'] for s in segments)
+            if total and own:
+                samples.append({'id': session['id'], 'title': session.get('title') or '沟通录音',
+                                'date': session.get('started_at', session['created_at']),
+                                'speaking_share': round(100 * own / total, 1)})
+        return {'recording_count': len(sessions), 'reviewed_count': reviewed,
+                'next_step_count': next_steps, 'speaking_samples': samples,
+                'radar_status': 'awaiting_calibration'}
 
     def save_preparation(self, owner, thread_id, request_id, data, references, guard=None):
         thread = self.store.get('chat_threads', owner, thread_id)
@@ -140,10 +172,36 @@ class Companion:
             else: self.store.put('assets', owner, data, L2, source='ai')
 
     def edit_expression(self, owner, aid, text, expected):
+        return self.edit_faq(owner, aid, {'text': text, 'expected_version': expected,
+            'period': self.store.get('assets', owner, aid).get('faq_period', ''),
+            'expires_on': self.store.get('assets', owner, aid).get('faq_expires_on', '')})
+
+
+    def edit_faq(self, owner, aid, changes):
+        from datetime import date
         with self.store.transaction(owner):
             row = self.store.get('assets', owner, aid)
-            if not row.get('companion_expression'): raise Fault('NOT_FOUND', '表达不存在', 404)
-            if row['version'] != expected: raise Fault('VERSION_CONFLICT', '表达已更新，请刷新', 409)
-            self.store.put('asset_revisions', owner, {'asset_id': aid, 'version': row['version'], 'body': row['body']}, L1)
-            return self.store.update('assets', owner, aid, {'body': {'text': text}, 'version': expected+1,
-                'user_edited': True, 'edited_at': now()}, actor=owner)
+            if not row.get('companion_expression'):
+                raise Fault('NOT_FOUND', '问题不存在', 404)
+            if row['version'] != changes['expected_version']:
+                raise Fault('VERSION_CONFLICT', '说法已更新，请返回后重新打开', 409)
+            patch = {'version': row['version'] + 1}
+            if changes.get('topic') is not None:
+                if changes['topic'] not in ['车型与配置','价格与保值','金融与分期','置换','交付与售后','用车场景','其他']:
+                    raise Fault('INVALID_TOPIC', '请选择已有主题', 422)
+                patch['faq_topic'] = changes['topic']
+            if changes.get('text') is not None:
+                text = changes['text'].strip()
+                if not text: raise Fault('INVALID_TEXT', '先写下你会怎么说', 422)
+                expiry = changes.get('expires_on') or ''
+                try:
+                    if expiry: date.fromisoformat(expiry)
+                except ValueError:
+                    raise Fault('INVALID_DATE', '截止日期格式应为 YYYY-MM-DD', 422)
+                history = list(row.get('faq_history', []))
+                history.insert(0, {'text': row['body']['text'], 'period': row.get('faq_period',''),
+                    'version': row['version'], 'edited_at': row.get('edited_at', row.get('created_at',''))})
+                self.store.put('asset_revisions', owner, {'asset_id': aid, 'version': row['version'], 'body': row['body']}, L1)
+                patch.update(body={'text': text}, user_edited=True, edited_at=now(),
+                    faq_period=changes.get('period') or '', faq_expires_on=expiry, faq_history=history)
+            return self.store.update('assets', owner, aid, patch, actor=owner)
