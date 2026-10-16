@@ -46,3 +46,5 @@
 真实现有模型 `hackathon/v_model/deepseek-v4-pro` 在临时隔离数据库完成前置增强→全场复盘→FAQ：复盘41.65秒，FAQ80.31秒。检查原始转写不变、模型输出不包含系统注释、无个人记忆写入、下游 prompt 无标记专用指令。输入为合成销售对话，结果见 ENRICHMENT_LIVE_ACCEPTANCE.json；这是本链路可用性验收，不是 FAQ 效果评分校准。首轮实调探针错误假定 FAQ 段落数组按时间排序，已改按来源 ID 校验后重跑通过，未据此改动生产逻辑。
 
 iPhone 覆盖安装成功，签名校验通过；安装时第一次设备通信失败，重试成功。远程启动被 iOS 明确以 Locked 拒绝，需用户解锁后打开 CanDid；未宣称本轮完成物理按键或前台启动验收。本轮未改 iOS 源码／界面，沿用现有原生功能与已签名 Release。
+
+用户解锁后重新启动成功：devicectl 返回 launched，真机 bundle `com.candid.memory.fd959jq9u9`。本轮安装及启动已完成；此结果不代表新增物理按键流程测试。
