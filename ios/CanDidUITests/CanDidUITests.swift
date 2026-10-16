@@ -167,91 +167,43 @@ final class CanDidUITests: XCTestCase {
         XCTAssertFalse(app.buttons["记忆库"].exists)
         capture(app,"v2-transcript")
     }
-    func testFloatingTabSwitchesKeepOneNavigationBar() {
+    func testNativeTabBarKeepsSingleSystemNavigationAndFixedAppearance() {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["-candid-ui-testing", "-candid-v2-populated"]
         app.launchEnvironment = ["CANDID_ONBOARDING_TEST_ID": UUID().uuidString]
         app.launch()
-        openAppearanceSettings(app)
-        app.buttons["悬浮胶囊"].tap(); app.buttons["液态玻璃"].tap(); app.buttons["轻盈玻璃"].tap()
-        app.buttons["完成"].tap()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 15))
+        XCTAssertEqual(app.tabBars.count, 1)
         for _ in 0..<3 {
             for title in ["记忆库", "录音", "Candid"] {
-                let tab = app.buttons.matching(NSPredicate(format: "label == %@", title)).allElementsBoundByIndex.first { $0.isHittable }
-                XCTAssertNotNil(tab); tab?.tap()
+                let tab = app.tabBars.buttons[title]
+                XCTAssertTrue(tab.isHittable); tab.tap()
+                XCTAssertTrue(tab.isSelected)
             }
         }
-        capture(app, "tab-switch-floating-return")
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "记忆库")).count, 1,
-                       "主导航必须只有一份常驻底栏，不能每个页面各有一份玻璃材质")
-    }
-    func testAppearanceSettingsApplyPersistAndPreserveNavigation() {
-        continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
-        app.launchArguments = ["-candid-ui-testing", "-candid-v2-populated"]
-        app.launchEnvironment = ["CANDID_ONBOARDING_TEST_ID": UUID().uuidString]
-        app.launch()
-        XCTAssertTrue(app.buttons["candid-avatar"].waitForExistence(timeout: 15))
-        capture(app, "appearance-default-full-width")
+        XCTAssertEqual(app.tabBars.buttons.count, 3)
         let input = app.textFields["home-chat-input"]
-        input.tap(); input.typeText("Keep appearance draft")
-        app.buttons["收起对话"].tap()
-        openAppearanceSettings(app)
-        XCTAssertTrue(app.segmentedControls["appearance-navigation"].buttons["全宽底栏"].isSelected)
-        XCTAssertTrue(app.segmentedControls["appearance-selection"].buttons["液态玻璃"].isSelected)
-        app.buttons["悬浮胶囊"].tap()
-        app.buttons["轻盈玻璃"].tap()
-        capture(app, "appearance-settings-glass")
-        app.buttons["完成"].tap()
-        XCTAssertTrue(app.buttons["Candid"].waitForExistence(timeout: 10))
-        capture(app, "appearance-floating-home")
-        app.buttons["记忆库"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["表达积累"].waitForExistence(timeout: 10))
-        app.buttons["表达积累"].tap()
-        XCTAssertTrue(app.buttons["表达积累"].isSelected)
-        capture(app, "appearance-floating-memory")
-        app.buttons["录音"].firstMatch.tap()
-        XCTAssertTrue(app.buttons.containing(.staticText, identifier: "华味餐饮 · 产品方案沟通").firstMatch.waitForExistence(timeout: 10))
-        let recording = app.buttons.containing(.staticText, identifier: "华味餐饮 · 产品方案沟通").allElementsBoundByIndex.first { $0.isHittable }
-        XCTAssertNotNil(recording); recording?.tap()
-        XCTAssertTrue(app.buttons["原文"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["记忆库"].exists)
-        app.buttons["原文"].tap()
-        XCTAssertTrue(app.buttons["play-sentence-preview-line"].waitForExistence(timeout: 10))
-        capture(app, "appearance-transcript-sentence-playback")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.buttons["Candid"].firstMatch.tap()
-        input.tap()
-        XCTAssertEqual(input.value as? String, "Keep appearance draft")
-        app.buttons["收起对话"].tap()
-        app.terminate(); app.launch()
-        openAppearanceSettings(app)
-        XCTAssertTrue(app.buttons["悬浮胶囊"].isSelected)
-        XCTAssertTrue(app.buttons["轻盈玻璃"].isSelected)
-        app.buttons["经典色块"].tap(); app.buttons["完成"].tap()
-        for title in ["记忆库", "录音", "Candid"] { app.buttons[title].firstMatch.tap() }
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "记忆库")).count, 1)
-        capture(app, "appearance-classic-floating-home")
-        openAppearanceSettings(app)
-        app.buttons["全宽底栏"].tap(); app.buttons["经典色块"].tap(); app.buttons["原版立体"].tap()
-        capture(app, "appearance-settings-classic")
-        app.buttons["完成"].tap()
-        capture(app, "appearance-classic-home")
-        app.terminate(); app.launch()
-        openAppearanceSettings(app)
-        XCTAssertTrue(app.buttons["全宽底栏"].isSelected)
-        XCTAssertTrue(app.buttons["经典色块"].isSelected)
-        XCTAssertTrue(app.buttons["原版立体"].isSelected)
-        app.buttons["完成"].tap()
-    }
-    private func openAppearanceSettings(_ app: XCUIApplication) {
-        XCTAssertTrue(app.buttons["candid-avatar"].waitForExistence(timeout: 15))
+        XCTAssertTrue(input.isHittable)
+        XCTAssertLessThan(input.frame.maxY, app.tabBars.firstMatch.frame.minY)
+        capture(app, "native-tabs-fixed-home")
         app.buttons["candid-avatar"].press(forDuration: 1.2)
-        XCTAssertTrue(app.buttons["open-settings"].waitForExistence(timeout: 5))
-        app.buttons["open-settings"].tap()
-        XCTAssertTrue(app.segmentedControls["appearance-navigation"].waitForExistence(timeout: 10))
+        let settings = app.buttons["个人与设置"]
+        let menuVisible = settings.waitForExistence(timeout: 10)
+        if !menuVisible { capture(app, "native-settings-menu-debug"); print(app.debugDescription) }
+        XCTAssertTrue(menuVisible)
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["设置与隐私"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["界面外观"].exists)
+        XCTAssertFalse(app.segmentedControls["appearance-navigation"].exists)
+        XCTAssertFalse(app.segmentedControls["appearance-selection"].exists)
+        XCTAssertFalse(app.segmentedControls["appearance-buttons"].exists)
+        XCTAssertTrue(app.buttons["我的介绍与资料"].exists)
+        capture(app, "native-tabs-settings-without-appearance")
+        app.buttons["完成"].tap()
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 15))
+        XCTAssertEqual(app.tabBars.buttons.count, 3)
     }
     func testFidelityAdaptiveHomeAndReport() {
         continueAfterFailure=false

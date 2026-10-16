@@ -106,6 +106,7 @@ struct CompanionReportStyle: ViewModifier {
   func body(content: Content) -> some View {
     content.background(Warm.paper).navigationTitle(title).navigationBarTitleDisplayMode(.inline)
       .toolbar(.visible, for: .navigationBar)
+      .toolbar(.hidden, for: .tabBar)
       .toolbar {
         ToolbarItem(placement: .principal) { Text(title).companionFont(22, weight: .bold) }
       }
@@ -114,60 +115,21 @@ struct CompanionReportStyle: ViewModifier {
   }
 }
 
-// Only appearance preferences live here; switching them never replaces a navigation stack.
-enum CompanionAppearance {
-  enum Navigation: String { case fullWidth, capsule }
-  enum Selection: String { case liquidGlass, classic }
-  enum Buttons: String { case original, glass }
-  static let defaults: UserDefaults = {
-    #if DEBUG
-      if ProcessInfo.processInfo.arguments.contains("-candid-ui-testing") {
-        let identity =
-          ProcessInfo.processInfo.environment["CANDID_ONBOARDING_TEST_ID"] ?? UUID().uuidString
-        return UserDefaults(suiteName: "candid.appearance.tests." + identity)!
-      }
-    #endif
-    return .standard
-  }()
-}
-
-/// Apply glass to the complete control, so its label stays above the system lens.
-struct CompanionGlassControl: ViewModifier {
-  var tint: Color = Warm.white
+// Fixed appearance: the root uses the system floating TabView; report selectors
+// retain native glass and shared action buttons retain their original raised surface.
+struct CompanionSelection: ViewModifier {
+  let selected: Bool
+  var classicColor: Color = Warm.lavender
   var radius: CGFloat = 14
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorSchemeContrast) private var contrast
   func body(content: Content) -> some View {
     if #available(iOS 26.0, *), !reduceTransparency, contrast != .increased {
-      content.glassEffect(
-        .regular.tint(tint).interactive(),
-        in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-    } else {
-      content.background(tint, in: RoundedRectangle(cornerRadius: radius))
-        .overlay(RoundedRectangle(cornerRadius: radius).stroke(CompanionStyle.lavenderLine))
-    }
-  }
-}
-struct CompanionGlassGroup<Content: View>: View {
-  @ViewBuilder var content: Content
-  var body: some View {
-    if #available(iOS 26.0, *) { GlassEffectContainer(spacing: 8) { content } } else { content }
-  }
-}
-struct CompanionSelection: ViewModifier {
-  let selected: Bool
-  var classicColor: Color = Warm.lavender
-  var radius: CGFloat = 14
-  @AppStorage("ui.selection", store: CompanionAppearance.defaults) private var style:
-    CompanionAppearance.Selection = .liquidGlass
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-  @Environment(\.colorSchemeContrast) private var contrast
-  func body(content: Content) -> some View {
-    if #available(iOS 26.0, *), style == .liquidGlass, !reduceTransparency, contrast != .increased {
       // A stable modifier keeps the foreground label mounted and above the lens.
       // Glass.identity removes only the material, without rebuilding the control.
       // Do not match IDs across whole controls: native morphing also fades their labels.
-      content.glassEffect(selected ? .regular.tint(Warm.lavender).interactive() : .identity,
+      content.glassEffect(
+        selected ? .regular.tint(Warm.lavender).interactive() : .identity,
         in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     } else {
       content.background {
@@ -176,45 +138,23 @@ struct CompanionSelection: ViewModifier {
     }
   }
 }
-struct CompanionFloatingSurface: View {
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-  @Environment(\.colorSchemeContrast) private var contrast
-  var body: some View {
-    if reduceTransparency || contrast == .increased {
-      Capsule().fill(Warm.white).overlay(Capsule().stroke(CompanionStyle.line))
-    } else {
-      Capsule().fill(.regularMaterial).overlay(Capsule().strokeBorder(Warm.white.opacity(0.7)))
-        .shadow(color: Warm.ink.opacity(0.08), radius: 10, y: 4)
-    }
-  }
-}
 struct CompanionButtonStyle: ButtonStyle {
   var primary = false
   @Environment(\.isEnabled) private var enabled
-  @AppStorage("ui.buttons", store: CompanionAppearance.defaults) private var style:
-    CompanionAppearance.Buttons = .original
-  private func label(_ configuration: Configuration) -> some View {
+  func makeBody(configuration: Configuration) -> some View {
     configuration.label.companionFont(12, weight: .semibold).foregroundStyle(Warm.ink)
       .padding(.horizontal, 12).frame(minHeight: 44)
-  }
-  func makeBody(configuration: Configuration) -> some View {
-    Group {
-      if style == .glass {
-        label(configuration).modifier(
-          CompanionGlassControl(tint: primary ? Warm.orange : Warm.white, radius: 12))
-      } else {
-        label(configuration).background {
-          RoundedRectangle(cornerRadius: 12).fill(primary ? Warm.orange : Warm.white)
-            .shadow(
-              color: primary ? Color.brown.opacity(0.45) : CompanionStyle.line,
-              radius: 0, y: configuration.isPressed ? 0 : 3
-            )
-            .overlay(
-              RoundedRectangle(cornerRadius: 12).stroke(
-                primary ? Color.brown.opacity(0.35) : CompanionStyle.line, lineWidth: 1.3))
-        }
+      .background {
+        RoundedRectangle(cornerRadius: 12).fill(primary ? Warm.orange : Warm.white)
+          .shadow(
+            color: primary ? Color.brown.opacity(0.45) : CompanionStyle.line,
+            radius: 0, y: configuration.isPressed ? 0 : 3
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: 12).stroke(
+              primary ? Color.brown.opacity(0.35) : CompanionStyle.line, lineWidth: 1.3))
       }
-    }.opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.45)
+      .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.45)
   }
 }
 struct CompanionPanel<Content: View>: View {
@@ -232,19 +172,17 @@ struct CompanionTabs: View {
   let values: [String]
   @Binding var selection: String
   var body: some View {
-    CompanionGlassGroup {
-      HStack(spacing: 4) {
-        ForEach(values, id: \.self) { value in
-          Button {
-            selection = value
-          } label: {
-            Text(value).companionFont(13, weight: selection == value ? .semibold : .regular)
-              .frame(maxWidth: .infinity).frame(minHeight: 44)
-              .modifier(
-                CompanionSelection(
-                  selected: selection == value, classicColor: Warm.white, radius: 10))
-          }.buttonStyle(.plain).accessibilityAddTraits(selection == value ? .isSelected : [])
-        }
+    HStack(spacing: 4) {
+      ForEach(values, id: \.self) { value in
+        Button {
+          selection = value
+        } label: {
+          Text(value).companionFont(13, weight: selection == value ? .semibold : .regular)
+            .frame(maxWidth: .infinity).frame(minHeight: 44)
+            .modifier(
+              CompanionSelection(
+                selected: selection == value, classicColor: Warm.white, radius: 10))
+        }.buttonStyle(.plain).accessibilityAddTraits(selection == value ? .isSelected : [])
       }
     }.padding(4).background(
       CompanionStyle.line.opacity(0.55), in: RoundedRectangle(cornerRadius: 13))
@@ -260,94 +198,6 @@ struct CompanionPageHeader<Trailing: View>: View {
       trailing
     }.padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 12).frame(maxWidth: 700).frame(
       maxWidth: .infinity)
-  }
-}
-struct CompanionTabBar: View {
-  @ObservedObject var navigation: RecordingNavigation
-  @AppStorage("ui.navigation", store: CompanionAppearance.defaults) private var style:
-    CompanionAppearance.Navigation = .fullWidth
-  var body: some View {
-    Group {
-      if style == .capsule {
-        items.padding(6).background { CompanionFloatingSurface() }
-          .frame(maxWidth: 420).padding(.horizontal, 24).padding(.top, 8).padding(.bottom, 8)
-      } else {
-        items.padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 4)
-          .background(Warm.white.ignoresSafeArea(edges: .bottom))
-          .overlay(alignment: .top) { CompanionStyle.line.frame(height: 1) }
-      }
-    }.frame(maxWidth: .infinity).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-  }
-  private var items: some View {
-    CompanionGlassGroup {
-      HStack(spacing: 0) {
-        item(.chat, "Candid", "bubble.left")
-        item(.memory, "记忆库", "book")
-        item(.recordings, "录音", "mic")
-      }
-    }
-  }
-  private func item(_ section: CandidSection, _ title: String, _ symbol: String) -> some View {
-    Button {
-      // Do not inject this animation into RecordingShell's page opacity transactions.
-      navigation.section = section
-    } label: {
-      VStack(spacing: 4) {
-        Image(systemName: symbol).font(.system(size: 20, weight: .regular))
-        Text(title).companionFont(10, weight: navigation.section == section ? .semibold : .regular)
-          .lineLimit(1).minimumScaleFactor(0.7)
-      }.frame(maxWidth: .infinity).frame(minHeight: 52)
-        .modifier(
-          CompanionSelection(
-            selected: navigation.section == section,
-            radius: style == .capsule ? 100 : 14)
-        )
-        .contentShape(Rectangle())
-    }.foregroundStyle(navigation.section == section ? Warm.purple : RecordingFormat.secondary)
-      .buttonStyle(.plain).accessibilityAddTraits(navigation.section == section ? .isSelected : [])
-  }
-}
-
-struct CompanionAppearanceSettings: View {
-  @AppStorage("ui.navigation", store: CompanionAppearance.defaults) private var navigation:
-    CompanionAppearance.Navigation = .fullWidth
-  @AppStorage("ui.selection", store: CompanionAppearance.defaults) private var selection:
-    CompanionAppearance.Selection = .liquidGlass
-  @AppStorage("ui.buttons", store: CompanionAppearance.defaults) private var buttons:
-    CompanionAppearance.Buttons = .original
-  var body: some View {
-    Section {
-      VStack(alignment: .leading, spacing: 10) {
-        Text("底部导航")
-        Picker("底部导航", selection: $navigation) {
-          Text("全宽底栏").tag(CompanionAppearance.Navigation.fullWidth)
-          Text("悬浮胶囊").tag(CompanionAppearance.Navigation.capsule)
-        }.pickerStyle(.segmented).accessibilityIdentifier("appearance-navigation")
-      }.padding(.vertical, 4)
-      VStack(alignment: .leading, spacing: 10) {
-        Text("选中效果")
-        Picker("选中效果", selection: $selection) {
-          Text("液态玻璃").tag(CompanionAppearance.Selection.liquidGlass)
-          Text("经典色块").tag(CompanionAppearance.Selection.classic)
-        }.pickerStyle(.segmented).accessibilityIdentifier("appearance-selection")
-      }.padding(.vertical, 4)
-      VStack(alignment: .leading, spacing: 10) {
-        Text("按钮质感")
-        Picker("按钮质感", selection: $buttons) {
-          Text("原版立体").tag(CompanionAppearance.Buttons.original)
-          Text("轻盈玻璃").tag(CompanionAppearance.Buttons.glass)
-        }.pickerStyle(.segmented).accessibilityIdentifier("appearance-buttons")
-        Text("按钮预览").font(.caption).foregroundStyle(.secondary)
-        HStack(spacing: 8) {
-          Button("准备客户") {}.buttonStyle(CompanionButtonStyle(primary: true))
-          Button("复盘上一场") {}.buttonStyle(CompanionButtonStyle())
-        }.allowsHitTesting(false).accessibilityHidden(true)
-      }.padding(.vertical, 4)
-    } header: {
-      Text("界面外观")
-    } footer: {
-      Text("即选即保存。底栏与分类选中效果同步变化；按钮质感用于准备、复盘等快捷操作。iOS 26 以下或开启降低透明度、增强对比度时，玻璃采用清晰的实色外观。")
-    }
   }
 }
 struct CompanionQuickActions: View {

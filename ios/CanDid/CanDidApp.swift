@@ -281,7 +281,6 @@ struct SettingsView: View {
     @State var exportURL: URL?; @State var deleting = false
     var body: some View { NavigationStack { Form {
         Section("个人资料") { NavigationLink("我的介绍与资料") { PersonalProfilePage() } }
-        CompanionAppearanceSettings()
         Section("同步") {
             LabeledContent("状态", value: store.connecting ? "正在同步" : store.connectionError != nil ? "暂时离线" : store.connectionReady ? "已连接" : "等待连接")
             if let issue = store.connectionError { Text(issue).font(.footnote).foregroundStyle(.secondary) }

@@ -106,17 +106,13 @@ struct RecordingShell: View {
     let onSettings: () -> Void
     @State private var keyboardVisible=false
     var body: some View {
-        // Layout, rather than an outer safeAreaInset, reserves space for the shared bar:
-        // nested NavigationStacks otherwise ignore that inset and cover the composer.
-        VStack(spacing:0) {
-            ZStack {
-                destination(.chat) {CompanionHome(onSettings:onSettings)}
-                destination(.memory) {CompanionMemory()}
-                destination(.recordings) {CompanionRecordings()}
-            }
-            if !keyboardVisible && navigation.visibleDetails.isEmpty {
-                CompanionTabBar(navigation:navigation)
-            }
+        TabView(selection:$navigation.section) {
+            destination(.chat) { CompanionHome(onSettings:onSettings) }
+                .tabItem { Label("Candid",systemImage:"bubble.left") }.tag(CandidSection.chat)
+            destination(.memory) { CompanionMemory() }
+                .tabItem { Label("记忆库",systemImage:"book") }.tag(CandidSection.memory)
+            destination(.recordings) { CompanionRecordings() }
+                .tabItem { Label("录音",systemImage:"mic") }.tag(CandidSection.recordings)
         }
         .background(Warm.paper)
         .fullScreenCover(isPresented:$navigation.showRecorder) {
@@ -150,14 +146,10 @@ struct RecordingShell: View {
         .task { coordinateDevice() }
         .task { await store.observeDeviceActions() }
     }
-    @ViewBuilder private func destination<Content:View>(_ section:CandidSection,@ViewBuilder content:()->Content)->some View {
-        NavigationStack {content()}
-            .opacity(navigation.section==section ? 1:0)
-            // Tab content changes immediately; only the shared bar animates selection.
-            // Scope this to section changes so native push/pop transitions remain intact.
-            .animation(nil,value:navigation.section)
-            .allowsHitTesting(navigation.section==section)
-            .accessibilityHidden(navigation.section != section)
+    private func destination<Content:View>(_ section:CandidSection,@ViewBuilder content:()->Content)->some View {
+        NavigationStack {
+            content().toolbar(keyboardVisible || !navigation.visibleDetails.isEmpty ? .hidden : .visible,for:.tabBar)
+        }
     }
     private func coordinateDevice() {
         guard device.recordStatus != 0,store.remote,!speech.meetingPreparing,!speech.finishing else { return }
