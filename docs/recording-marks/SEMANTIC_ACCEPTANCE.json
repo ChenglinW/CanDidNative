@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "annotated_sentences": 0,
+    "annotation_count": 0,
+    "production_faq": "HTTP 504; no successful result"
+  },
+  "old_rule_previous_run": {
+    "annotated_sentences": 7,
+    "annotation_count": 8,
+    "saved_faq": 7
+  },
+  "semantic": {
+    "annotated_sentences": 1,
+    "annotation_count": 1,
+    "preparation_calls": 1,
+    "production_faq": "HTTP 504; no successful result"
+  },
+  "unshipped_stream_diagnostic": {
+    "generated_faq": 5,
+    "saved_faq": 0,
+    "invalid_abbreviated_source_ids": true,
+    "raw_unchanged": true
+  },
+  "same_source_text": true,
+  "downstream_prompts_unchanged": true,
+  "provider_transport_changed": false,
+  "faq_postprocessing_added": false,
+  "software_tests_passed": 339,
+  "scope_decision": "User requested front-only; gateway 504 and abbreviated source IDs retained as separate issues",
+  "old_rule_reused_previous_actual_run": true,
+  "server_tests_passed": 67
+}
