@@ -4,7 +4,7 @@
 
 ## 当前运行位置
 
-新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261016-workspaces-3184099/backend`（独立客户工作区与录音主要客户确认，保留此前 Monid 和 D3200 修复），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
+新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261016-memory-bff9622/backend`（记忆库我／FAQ／背景资料、OCR 版本、Mock 和描述性趋势，保留独立客户工作区、Monid 和 D3200 修复），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
 
 ```sh
 ssh -i ~/Downloads/candid.pem ubuntu@47.129.137.212
@@ -67,3 +67,11 @@ sudo journalctl -u candid-cert-renew -n 30 --no-pager
 服务器回归 256 passed、1 skipped；回环与公网正常 TLS health、新版 OpenAPI、鉴权客户搜索均通过，无凭证访问能力接口仍返回 401。切换前后原有 18 条 sessions、376 段 transcript、15 条 recording knowledge、45 条 chat messages、10 个 project spaces、44 个 device credentials 数量一致。
 
 独立临时测试 owner 的公网接口验证通过：创建客户、待确认录音、主要客户确认、重复请求幂等、客户计数隔离、改归保护；未调用付费模型，测试资料随后清理。真机交付状态见 [工作区报告](../../docs/workspace-ui/REPORT.md)。
+
+## 2026-10-16 记忆库发布
+
+- 实现提交 `bff9622`，当前 release `/opt/candid/releases/20261016-memory-bff9622`，前版 `/opt/candid/releases/20261016-workspaces-3184099` 保留；发布前一致备份 `/var/backups/candid-memory-bff9622`。
+- SQLite integrity_check 为 ok，发布前后已有 18 场记录、376 段转写、15 份录音知识、45 条聊天消息、12 个工作区及 46 个设备凭证数量一致；供应商配置不变。
+- 本地后端 278 项通过；已部署代码针对性测试 34 项通过。HTTPS、鉴权检查通过。
+- 公网真实模型完成 FAQ 提取、Mock 反馈、资料版本更新；隔离测试资料已清理。结果见 `docs/memory-library/CLOUD_ACCEPTANCE.json`。
+- iPhone Release 覆盖安装并启动成功；此次未重复物理录音豆录音。

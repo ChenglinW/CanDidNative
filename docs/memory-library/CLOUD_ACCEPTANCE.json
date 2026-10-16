@@ -1,0 +1,17 @@
+{
+  "actual_model": {
+    "faq_count": 2,
+    "question": "客户要求发书面交付说明时怎么回应？",
+    "feedback": "优点：能引用门店资料中的“标准交付周期为三周”，并以“最终以书面方案为准”收口，避免口头承诺。优先改进点：在给出周期前应先确认客户希望的交付日期或时间要求，否则“三周”容易被听成已按对方日期倒推的承诺。资料缺口：证据中没有客户需要的交付日期，也没有说明三周从哪个节点起算（下单/付款/方案确认），因此无法给出具体到日期的书面交付说明。",
+    "mock_not_real_effect": true
+  },
+  "document_update": {
+    "version": 2,
+    "changes": [
+      "标准交付周期由三周更新为四周"
+    ]
+  },
+  "oral_not_audio_metrics": true,
+  "status": "passed",
+  "test_data_removed": true
+}
