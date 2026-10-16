@@ -72,7 +72,7 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.buttons["添加资料"].waitForExistence(timeout: 10))
         capture(app, "onboarding-materials")
         app.buttons["资料稍后再补"].tap()
-        XCTAssertTrue(app.buttons["home-chat-input"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching:.any).matching(identifier:"home-chat-input").firstMatch.waitForExistence(timeout: 10))
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["Candid"].firstMatch.waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["认识一下"].exists)
@@ -95,7 +95,7 @@ final class CanDidUITests: XCTestCase {
         app.buttons["这一步先跳过"].tap()
         XCTAssertTrue(app.buttons["添加资料"].waitForExistence(timeout: 10))
         app.buttons["资料稍后再补"].tap()
-        XCTAssertTrue(app.buttons["home-chat-input"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching:.any).matching(identifier:"home-chat-input").firstMatch.waitForExistence(timeout: 10))
         app.buttons["记忆库"].firstMatch.tap(); app.buttons["我的介绍与资料"].tap()
         XCTAssertTrue(app.staticTexts["慢慢认识你"].waitForExistence(timeout: 10))
     }
@@ -114,13 +114,13 @@ final class CanDidUITests: XCTestCase {
 
     func testV2EmptyHomeHasThreeDestinationsAndRealVoiceEntrances() {
         let app=enterApp()
-        XCTAssertTrue(app.buttons["home-chat-input"].exists)
+        XCTAssertTrue(app.descendants(matching:.any).matching(identifier:"home-chat-input").firstMatch.exists)
         XCTAssertFalse(app.buttons["项目"].exists)
         XCTAssertTrue(app.buttons["记忆库"].exists)
         XCTAssertTrue(app.buttons["录音"].exists)
         XCTAssertFalse(app.staticTexts["华味餐饮 · 产品方案沟通"].exists)
         capture(app,"v2-empty-home")
-        app.buttons["home-chat-input"].tap()
+        app.descendants(matching:.any).matching(identifier:"home-chat-input").firstMatch.tap()
         let continuous=app.buttons["连续对话"].firstMatch
         XCTAssertTrue(continuous.waitForExistence(timeout:10));continuous.tap()
         XCTAssertTrue(app.buttons["开始自由对话"].waitForExistence(timeout:10))
@@ -132,16 +132,16 @@ final class CanDidUITests: XCTestCase {
     }
     func testV2ChatDraftPersistsAcrossCollapseAndTabs() {
         let app=enterApp()
-        app.buttons["home-chat-input"].tap()
+        app.descendants(matching:.any).matching(identifier:"home-chat-input").firstMatch.tap()
         let input=app.descendants(matching:.any).matching(identifier:"给 Candid 的消息").firstMatch
         XCTAssertTrue(input.waitForExistence(timeout:10));input.tap();input.typeText("Keep my draft")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout:10))
         XCTAssertLessThanOrEqual(input.frame.maxY,app.keyboards.firstMatch.frame.minY+1)
         capture(app,"v2-chat-keyboard")
         app.buttons["收起对话"].tap()
-        XCTAssertTrue(app.buttons["home-chat-input"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.descendants(matching:.any).matching(identifier:"home-chat-input").firstMatch.waitForExistence(timeout:10))
         app.buttons["记忆库"].firstMatch.tap();app.buttons["录音"].firstMatch.tap();app.buttons["Candid"].firstMatch.tap()
-        app.buttons["home-chat-input"].tap()
+        app.descendants(matching:.any).matching(identifier:"home-chat-input").firstMatch.tap()
         XCTAssertTrue(input.waitForExistence(timeout:10))
         XCTAssertEqual(input.value as? String,"Keep my draft")
     }
@@ -153,21 +153,73 @@ final class CanDidUITests: XCTestCase {
         app.buttons["preparation-card-preview-preparation"].tap()
         XCTAssertTrue(app.staticTexts["本次目标"].waitForExistence(timeout:10))
         XCTAssertFalse(app.buttons["生成准备包"].exists)
+        XCTAssertFalse(app.buttons["记忆库"].exists,"只读报告不应保留底部主导航")
         capture(app,"v2-preparation")
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons.containing(.staticText,identifier:"华味餐饮 · 产品方案沟通").firstMatch.tap()
-        XCTAssertTrue(app.buttons["原文"].waitForExistence(timeout:10));app.buttons["原文"].tap()
+        XCTAssertTrue(app.buttons["原文"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["播放录音"].exists,"复盘打开即显示播放器")
+        capture(app,"fidelity-review")
+        app.buttons["原文"].tap()
         XCTAssertTrue(app.staticTexts["请先确认服务范围，再安排三家门店试点。"].waitForExistence(timeout:10))
         XCTAssertTrue(app.buttons["说话人认领"].exists)
+        XCTAssertTrue(app.buttons["play-sentence-preview-line"].exists,"每句都有独立播放入口")
+        XCTAssertFalse(app.buttons["记忆库"].exists)
         capture(app,"v2-transcript")
     }
+    func testFidelityAdaptiveHomeAndReport() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
+        let input=app.textFields["home-chat-input"]
+        XCTAssertTrue(input.waitForExistence(timeout:15));XCTAssertTrue(input.isHittable)
+        let prepare=app.buttons["preparation-card-preview-preparation"]
+        XCTAssertTrue(prepare.isHittable)
+        XCTAssertTrue(app.buttons["复盘上一场"].exists)
+        capture(app,"fidelity-adaptive-home")
+        prepare.tap();XCTAssertTrue(app.staticTexts["本次目标"].waitForExistence(timeout:10));XCTAssertFalse(app.buttons["记忆库"].exists)
+        capture(app,"fidelity-adaptive-report")
+    }
+    func testFidelityLargeTextKeepsActionsReachable() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated","-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"];app.launchEnvironment=[:];app.launch()
+        let input=app.textFields["home-chat-input"]
+        XCTAssertTrue(input.waitForExistence(timeout:15));XCTAssertTrue(input.isHittable)
+        XCTAssertTrue(app.buttons["连续对话"].exists)
+        capture(app,"fidelity-large-home")
+        app.buttons["记忆库"].firstMatch.tap();XCTAssertTrue(app.buttons["上传资料"].waitForExistence(timeout:10))
+        capture(app,"fidelity-large-memory")
+    }
+
+    func testFidelityPopulatedMemoryAndSourceNavigation() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
+        app.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["表达积累"].waitForExistence(timeout:10))
+        XCTAssertFalse(app.buttons["跨场发现"].exists,"跨场发现从卡片进入，不添加第三个分类")
+        capture(app,"fidelity-memory-populated")
+        app.buttons["表达积累"].tap()
+        app.buttons.containing(.staticText,identifier:"为什么比另一家贵？").firstMatch.tap()
+        XCTAssertTrue(app.buttons["改成我的说法"].waitForExistence(timeout:10))
+        XCTAssertFalse(app.buttons["录音"].exists)
+        capture(app,"fidelity-expression-detail")
+        app.buttons["改成我的说法"].tap()
+        XCTAssertTrue(app.textViews["我的表达"].waitForExistence(timeout:10))
+        app.navigationBars.buttons.firstMatch.tap()
+        let inbox=app.buttons["查看全部发现与集中确认"]
+        if !inbox.isHittable{app.swipeUp()}
+        inbox.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format:"label BEGINSWITH %@","选择发现：")).firstMatch.waitForExistence(timeout:10))
+        XCTAssertFalse(app.buttons["记忆库"].exists)
+        capture(app,"fidelity-discovery-inbox")
+    }
+
     func testV2MemoryRecordingAndDeviceBoundaries() {
         let app=enterApp()
         app.buttons["记忆库"].firstMatch.tap()
         XCTAssertTrue(app.buttons["上传资料"].waitForExistence(timeout:10))
         XCTAssertTrue(app.buttons["我的介绍与资料"].exists)
         capture(app,"v2-memory")
-        app.buttons["表达积累"].tap();XCTAssertTrue(app.staticTexts["还没有表达积累"].waitForExistence(timeout:10))
+        XCTAssertFalse(app.buttons["表达积累"].exists,"空记忆库不应出现分类栏")
         app.buttons["录音"].firstMatch.tap()
         XCTAssertTrue(app.buttons["phone-recording-fallback"].waitForExistence(timeout:10))
         XCTAssertTrue(app.staticTexts["第一场经验，从这里留下。"].exists)
@@ -183,6 +235,30 @@ final class CanDidUITests: XCTestCase {
         app.buttons["连接与授权"].tap()
         XCTAssertTrue(app.staticTexts["soundcore-simulator-note"].waitForExistence(timeout:10))
     }
+    func testFidelityActualHTTPSentencePlayback() throws {
+        guard ProcessInfo.processInfo.environment["CANDID_RUN_HTTP_UI"]=="1" else{throw XCTSkip("Requires isolated local HTTP test server")}
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=[];app.launchEnvironment=["CANDID_LOCAL_BACKEND":"1","CANDID_BACKEND_PORT":"8879","CANDID_BACKEND_TOKEN":"candid-v2-local-acceptance","CANDID_ACCEPTANCE_CACHE":UUID().uuidString]
+        app.launch()
+        let skip=app.buttons["直接开始，之后再介绍"];if skip.waitForExistence(timeout:10){skip.tap()}
+        XCTAssertTrue(app.buttons["录音"].firstMatch.waitForExistence(timeout:30));app.buttons["录音"].firstMatch.tap()
+        app.buttons.containing(.staticText,identifier:"逐句回听验收录音").firstMatch.tap()
+        app.buttons["原文"].tap()
+        let buttons=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","play-sentence-"))
+        XCTAssertEqual(buttons.count,2)
+        buttons.element(boundBy:0).tap()
+        XCTAssertTrue(app.buttons["暂停这一句"].waitForExistence(timeout:10))
+        buttons.element(boundBy:1).tap()
+        XCTAssertTrue(app.buttons["暂停这一句"].waitForExistence(timeout:10))
+        let stopped=NSPredicate(format:"label == %@","播放这一句")
+        expectation(for:stopped,evaluatedWith:buttons.element(boundBy:1))
+        waitForExpectations(timeout:10)
+        XCTAssertTrue(app.buttons["停止回听"].exists)
+        capture(app,"fidelity-http-sentence-playback")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["记忆库"].waitForExistence(timeout:10))
+    }
+
     func testV2ActualHTTPAppAgentPreparationAndSourceAnswer() throws {
         guard ProcessInfo.processInfo.environment["CANDID_RUN_HTTP_UI"]=="1" else {throw XCTSkip("Run scripts/v2-test-server.py and set CANDID_RUN_HTTP_UI=1 for actual HTTP acceptance")}
         continueAfterFailure=false
@@ -190,7 +266,7 @@ final class CanDidUITests: XCTestCase {
         let cloud=ProcessInfo.processInfo.environment["CANDID_CLOUD_ACCEPTANCE"]=="1"
         app.launchEnvironment=["CANDID_LOCAL_BACKEND":cloud ? "0":"1","CANDID_CLOUD_ACCEPTANCE":cloud ? "1":"0","CANDID_BACKEND_PORT":"8879","CANDID_BACKEND_TOKEN":cloud ? ProcessInfo.processInfo.environment["CANDID_BACKEND_TOKEN"]! : "candid-v2-local-acceptance","CANDID_ACCEPTANCE_CACHE":UUID().uuidString]
         app.launch()
-        let home=app.buttons["home-chat-input"]
+        let home=app.descendants(matching:.any).matching(identifier:"home-chat-input").firstMatch
         let skip=app.buttons["直接开始，之后再介绍"]
         if skip.waitForExistence(timeout:10){skip.tap()}
         XCTAssertTrue(home.waitForExistence(timeout:30))

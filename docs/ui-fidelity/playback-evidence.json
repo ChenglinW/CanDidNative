@@ -1,0 +1,19 @@
+{
+  "fixture": "synthetic 440 Hz PCM WAV, 16000 Hz mono, 9 seconds",
+  "transport": "native App -> loopback FastAPI -> signed audio URL -> AVPlayer",
+  "observed_ranges": [
+    {
+      "start_ms": "500",
+      "end_ms": "3500"
+    },
+    {
+      "start_ms": "4000",
+      "end_ms": "7500"
+    }
+  ],
+  "not_validated": [
+    "human speech ASR quality",
+    "physical iPhone microphone",
+    "Soundcore hardware"
+  ]
+}

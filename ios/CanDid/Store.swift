@@ -365,12 +365,14 @@ extension Store {
     func playRecording(_ id:String,startMS:Int=0,endMS:Int?=nil) async throws {
         guard !speech.activeMeeting,soundcore.recordStatus==0 else { throw PrototypeError.message("请先暂停回听，完成本场录音后再播放。") }
         guard !audio.voiceActive else {throw PrototypeError.message("请先暂停或结束语音对话，再回听录音。") }
+        guard startMS>=0,endMS==nil || endMS!>startMS else {throw PrototypeError.message("这句原文没有有效的音频时间范围。") }
         speech.stopPlayback();stopPlayback()
         let lease=try audio.acquire(.recordingPlayback);playbackLease=lease
-        defer {if recordingPlaybackID != id {audio.release(lease);playbackLease=nil}}
+        defer {if recordingPlaybackID != id && audio.owns(lease) {audio.release(lease);playbackLease=nil}}
         let api=self.api
         let playbackIdentity=DeviceRecordingMap.identity(api)
-        let link:Link=try await api.call("/v1/sessions/"+id+"/audio?start_ms="+String(startMS))
+        let range="/v1/sessions/"+id+"/audio?start_ms="+String(startMS)+(endMS.map{"&end_ms="+String($0)} ?? "")
+        let link:Link=try await api.call(range)
         guard let path=link.url else { throw PrototypeError.message("原音频不可用") }
         guard audio.owns(lease) else {throw PrototypeError.message("音频模式已变化。") }
         let item=AVPlayerItem(url:try api.url(path))
@@ -378,19 +380,24 @@ extension Store {
         player=AVPlayer(playerItem:item)
         try AVAudioSession.sharedInstance().setCategory(.playback,mode:.spokenAudio);try AVAudioSession.sharedInstance().setActive(true)
         await player?.seek(to:CMTime(seconds:Double(startMS)/1000,preferredTimescale:1000),toleranceBefore:.zero,toleranceAfter:.zero)
+        guard audio.owns(lease) else {throw PrototypeError.message("回听已停止或切换。") }
         guard DeviceRecordingMap.identity(api)==playbackIdentity else { stopPlayback();throw PrototypeError.message("后端连接已变化，请重新打开录音。") }
         recordingPlaybackID=id;recordingPlaybackStartMS=startMS;recordingPlaybackEndMS=endMS ?? 0
         recordingPlaybackPositionMS=startMS;recordingPlaybackPlaying=true
         recordingPlaybackObserver=player?.addPeriodicTimeObserver(forInterval:CMTime(seconds:0.25,preferredTimescale:1000),queue:.main) { [weak self] time in
             Task { @MainActor in
-                guard let self,self.recordingPlaybackID==id else { return }
+                guard let self,self.recordingPlaybackID==id,self.audio.owns(lease) else { return }
                 if time.seconds.isFinite { self.recordingPlaybackPositionMS=max(0,Int(time.seconds*1000)) }
                 if endMS==nil,let duration=self.player?.currentItem?.duration.seconds,duration.isFinite,duration>0 { self.recordingPlaybackEndMS=Int(duration*1000) }
                 self.recordingPlaybackPlaying=self.player?.rate != 0
             }
         }
         recordingPlaybackEndObserver=NotificationCenter.default.addObserver(forName:.AVPlayerItemDidPlayToEndTime,object:item,queue:.main) { [weak self] _ in
-            Task { @MainActor in self?.recordingPlaybackPlaying=false }
+            Task { @MainActor in
+                guard let self,self.recordingPlaybackID==id,self.audio.owns(lease) else{return}
+                self.recordingPlaybackPlaying=false
+                if let endMS{self.recordingPlaybackPositionMS=endMS}
+            }
         }
         player?.play()
     }

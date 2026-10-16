@@ -17,6 +17,59 @@ private final class OnboardingStubProtocol: URLProtocol {
 }
 
 final class SoundcoreAudioTests: XCTestCase {
+    func testRelativeMeetingTimeUsesUnambiguous24HourClock() throws {
+        let tomorrow=try XCTUnwrap(Calendar.current.date(byAdding:.day,value:1,to:Date()))
+        let afternoon=try XCTUnwrap(Calendar.current.date(bySettingHour:14,minute:7,second:0,of:tomorrow))
+        XCTAssertEqual(CompanionStyle.meetingTime(ISO8601DateFormatter().string(from:afternoon)),"明天 14:07")
+        XCTAssertEqual(CompanionStyle.meetingTime(nil),"时间待定")
+    }
+    func testQuestionGroupingKeepsOriginalOrderAndUnknownSpeakers() throws {
+        let json = #"[{"id":"a","text":"为什么价格不同？","start_ms":1000,"end_ms":2000,"speaker":"unknown","speaker_id":"x"},{"id":"b","text":"先确认服务范围。","start_ms":2000,"end_ms":3000,"speaker":"unknown","speaker_id":"y"},{"id":"c","text":"When can we start?","start_ms":5000,"end_ms":6000,"speaker":"self","speaker_id":"z"},{"id":"d","text":"时间仍待核实。","start_ms":6000,"end_ms":7000,"speaker":"unknown","speaker_id":"x"}]"#
+        let lines=try JSONDecoder().decode([RecordingSentence].self,from:Data(json.utf8))
+        let pairs=CompanionExchange.extract(Array(lines.reversed()))
+        XCTAssertEqual(pairs.map(\.id),["a","c"])
+        XCTAssertEqual(pairs[0].following.map(\.id),["b"])
+        XCTAssertEqual(pairs[1].following.map(\.id),["d"])
+        XCTAssertEqual(pairs[0].following[0].speaker,"unknown","问答呈现不能猜测本人身份")
+        XCTAssertTrue(CompanionExchange.extract([]).isEmpty)
+    }
+    @MainActor func testSentencePlaybackSeeksStopsAtEndAndRestarts() async throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
+        defer {try? FileManager.default.removeItem(at:root);URLProtocol.unregisterClass(OnboardingStubProtocol.self);OnboardingStubProtocol.handler=nil}
+        let file=root.appendingPathComponent("sentence.wav")
+        let format=AVAudioFormat(standardFormatWithSampleRate:16000,channels:1)!
+        let buffer=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:48000)!
+        buffer.frameLength=48000
+        for index in 0..<48000 {buffer.floatChannelData![0][index]=Float(sin(Double(index)*2*Double.pi*440/16000)*0.1)}
+        try AVAudioFile(forWriting:file,settings:format.settings).write(from:buffer)
+        XCTAssertTrue(URLProtocol.registerClass(OnboardingStubProtocol.self))
+        var requested=""
+        OnboardingStubProtocol.handler={request in requested=request.url!.absoluteString;return try JSONSerialization.data(withJSONObject:["url":file.absoluteString])}
+        let store=Store(localDirectory:root.appendingPathComponent("store"));store.base="http://onboarding-test.invalid"
+        try await store.playRecording("sentence-test",startMS:500,endMS:1200)
+        XCTAssertTrue(requested.contains("/v1/sessions/sentence-test/audio?start_ms=500"))
+        XCTAssertEqual(store.recordingPlaybackStartMS,500);XCTAssertEqual(store.recordingPlaybackEndMS,1200)
+        let deadline=Date().addingTimeInterval(6)
+        while store.recordingPlaybackPlaying && Date()<deadline {try await Task.sleep(for:.milliseconds(100))}
+        XCTAssertFalse(store.recordingPlaybackPlaying,"只播当前句，不能继续播下一句")
+        XCTAssertGreaterThanOrEqual(store.recordingPlaybackPositionMS,1000)
+        XCTAssertLessThanOrEqual(store.recordingPlaybackPositionMS,1300)
+        store.toggleRecordingPlayback()
+        XCTAssertTrue(store.recordingPlaybackPlaying)
+        store.stopPlayback();XCTAssertNil(store.recordingPlaybackID);XCTAssertFalse(store.audio.voiceActive)
+        OnboardingStubProtocol.handler={request in
+            if request.url!.path.contains("cancelled"){Thread.sleep(forTimeInterval:0.2)}
+            return try JSONSerialization.data(withJSONObject:["url":file.absoluteString])
+        }
+        let pending=Task{try await store.playRecording("cancelled",startMS:500,endMS:1200)}
+        try await Task.sleep(for:.milliseconds(50));store.stopPlayback()
+        do{try await pending.value;XCTFail("停止后的旧请求不能恢复播放")}catch{}
+        XCTAssertNil(store.recordingPlaybackID)
+        XCTAssertFalse(store.recordingPlaybackPlaying)
+        do{try await store.playRecording("invalid",startMS:2000,endMS:1000);XCTFail("不能播放倒置时间范围")}catch{}
+    }
+
     func testProviderFileCopyValidatesActualBytesAndCleansFailedCopies() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}

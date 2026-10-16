@@ -123,18 +123,21 @@ struct VoiceComposer:View {
     @EnvironmentObject var store:Store
     @ObservedObject var voice:VoiceSessionController
     var focused:FocusState<Bool>.Binding
+    var compact=false
+    var inputIdentifier="chat-message-input"
+    private var placeholder:String{store.chatBusy ? "补充内容，会排队处理":(compact ? "有什么想一起想想的？":"长按说话，或点这里输入")}
     var send:()->Void
     var body:some View {
         HStack(spacing:8) {
-            Button {
+            if !compact {Button {
                 guard !voice.justEndedGesture else{return}
                 if voice.holding {voice.releaseHold(cancelled:false)} else {focused.wrappedValue=false;voice.beginHold(store:store)}
             } label:{Image(systemName:voice.holding ? "stop.circle.fill":"mic").font(.body).frame(width:44,height:44)}
                 .accessibilityLabel(voice.holding ? "结束并发送语音":"开始语音输入，再次点击发送")
-                .modifier(VoiceHoldGesture(voice:voice))
-            TextField(store.chatBusy ? "补充内容，会排队处理":"长按说话，或点这里输入",text:Binding(get:{store.chatDraft},set:{store.saveChatDraft($0)}),axis:.vertical)
-                .lineLimit(1...5).focused(focused).font(.body).padding(.vertical,9)
-                .accessibilityLabel("给 Candid 的消息")
+                .modifier(VoiceHoldGesture(voice:voice))}
+            TextField(placeholder,text:Binding(get:{store.chatDraft},set:{store.saveChatDraft($0)}),prompt:Text(placeholder).foregroundColor(RecordingFormat.secondary),axis:.vertical)
+                .lineLimit(1...5).focused(focused).companionFont(compact ? 14:17).padding(.vertical,8)
+                .accessibilityLabel("给 Candid 的消息").accessibilityIdentifier(inputIdentifier)
                 .overlay {
                     if !focused.wrappedValue {
                         Color.clear.contentShape(Rectangle())
@@ -143,7 +146,7 @@ struct VoiceComposer:View {
                             .accessibilityHidden(true)
                     }
                 }
-            Button(action:send) {Image(systemName:"arrow.up").font(.headline).foregroundStyle(.white).frame(width:44,height:44).background(Warm.purple,in:RoundedRectangle(cornerRadius:12))}
+            Button(action:send) {Image(systemName:"arrow.up").font(.system(size:18,weight:.semibold)).foregroundStyle(.white).frame(width:34,height:34).background(Warm.purple,in:RoundedRectangle(cornerRadius:11)).frame(width:44,height:44)}
                 .disabled(store.chatDraft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || store.chatControlBusy || store.chatLoading || voice.active)
                 .opacity(store.chatDraft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty ? 0.45:1)
                 .accessibilityLabel("发送消息")

@@ -377,3 +377,20 @@ def test_restart_interrupts_without_automatic_model_replay_and_keeps_queue(domai
     resumed,fresh=tasks.resume(A,first['id'],ident())
     assert fresh and resumed['attempt']==2 and resumed['status']=='queued'
     assert tasks.get(A,second['id'])['status']=='interrupted'
+
+
+def test_preparation_participants_only_use_explicit_user_names(domain):
+    from tools.companion_tools import register_companion_tools, Preparation
+    from types import SimpleNamespace
+    class Registry:
+        def register(self, spec): self.spec=spec
+    registry=Registry();register_companion_tools(registry,domain.store)
+    thread=domain.thread(A)
+    user='帮我准备王总（采购）和李工（IT）的沟通，目标确认服务范围。'
+    domain.store.put('chat_messages',A,{'thread_id':thread['id'],'role':'user','content':user,'sources':[],'tool_steps':[]},L1)
+    ctx=SimpleNamespace(owner_id=A,thread_id=thread['id'],task_id='participants-test',remaining=lambda:10)
+    args=Preparation(**{**pack(),'user_quote':user,'participants':['王总（采购）','李工（IT）','虚构联系人']}).model_dump()
+    result=registry.spec.handler(ctx,args,[])
+    saved=domain.store.get('companion_preparations',A,result.data['preparation_package_id'])
+    assert saved['participants']==['王总（采购）','李工（IT）']
+    assert Preparation(**{**pack(),'user_quote':user}).participants==[]

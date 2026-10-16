@@ -16,6 +16,7 @@ class Preparation(BaseModel):
     scheduled_at:str|None=None
     time_quote:str=Field(default='',max_length=200)
     concerns:str=Field(default='',max_length=1500)
+    participants:list[str]=Field(default_factory=list,max_length=30,description='用户已明确提供的参会人及角色，未知时留空，不猜测姓名')
     user_quote:str=Field(min_length=1,max_length=3000)
     sections:list[Section]=Field(min_length=3,max_length=12)
     source_ids:list[str]=Field(default_factory=list,max_length=30)
@@ -31,6 +32,8 @@ def register_companion_tools(registry,store):
         refs=[{'source_id':s,'source_version':known[s]['source_version']} for s in args['source_ids']]
         data={k:v for k,v in args.items() if k not in {'source_ids','user_quote','time_quote'}}
         if not args['time_quote'] or args['time_quote'] not in user: data['scheduled_at']=None
+        # Only names explicitly present in this user's conversation become meeting metadata.
+        data['participants']=[name for name in args.get('participants',[]) if name and name in user]
         context.remaining()
         pack=domain.save_preparation(context.owner_id,context.thread_id,'agent:'+context.task_id,data,refs)
         return ToolResult('ok',{'preparation_package_id':pack['id'],'version':pack['version'],'saved':True,'note':'Chat卡片与首页已同步，不再重复生成准备包。'})

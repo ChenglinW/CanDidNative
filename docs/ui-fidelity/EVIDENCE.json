@@ -1,0 +1,23 @@
+{
+  "reference": "docs/references/CanDid_v2_iPhone17_20261016.html",
+  "parent_commit": "fb45ebb4a65af24835392e8a9f36a5e543c82d78",
+  "backend_tests_passed": 166,
+  "native_unit_tests_passed": 22,
+  "unique_ui_flows_passed": 12,
+  "server_companion_tests_passed": 20,
+  "backend_release": "/opt/candid/releases/20261016-ui-fidelity",
+  "backend_tool_sha256": "860d0d2de611c94c47286330caf363f5f3984a380b4b55e8dc100482b609c2a3",
+  "release_iphoneos": "unsigned build passed",
+  "physical_installation_this_turn": false,
+  "pending_hardware": [
+    "physical microphone input",
+    "echo/VAD/barge-in",
+    "Soundcore device"
+  ],
+  "sources": {
+    "ios/CanDid/CompanionUI.swift": "32c87fadedc787071fe3c70ea2bceb4fe7b0cd76fa6506c5f39e55052518483c",
+    "ios/CanDid/RecordingUI.swift": "21556b0c7bd339f7bff769b0e5f1bf6b8586437efdd5782c6197b8527cadde0f",
+    "ios/CanDid/VoiceViews.swift": "f0c3a8dccf68d2782cf58a3ced282ec9dbb37b77f342586e074ed95cf6fe50b6",
+    "ios/CanDid/Store.swift": "9048389696dc1dcdddf3027d448addd8a3c0645d4ec0388a3a04031afd87954e"
+  }
+}

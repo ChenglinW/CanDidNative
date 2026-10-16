@@ -379,6 +379,7 @@ struct ChatView: View {
     var onSettings: () -> Void
     var embedded=false
     var focusComposer=false
+    var showsComposer=true
 
     private var followsLatest: Bool { store.chatReadPosition == nil || store.chatReadPosition == "chat-bottom" || store.chatReadPosition == store.chatMessages.last?.id }
     private var available: Bool { store.remote && store.capabilities?.agent_configured == true }
@@ -475,9 +476,9 @@ struct ChatView: View {
             }
             RecordingStatusBar(speech:store.speech,device:store.soundcore).environmentObject(store)
             if !embedded {SpeechToolbar(speech:store.speech).environmentObject(store)}
-            VoiceInputStatus(voice:store.voice).environmentObject(store)
-            if embedded {HStack {Button("连续对话",systemImage:"waveform"){focused=false;store.voice.enter(store:store)};Spacer();if focused {Button("收起键盘"){focused=false}}}.font(.caption).frame(minHeight:44).padding(.horizontal,22)}
-            composer
+            if showsComposer {VoiceInputStatus(voice:store.voice).environmentObject(store)}
+            if embedded && showsComposer {HStack {Button("连续对话",systemImage:"waveform"){focused=false;store.voice.enter(store:store)};Spacer();if focused {Button("收起键盘"){focused=false}}}.font(.caption).frame(minHeight:44).padding(.horizontal,22)}
+            if showsComposer {composer}
         }
         .background(Warm.paper.ignoresSafeArea()).toolbar(.hidden, for: .navigationBar)
 

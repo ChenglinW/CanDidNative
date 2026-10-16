@@ -8,6 +8,7 @@ enum CandidSection: Hashable { case chat, memory, occasions, recordings }
     @Published var section: CandidSection = .chat
     @Published var showRecorder = false
     @Published var newMeeting = false
+    @Published var visibleDetails:Set<UUID>=[]
     init() {
         #if DEBUG
         if ProcessInfo.processInfo.environment["CANDID_INITIAL_TAB"]=="recordings" { section = .recordings }
@@ -103,16 +104,13 @@ struct RecordingShell: View {
     @ObservedObject var speech: SpeechController
     @ObservedObject var device: Soundcore
     let onSettings: () -> Void
+    @State private var keyboardVisible=false
     var body: some View {
-        TabView(selection:$navigation.section) {
-            NavigationStack { CompanionHome(onSettings:onSettings) }
-                .tabItem { Label("Candid",systemImage:"bubble.left") }.tag(CandidSection.chat)
-            NavigationStack { CompanionMemory() }
-                .tabItem { Label("记忆库",systemImage:"book.closed") }.tag(CandidSection.memory)
-            NavigationStack { CompanionRecordings() }
-                .tabItem { Label("录音",systemImage:"mic") }.tag(CandidSection.recordings)
+        ZStack {
+            destination(.chat) {CompanionHome(onSettings:onSettings)}
+            destination(.memory) {CompanionMemory()}
+            destination(.recordings) {CompanionRecordings()}
         }
-        .toolbarBackground(Warm.white,for:.tabBar)
         .fullScreenCover(isPresented:$navigation.showRecorder) {
             NavigationStack { LiveRecordingView(speech:speech,device:device,navigation:navigation).environmentObject(store) }
                 .preferredColorScheme(.light).tint(Warm.purple).fontDesign(.rounded).foregroundStyle(Warm.ink)
@@ -139,8 +137,15 @@ struct RecordingShell: View {
         .onChange(of:device.files.map(\.id)) { _,_ in Task { await speech.syncEndedDeviceIfReady(store:store,device:device) } }
         .onChange(of:speech.finishing) { _,value in if !value { coordinateDevice();Task { await speech.syncEndedDeviceIfReady(store:store,device:device) } } }
         .onChange(of:store.remote) { _,value in if value { coordinateDevice() } }
+        .onReceive(NotificationCenter.default.publisher(for:UIResponder.keyboardWillShowNotification)){_ in keyboardVisible=true}
+        .onReceive(NotificationCenter.default.publisher(for:UIResponder.keyboardWillHideNotification)){_ in keyboardVisible=false}
         .task { coordinateDevice() }
         .task { await store.observeDeviceActions() }
+    }
+    @ViewBuilder private func destination<Content:View>(_ section:CandidSection,@ViewBuilder content:()->Content)->some View {
+        NavigationStack {content().safeAreaInset(edge:.bottom,spacing:0){if !keyboardVisible && navigation.visibleDetails.isEmpty {CompanionTabBar(navigation:navigation)}}}
+            .opacity(navigation.section==section ? 1:0).allowsHitTesting(navigation.section==section)
+            .accessibilityHidden(navigation.section != section)
     }
     private func coordinateDevice() {
         guard device.recordStatus != 0,store.remote,!speech.meetingPreparing,!speech.finishing else { return }
