@@ -133,7 +133,7 @@ struct RecordingShell: View {
         .onChange(of:device.fileMarkers) {_,values in
             guard store.remote,let connected=device.connected else{return}
             for (fileID,times) in values {
-                if let sid=DeviceRecordingMap.get(api:store.api,fileID:fileID,deviceID:connected.uuid) {Task {try? await speech.saveMarkers(times,sessionID:sid,api:store.api)}}
+                if let sid=DeviceRecordingMap.get(api:store.api,fileID:fileID,deviceID:connected.recordingID) {Task {try? await speech.saveMarkers(times,sessionID:sid,api:store.api)}}
             }
         }
         .onChange(of:device.realtimeReady) { _,_ in coordinateDevice() }
@@ -224,6 +224,7 @@ struct LiveRecordingView: View {
         if isPaused { return "录音已暂停，继续后恢复字幕" }
         if !hasLiveMeeting { return speech.meetingProgress ?? "录音由设备按钮开始和结束" }
         if !sameConnection { return "实时字幕尚未开启 · 录音仍保存在设备" }
+        if deviceActive && speech.captionState == .ready && !device.receivingLiveAudio { return "等待录音豆实时音频 · 完整录音保存在设备" }
         switch speech.captionState {
         case .ready: return "字幕已连接 · 完整录音保存在\(deviceActive ? "设备":"本机")"
         case .connecting: return "正在连接实时字幕 · 录音仍在保存"
@@ -895,7 +896,7 @@ struct RecordingDeviceLibrary: View {
             VStack(alignment:.leading,spacing:20) {
                 Text("安克录音豆").font(.title2.bold())
                 Text(device.status).font(.subheadline).foregroundStyle(RecordingFormat.secondary)
-                NavigationLink {SoundcoreDeviceView(device:device)} label: {Label(device.connected==nil ? "连接与授权":"管理设备连接",systemImage:"waveform")}.frame(minHeight:44)
+                NavigationLink {SoundcoreDeviceView(device:device)} label: {Label(device.connected==nil ? "连接录音豆":"管理录音豆",systemImage:"waveform")}.frame(minHeight:44)
                 Text("按设备按钮开始和结束录音。App 支持暂停、继续、实时原文和文件同步；字幕只在设备实际提供实时音频时开启。").font(.subheadline).lineSpacing(5).foregroundStyle(RecordingFormat.secondary)
                 if device.recordStatus != 0 {Button("查看本场录音") {store.recordingNavigation.newMeeting=false;store.recordingNavigation.showRecorder=true;dismiss()}.buttonStyle(RecordingPrimary())}
                 if speech.meetingSyncing || device.transferring {

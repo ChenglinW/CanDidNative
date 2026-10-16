@@ -1,4 +1,5 @@
 import XCTest
+import module_spplinkKit
 import AVFoundation
 import SwiftUI
 @testable import CanDid
@@ -508,5 +509,131 @@ final class SoundcoreAudioTests: XCTestCase {
         XCTAssertThrowsError(try device.initialize(SoundcoreAuth()))
         XCTAssertFalse(device.ready)
         XCTAssertFalse(device.scanning)
+    }
+}
+
+// SDK metadata is used for server-side license headers, never a user-entered version.
+extension SoundcoreAudioTests {
+    func testSoundcoreSDKMetadataForAuthorizationHeaders() {
+        let sdk = module_spplinkKit.SoundcoreSDK.companion
+        let product = sdk.getProductCode()
+        let version = sdk.getVersion()
+        XCTAssertEqual(product, "D3200")
+        XCTAssertTrue(["V1.3.01", "V1.3.02"].contains(version), "Vendor SDK must match Anker configured versions; rerun prepare-soundcore.sh")
+        print("SOUNDCORE_SDK_METADATA=\(product)|\(version)")
+    }
+}
+
+private final class SoundcoreAuthAcceptanceListener: NSObject, OnAuthResultListener {
+    let completed: (AuthResult) -> Void
+    private let lock = NSLock()
+    private var delivered = false
+    init(completed: @escaping (AuthResult) -> Void) { self.completed = completed }
+    func onAuthResult(result: AuthResult) {
+        lock.lock(); let first = !delivered; delivered = true; lock.unlock()
+        if first { completed(result) }
+    }
+}
+extension SoundcoreAudioTests {
+    func testSoundcoreDiscoveryKeepsDistinctDevicesSharingAServiceUUID() {
+        let first = SoundcoreDevice(name: "D3200", mac: "AA:01", uuid: "shared-service")
+        let second = SoundcoreDevice(name: "D3200", mac: "AA:02", uuid: "shared-service")
+        XCTAssertNotEqual(first.id, second.id)
+        let callbacks = SoundcoreCallbacks()
+        var result: CanDid.SoundcoreDevice?
+        callbacks.event = { if case .scan(let device) = $0 { result = device } }
+        let model = BlueDeviceModel()
+        model.macAddress = first.mac; model.uuid = first.uuid; model.productCode = "D3200"; model.bindingStatus = "1"
+        callbacks.onScanSuccess(device: model)
+        XCTAssertEqual(result?.mac, first.mac)
+        XCTAssertEqual(result?.productCode, "D3200")
+        XCTAssertTrue(result?.bound == true)
+        XCTAssertEqual(result?.uuid, CanDid.SoundcoreDevice.serviceUUID)
+        // SDK productCode/uuid are optional; a valid scanned MAC must remain discoverable.
+        model.productCode = nil; model.uuid = nil
+        callbacks.onScanSuccess(device: model)
+        XCTAssertEqual(result?.mac, first.mac)
+        XCTAssertEqual(result?.uuid, CanDid.SoundcoreDevice.serviceUUID)
+    }
+    func testSoundcoreGrantExpiryAndPhoneIdentity() throws {
+        let id = try SoundcoreAuth.phoneID()
+        XCTAssertEqual(id, try SoundcoreAuth.phoneID())
+        XCTAssertNotNil(UUID(uuidString: id))
+        var auth = SoundcoreAuth(userID: "owner", deviceID: id, token: "token", expiresAt: Date().timeIntervalSince1970 + 3600)
+        XCTAssertTrue(auth.valid)
+        auth.expiresAt = Date().timeIntervalSince1970 - 1
+        XCTAssertFalse(auth.valid)
+    }
+    // Explicit opt-in: a locally minted, private fixture in the simulator app's Caches.
+    // Ordinary unit runs do not contact Anker or embed any credential in source.
+    @MainActor func testSoundcoreLiveSDKAuthorizationWhenPrivateFixtureProvided() async throws {
+        let file = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("soundcore-auth-acceptance.private.json")
+        guard FileManager.default.fileExists(atPath: file.path) else { throw XCTSkip("No private live-authorization fixture") }
+        let json = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
+        let data = json["data"] as! [String: Any]
+        let license = data["license"] as! [String: Any]
+        let text = String(decoding: try JSONSerialization.data(withJSONObject: license, options: [.sortedKeys]), as: UTF8.self)
+        let done = expectation(description: "Actual SDK accepts freshly minted QA grant")
+        let listener = SoundcoreAuthAcceptanceListener { result in
+            XCTAssertTrue(result.success, "SDK auth failed: \(result.error?.code ?? 0)")
+            print("SOUNDCORE_LIVE_SDK_AUTH success=\(result.success) online=\(result.isOnline) licenseValid=\(result.licenseValid) code=\(result.error?.code ?? 0)")
+            done.fulfill()
+        }
+        let auth = AuthService.shared
+        auth.setEnvironment(environment: .development)
+        auth.updateServerUrl(baseUrl: "https://speaker-api-qa.anker-in.com")
+        auth.doInitAuth(userId: license["user_id"] as! String, deviceId: license["device_id"] as! String,
+            token: data["token"] as! String, licenseJson: text, license_signature: data["license_signature"] as! String,
+            sdkVersion: SoundcoreSDK.companion.getVersion(), productCode: SoundcoreSDK.companion.getProductCode(), listener: listener)
+        await fulfillment(of: [done], timeout: 30)
+        auth.release()
+    }
+}
+
+extension SoundcoreAudioTests {
+    func testDeviceLivePCMHandlesFragmentationDuplicatesAndMissingPackets() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let raw = try Data(contentsOf: fixture(in: folder, packets: 3))
+        let decoder = try DevicePCMDecoder()
+        XCTAssertTrue(try decoder.decode(Data(raw.prefix(80)), sequence: 1).0.isEmpty)
+        let complete = try decoder.decode(Data(raw[80..<160]), sequence: 2)
+        XCTAssertEqual(complete.0.count, 640)
+        XCTAssertFalse(complete.1)
+        XCTAssertTrue(try decoder.decode(Data(raw[80..<160]), sequence: 2).0.isEmpty)
+        let gap = try decoder.decode(Data(raw[320..<480]), sequence: 4)
+        XCTAssertEqual(gap.0.count, 640)
+        XCTAssertTrue(gap.1)
+        XCTAssertTrue(gap.0.contains { $0 != 0 })
+    }
+    func testDifferentRecordingBeansNeverShareAnImportOrLiveSessionKey() {
+        let api = API(base: "https://fixture.invalid", token: "fixture")
+        let first = CanDid.SoundcoreDevice(name: "soundcore Work", mac: "AA:01", uuid: CanDid.SoundcoreDevice.serviceUUID, serial: "SN-A", productCode: "")
+        let second = CanDid.SoundcoreDevice(name: "soundcore Work", mac: "AA:02", uuid: CanDid.SoundcoreDevice.serviceUUID, serial: "SN-B", productCode: "")
+        XCTAssertTrue(first.likelyRecorder)
+        XCTAssertNotEqual(first.recordingID, second.recordingID)
+        XCTAssertNotEqual(DeviceRecordingMap.requestID(api: api, fileID: 1, deviceID: first.recordingID), DeviceRecordingMap.requestID(api: api, fileID: 1, deviceID: second.recordingID))
+        XCTAssertFalse(CanDid.SoundcoreDevice(name: "Nearby headphones", mac: "AA:03", uuid: CanDid.SoundcoreDevice.serviceUUID, productCode: "").likelyRecorder)
+    }
+}
+
+extension SoundcoreAudioTests {
+    func testVendorConcatenatedTransferFileStaysInsideOwnedDirectory() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let folder = root.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = URL(fileURLWithPath: SoundcoreTransferPaths.sdkDirectory(folder) + "1792140465.opus")
+        try Data(repeating: 1, count: 160).write(to: file)
+        XCTAssertEqual(try SoundcoreTransferPaths.completedFile(file.path, in: folder), file.resolvingSymlinksInPath())
+        // Reproduce the real SDK behavior with the old missing slash; that sibling remains rejected.
+        let misplaced = URL(fileURLWithPath: folder.path + "1792140465.opus")
+        try Data(repeating: 1, count: 160).write(to: misplaced)
+        XCTAssertThrowsError(try SoundcoreTransferPaths.completedFile(misplaced.path, in: folder))
+        let link = folder.appendingPathComponent("linked.opus")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: misplaced)
+        XCTAssertThrowsError(try SoundcoreTransferPaths.completedFile(link.path, in: folder))
+        XCTAssertThrowsError(try SoundcoreTransferPaths.completedFile(folder.path, in: folder))
     }
 }

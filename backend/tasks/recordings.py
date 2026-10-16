@@ -130,7 +130,7 @@ class Recordings:
             if prior:saved.append(prior);continue
             result=self.business.structured('整理全场沟通，不猜谁是用户。保留粤语原文引用，复盘可用普通话。输出 {"title":"简短沟通主题","summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"next_steps":[],"expressions":[{"title":"关键问题","text":"可尝试的表达","quote":"逐字原文","segment_id":"提供的片段id","kind":"客户常问/值得复用/需要改善"}],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。next_steps只提取原文中明确讨论的后续行动，不凭空安排任务，各数组条目为字符串。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
                 {'segments':[{'id':s['id'],'start_ms':s['start_ms'],'end_ms':s['end_ms'],'speaker':s.get('speaker_id'),'text':s['text']} for s in group],
-                 'project_spaces':spaces,'part':number+1,'parts':len(groups)})
+                 'project_spaces':spaces,'part':number+1,'parts':len(groups)}, timeout_seconds=240)
             summary=result.get('summary','')
             if not isinstance(summary,str) or not summary.strip():raise Fault('KNOWLEDGE_FORMAT_INVALID','录音整理格式无效',502)
             refs=[{'source_id':'transcript:'+s['id'],'source_version':version(s),'start_ms':s['start_ms'],'end_ms':s['end_ms']} for s in group]

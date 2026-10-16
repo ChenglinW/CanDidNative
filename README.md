@@ -23,9 +23,9 @@
 需要 Mac、Xcode 26 或更新版本（资料包 SDK 使用 Xcode 26 构建），iOS 17 或更新的模拟器／iPhone。本机使用 Xcode 26.6。
 
 1. 在 Mac 安装并首次打开完整 Xcode，完成组件安装，在 Settings → Components 中安装 iOS 模拟器运行时；随后双击 `ios/CanDid.xcodeproj`。
-2. 在项目根目录运行 `sh scripts/prepare-soundcore.sh` 和 `sh scripts/build-opus.sh` 准备本地依赖，再选择 **CanDid** scheme 与一个 iPhone 模拟器，点击 Run（⌘R）。正常启动连接已配置后端；离线状态显示连接说明。合成演示数据只由 Debug 验收参数注入，不用于真实新用户。
+2. 在项目根目录解压官方 iOS SDK ZIP 后运行 `sh scripts/prepare-soundcore.sh /实际SDK解压目录` 和 `sh scripts/build-opus.sh` 准备本地依赖，再选择 **CanDid** scheme 与一个 iPhone 模拟器，点击 Run（⌘R）。正常启动连接已配置后端；离线状态显示连接说明。合成演示数据只由 Debug 验收参数注入，不用于真实新用户。
 3. 真机：连接 iPhone，在 Xcode 的 Signing & Capabilities 选择你自己的 Team，并将 Bundle Identifier 改成自己的唯一名称。
-4. 选择已连接的 iPhone，启用设备 Developer Mode 后点击 Run。soundcore 连接需要蓝牙权限与有效 SDK 授权；iPhone 麦克风用于语音输入、连续对话和次要的手机备用会议录音；安克录音豆仍是主要会议来源。
+4. 选择已连接的 iPhone，启用设备 Developer Mode 后点击 Run。录音豆从 App 自动获取 SDK 授权、查找和绑定，无需手填 token；后端配置及本轮实测见 [D3200 连接说明](docs/D3200_CONNECTION.md)。iPhone 麦克风用于语音输入、连续对话和次要的手机备用会议录音；安克录音豆仍是主要会议来源。
 
 在项目根目录执行构建检查（Mac）：
 
@@ -97,7 +97,7 @@ backend/.venv/bin/python scripts/check-deepseek.py --live
 2. 离线示例：场次 → 预处理示例 → 原文与复盘；记忆库 → 待确认 → 修改表达 → 确认。
 3. 到场合中打开准备上下文，确认后的素材才会标为 FACT。草稿不会被混作已确认事实。
 4. 连接后端：新建四种场景中的任一场合 → 运行预处理示例闭环 → 场次列表下拉刷新 → 查看示例诊断及素材草稿 → 确认 → 再查看准备上下文。
-5. soundcore 真机待验收流程：场合 → 练习或记录 → 本人练习／已告知的真实沟通 → 连接与授权 → 在设备上按键录音并结束 → 刷新设备录音 → 选择文件 → 同步并保存。服务模式上传校验成功后删除本机 m4a 副本；后端保留回放副本。设备中的原始文件不会自动删除。
+5. 录音豆流程：录音 → 录音设备 → 连接与同步 → 点选设备并在充电盒确认 → 按设备按钮开始录音 → 本场录音查看实时原文 → 设备按钮结束 → 同步并保存。服务模式上传校验成功后删除本机 m4a 副本；后端保留回放副本。设备中的原始文件不会自动删除。
 6. 选择口述复盘，输入本人文字复述。连接后端后可勾选“同意将本次本人复述发送给 DeepSeek 分析”，点击“保存并分析本人复述”，到场次详情查看自动刷新的诊断与待确认素材；不勾选则只保存原文。
 7. 场次详情播放音频；设置调整保留期、导出 JSON；单场次删除 App 音频后保留本人转写及既有诊断。soundcore 设备原文件的删除由设备另行管理。
 

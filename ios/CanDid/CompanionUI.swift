@@ -613,7 +613,7 @@ struct CompanionDeviceGuide: View {
       }.padding(24).frame(maxWidth: 600).frame(maxWidth: .infinity)
     }.background(Warm.paper).navigationTitle("录音设备").navigationBarTitleDisplayMode(.inline).sheet(
       isPresented: $connect
-    ) { NavigationStack { RecordingDeviceLibrary(speech: store.speech, device: store.soundcore) } }
+    ) { NavigationStack { if store.soundcore.connected == nil { SoundcoreDeviceView(device: store.soundcore) } else { RecordingDeviceLibrary(speech: store.speech, device: store.soundcore) } } }
   }
 }
 struct CompanionRecordings: View {

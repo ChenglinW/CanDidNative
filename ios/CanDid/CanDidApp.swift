@@ -65,10 +65,10 @@ struct RootView: View {
         .overlay { if store.busy { ProgressView().padding(22).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
         .onChange(of: phase) { _, value in
             store.chatSceneChanged(active: value == .active)
-            if value == .active { store.purgeLocalExpired(); Task { await store.restoreConnection(force: true) } }
-            else { store.soundcore.stopScan() }
+            if value == .active { store.purgeLocalExpired(); Task { await store.restoreConnection(force: true); if store.connectionReady { await store.soundcore.foreground(store.api) } } }
+            else { store.soundcore.suspendDiscovery() }
         }
-        .task { await store.restoreConnection() }
+        .task { await store.restoreConnection(); if store.connectionReady { await store.soundcore.foreground(store.api) } }
         .modifier(VoicePresentation(voice:store.voice))
     }
     private var content: some View {
@@ -286,7 +286,7 @@ struct SettingsView: View {
         Section("同步") {
             LabeledContent("状态", value: store.connecting ? "正在同步" : store.connectionError != nil ? "暂时离线" : store.connectionReady ? "已连接" : "等待连接")
             if let issue = store.connectionError { Text(issue).font(.footnote).foregroundStyle(.secondary) }
-            Button("重新同步") { Task { await store.restoreConnection(force: true) } }.disabled(store.connecting || store.chatBusy)
+            Button("重新同步") { Task { await store.restoreConnection(force: true); if store.connectionReady { await store.soundcore.foreground(store.api) } } }.disabled(store.connecting || store.chatBusy)
         }
         Section("资料与录音") {
             Toggle("允许保存与处理我提交的资料和录音", isOn: Binding(
@@ -306,7 +306,7 @@ struct SettingsView: View {
             Button("删除全部记忆", role: .destructive) { deleting = true }
             Text("删除这台设备对应的云端记忆和本机缓存，其他设备的独立资料不受影响。").font(.footnote)
         }
-        Section("录音设备") { NavigationLink("soundcore 连接与授权") { SoundcoreDeviceView(device: store.soundcore) } }
+        Section("录音设备") { NavigationLink("管理录音豆") { SoundcoreDeviceView(device: store.soundcore) } }
         Section("原型范围") { Text("设备录音由硬件按键开始和结束；App 可以暂停、继续、查看实时字幕和同步完整文件。录音与资料自动同步到 Candid。").font(.footnote) }
     }.navigationTitle("设置与隐私").toolbar { Button("完成") { dismiss() } }
         .confirmationDialog("永久删除这台设备的全部记忆？", isPresented: $deleting) { Button("删除全部记忆", role: .destructive) { Task { await store.perform { try await store.deleteMemory(); dismiss() } } } }

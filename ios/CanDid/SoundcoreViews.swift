@@ -1,45 +1,88 @@
 import SwiftUI
 
 struct SoundcoreDeviceView: View {
+    @EnvironmentObject var store: Store
     @ObservedObject var device: Soundcore
-    @State private var auth = SoundcoreAuth.load()
-    @State private var error: String?
+    @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
     var body: some View {
-        Form {
-            Section("soundcore") {
-                Text(device.status)
-                if Soundcore.simulator { Text("模拟器用于页面与音频处理测试，请在 iPhone 真机上连接 soundcore。").accessibilityIdentifier("soundcore-simulator-note") }
-                if let message = error ?? device.error { Text(message).foregroundStyle(.orange) }
-            }
-            if !device.ready {
-                Section("SDK 授权") {
-                    TextField("云端授权用户 ID", text: $auth.userID)
-                    TextField("云端授权设备 ID", text: $auth.deviceID)
-                    SecureField("云端签发的 token", text: $auth.token)
-                    SecureField("离线 license JSON（可选）", text: $auth.license)
-                    SecureField("license 签名（可选）", text: $auth.signature)
-                    Toggle("使用正式鉴权环境", isOn: $auth.production)
-                    Text("用户 ID 与设备 ID 必须匹配签发的授权。token 或离线 license 均可；授权数据保存到本机 Keychain。").font(.footnote)
-                    Button("验证 soundcore 授权") { do { try device.initialize(auth); error = nil } catch { self.error = error.localizedDescription } }
-                        .disabled(!auth.valid || Soundcore.simulator)
-                }.textInputAutocapitalization(.never).autocorrectionDisabled()
-            }
-            Section("连接设备") {
-                if let connected = device.connected {
-                    Label(connected.name, systemImage: "checkmark.circle")
-                    Button("刷新设备录音") { device.refreshFiles() }.disabled(device.transferring)
-                    Button("断开连接") { device.disconnect() }.disabled(device.transferring)
-                } else {
-                    Button(device.scanning ? "停止查找" : "查找 soundcore 设备") {
-                        if device.scanning { device.stopScan() }
-                        else { do { try device.scan(); error = nil } catch { self.error = error.localizedDescription } }
-                    }.disabled(!device.ready || device.connecting)
-                    ForEach(device.devices) { found in Button(found.name) { device.connect(found) }.disabled(device.connecting) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Image(systemName: device.connected == nil ? "waveform" : "checkmark.circle.fill")
+                    .font(.system(size: 40)).foregroundStyle(Warm.purple).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(device.connected == nil ? "连接你的录音豆" : "录音豆已连接").font(.title2.bold())
+                    Text(device.connected == nil ? "将录音豆取出后放回充电盒，确认指示灯亮起，再让它靠近 iPhone。Candid 会自动查找。" : "用设备按钮开始和结束录音，录完回到 App 同步与复盘。")
+                        .font(.subheadline).foregroundStyle(RecordingFormat.secondary)
                 }
-            }
-        }.navigationTitle("soundcore 设备")
-            .onDisappear { device.stopScan() }
+                if device.working { HStack(spacing: 10) { ProgressView(); Text(device.status).font(.subheadline) } }
+                else { Text(device.status).font(.subheadline).foregroundStyle(RecordingFormat.secondary) }
+                if device.awaitingBinding {
+                    WarmCard {
+                        Label("在充电盒上确认", systemImage: "hand.tap").font(.headline)
+                        Text("将录音豆放入充电盒，灯闪烁时按下盒上的按钮。确认完成后会自动连接，无需再点下一步。")
+                            .font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                    }.accessibilityIdentifier("soundcore-binding-guide")
+                }
+                if let issue = device.bluetoothIssue {
+                    Text(issue).font(.subheadline)
+                    Button("打开系统设置") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }.frame(minHeight: 44)
+                }
+                if let issue = device.error { Text(issue).font(.subheadline).foregroundStyle(Warm.ink).accessibilityIdentifier("soundcore-error") }
+                if Soundcore.simulator {
+                    Text("模拟器不支持蓝牙设备。请在 iPhone 上连接录音豆。").font(.footnote).foregroundStyle(RecordingFormat.secondary).accessibilityIdentifier("soundcore-simulator-note")
+                }
+                if device.hasRememberedDevice && !device.working {
+                    Button("更换录音豆") { device.forgetDevice(); Task { await device.beginConnection(store.api) } }
+                        .frame(minHeight: 44).disabled(device.transferring)
+                }
+                if let connected = device.connected {
+                    WarmCard {
+                        Label(connected.name, systemImage: "mic.fill").font(.headline)
+                        if let battery = device.battery { Text("电量 \(battery)%").font(.subheadline) }
+                        Text("序列号 \(device.serialNumber)").font(.caption).foregroundStyle(RecordingFormat.secondary)
+                        if !device.firmwareVersion.isEmpty { Text("固件 \(device.firmwareVersion)").font(.caption).foregroundStyle(RecordingFormat.secondary) }
+                        NavigationLink("查看与同步录音") { RecordingDeviceLibrary(speech: store.speech, device: device) }.frame(minHeight: 44)
+                    }
+                    Button("断开连接") { device.disconnect() }.frame(minHeight: 44).disabled(device.transferring)
+                } else {
+                    ForEach(device.devices.filter { $0.likelyRecorder }) { found in foundDevice(found) }
+                    if device.devices.contains(where: { !$0.likelyRecorder }) {
+                        DisclosureGroup("其他附近设备") {
+                            Text("设备广播信息不完整时，可在这里按名称查找你的录音豆。").font(.footnote).foregroundStyle(RecordingFormat.secondary)
+                            ForEach(device.devices.filter { !$0.likelyRecorder }) { found in foundDevice(found) }
+                        }
+                    }
+                    if device.working {
+                        Button("取消连接") { device.disconnect() }.frame(minHeight: 44).disabled(device.transferring)
+                    } else {
+                        Button(device.error == nil && device.devices.isEmpty ? "查找录音豆" : "重新查找") {
+                            Task { await device.beginConnection(store.api) }
+                        }.buttonStyle(RecordingPrimary()).disabled(Soundcore.simulator || !store.connectionReady)
+                            .accessibilityIdentifier("soundcore-discover")
+                    }
+                    Text("没有找到？确认触点保护膜已去掉，放回充电盒时指示灯会亮，且 iPhone 蓝牙已打开。先断开其他 App 的设备连接，再重新查找；无需先到系统蓝牙设置中配对。")
+                        .font(.footnote).foregroundStyle(RecordingFormat.secondary)
+                }
+            }.padding(24).frame(maxWidth: 600, alignment: .leading).frame(maxWidth: .infinity)
+        }.background(Warm.paper.ignoresSafeArea()).navigationTitle("安克录音豆").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+            .task { if !Soundcore.simulator && device.connected == nil { await device.beginConnection(store.api) } }
+            .onDisappear { device.suspendDiscovery() }
     }
+    private func foundDevice(_ found: SoundcoreDevice) -> some View {
+                        Button { device.connect(found) } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "mic.fill").foregroundStyle(Warm.purple)
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(found.name).font(.headline)
+                                    Text((found.likelyRecorder ? "录音豆" : "附近设备") + " · 尾号 " + String(found.mac.suffix(5))).font(.caption).foregroundStyle(RecordingFormat.secondary)
+                                }
+                                Spacer(); Image(systemName: "chevron.right").foregroundStyle(RecordingFormat.secondary)
+                            }.padding(16).frame(maxWidth: .infinity, minHeight: 60).background(Warm.white, in: RoundedRectangle(cornerRadius: 16))
+                        }.buttonStyle(.plain).disabled(device.connecting).accessibilityIdentifier("soundcore-device-" + found.mac)
+    }
+
 }
 
 // Text practice and oral debrief remain separate from global meeting recordings.

@@ -5,6 +5,7 @@ from pathlib import Path
 import uvicorn
 
 ENV_KEYS = {
+    'SOUNDCORE_APP_ID', 'SOUNDCORE_APP_KEY', 'SOUNDCORE_ENVIRONMENT',
     'DEEPSEEK_API_KEY', 'DEEPSEEK_MODEL',
     'ANKER_AI_API_KEY', 'ANKER_AI_BASE_URL', 'ANKER_AI_MODEL',
     'DASHSCOPE_API_KEY', 'DASHSCOPE_REGION', 'DASHSCOPE_ASR_REALTIME_MODEL', 'DASHSCOPE_ASR_FILE_MODEL',
@@ -34,7 +35,8 @@ if __name__=='__main__':
     p.add_argument('--env-file',type=Path,action='append',default=[],help='本机服务配置文件，可重复指定；密钥不会发给 App')
     args=p.parse_args()
     team_file = Path(__file__).resolve().parents[1] / '.env.team.local'
-    load_service_environment([*args.env_file, *([team_file] if team_file.exists() else [])])
+    soundcore_file = team_file.with_name('.env.soundcore.local')
+    load_service_environment([*args.env_file, *[p for p in (team_file, soundcore_file) if p.exists()]])
     import app
     if app.MODE=='local':print('本机访问令牌保存在：'+str(app.TOKEN_PATH.resolve()))
     # Live captions require a server-side WebSocket protocol. Fail at startup

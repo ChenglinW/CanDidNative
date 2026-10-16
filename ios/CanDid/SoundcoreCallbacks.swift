@@ -7,8 +7,13 @@ final class SoundcoreCallbacks: NSObject, SoundcoreBusinessCallback, OnAuthResul
     func onAuthResult(result: AuthResult) { event?(.auth(result.success, result.error?.code ?? 0)) }
     func onScanError(result: Int32) { event?(.scanError(result)) }
     func onScanSuccess(device: BlueDeviceModel) {
-        guard let mac = device.macAddress, let uuid = device.uuid else { return }
-        event?(.scan(SoundcoreDevice(name: device.deviceName ?? "soundcore", mac: mac, uuid: uuid)))
+        guard let mac = device.macAddress, !mac.isEmpty else {
+            event?(.scanPayloadMissing(device.productCode ?? "", device.macAddress != nil, device.uuid != nil)); return
+        }
+        // The official iOS Demo routes D3200 commands by service UUID, not peripheral.identifier.
+        event?(.scan(SoundcoreDevice(name: device.deviceName ?? "安克录音豆", mac: mac,
+            uuid: SoundcoreDevice.serviceUUID, advertisedUUID: device.uuid, productCode: device.productCode ?? "",
+            bound: device.bindingStatus == "1", signal: Int(device.rssi?.int32Value ?? -100))))
     }
     func onConnected(macAddress: String?, deviceName: String?) { event?(.connected(macAddress)) }
     func onDisconnected(macAddress: String?, systemCode: KotlinInt?, systemMsg: String?) { event?(.disconnected(macAddress)) }
@@ -21,8 +26,8 @@ final class SoundcoreCallbacks: NSObject, SoundcoreBusinessCallback, OnAuthResul
     func w(tag: String?, message: String?) { }
     func onAudioRecordDuration(macAddress: String, uuid: String, durationMs: Int64) { event?(.duration(macAddress, uuid, durationMs)) }
     func onAudioRecordStatusChanged(macAddress: String, uuid: String, status: Int32, recordingDuration: Int32, fileID: Int32) { event?(.record(macAddress, uuid, status, recordingDuration, fileID)) }
-    func onBatteryInfoChanged(macAddress: String, uuid: String, deviceBattery: Int32, chargingBoxBattery: Int32) {  }
-    func onBindingDeviceError(macAddress: String, uuid: String, errorCode: Int32) {  }
+    func onBatteryInfoChanged(macAddress: String, uuid: String, deviceBattery: Int32, chargingBoxBattery: Int32) { event?(.battery(macAddress, uuid, deviceBattery)) }
+    func onBindingDeviceError(macAddress: String, uuid: String, errorCode: Int32) { event?(.bindingError(macAddress, uuid, errorCode)) }
     func onCloseSyncFileByWIFI(macAddress: String, uuid: String) {  }
     func onConnectSPPLinkStatusChanged(macAddress: String, uuid: String, isConnect: Bool) {  }
     func onConnectWIFIError(macAddress: String, uuid: String, errorCode: Int32) {  }
@@ -30,7 +35,7 @@ final class SoundcoreCallbacks: NSObject, SoundcoreBusinessCallback, OnAuthResul
     func onDecodeFileCompleted(macAddress: String, uuid: String, fileID: Int32, filePath: String) { event?(.completed(macAddress, uuid, fileID, filePath)) }
     func onDecodeFileMarkers(macAddress:String,uuid:String,fileID:Int32,markerTimes:KotlinIntArray) {event?(.markers(macAddress,uuid,fileID,(0..<markerTimes.size).map{Int(markerTimes.get(index:$0))}))}
     func onDeleteFileResult(macAddress: String, uuid: String, fileID: Int32, isSuccess: Bool) {  }
-    func onDeviceBindConfirm(macAddress: String, uuid: String) {  }
+    func onDeviceBindConfirm(macAddress: String, uuid: String) { event?(.bindingConfirmed(macAddress, uuid)) }
     func onDeviceChargingStatusChanged(macAddress: String, uuid: String, deviceChargingStatus: Int32, chargingBoxChargingStatus: Int32) {  }
     func onDeviceLogDeleteResult(macAddress: String, uuid: String, success: Bool) {  }
     func onDeviceLogDumping(macAddress: String, uuid: String, success: Bool, packetSequence: Int32, fileTimestamp: Int32, transferStatus: Int32, progress: Int32, fragmentData: KotlinByteArray) {  }
@@ -39,8 +44,8 @@ final class SoundcoreCallbacks: NSObject, SoundcoreBusinessCallback, OnAuthResul
     func onDeviceLogTransferResult(macAddress: String, uuid: String, success: Bool, code: Int32) {  }
     func onDeviceTransferStateChanged(macAddress: String, uuid: String, state: DeviceTransferState) {  }
     func onFindMyEnableResult(macAddress: String, uuid: String, success: Bool) {  }
-    func onGetDeviceInfo(macAddress: String, uuid: String, info: DeviceInfo) { event?(.info(macAddress, uuid, info.recording?.int32Value ?? 0, info.recodingOriginalTime)) }
-    func onGetDeviceInfoError(macAddress: String, uuid: String, errorCode: Int32) {  }
+    func onGetDeviceInfo(macAddress: String, uuid: String, info: DeviceInfo) { event?(.info(macAddress, uuid, info.recording?.int32Value ?? 0, info.recodingOriginalTime, info.serialNumber, info.firmwareVersion, info.deviceBattery)) }
+    func onGetDeviceInfoError(macAddress: String, uuid: String, errorCode: Int32) { event?(.infoError(macAddress, uuid)) }
     func onOtaError(macAddress: String, uuid: String, errorCode: Int32) {  }
     func onRealtimeTransferSwitch(macAddress: String, uuid: String, fileID: Int32, filePath: String?) { event?(.realtimeReady(macAddress,uuid,fileID)) }
     func onReceiveAudioFragment(macAddress: String, uuid: String, fileID: Int32, audioData: KotlinByteArray, isAppendPreAudio: Bool, sequenceNumber: Int32, isMark: Bool) {
@@ -52,7 +57,7 @@ final class SoundcoreCallbacks: NSObject, SoundcoreBusinessCallback, OnAuthResul
     func onReceiveOfflineFileError(macAddress: String, uuid: String, errorCode: Int32) { event?(.fileError(macAddress, uuid, errorCode)) }
     func onReceiveWaitingDeviceOpenWIFI(macAddress: String, uuid: String) {  }
     func onResetDeviceResult(macAddress: String, uuid: String, result: Bool) {  }
-    func onSendBindingDeviceCMDSuccess(macAddress: String, uuid: String) {  }
+    func onSendBindingDeviceCMDSuccess(macAddress: String, uuid: String) { event?(.bindingSent(macAddress, uuid)) }
     func onSendUnbindingDeviceCMDSuccess(macAddress: String, uuid: String) {  }
     func onSyncTimeResult(macAddress: String, uuid: String, result: Bool) { event?(.synced(macAddress, uuid, result)) }
     func onTransferFileError(macAddress: String, uuid: String, fileID: Int32, errorType: FileTransferError) { event?(.transferError(macAddress, uuid, fileID)) }

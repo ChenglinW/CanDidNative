@@ -316,3 +316,24 @@ def test_speaker_names_partial_updates_clear_conflict_and_recording_scope(tmp_pa
     assert app.recordings.segments(A,s['id'])[0]['speaker_name']==''
     assert patch(3,[]).json()=={'revision':3}
     assert len(submitted)==2
+
+
+def test_background_recording_review_can_finish_beyond_chat_timeout(domain):
+    from tasks.recordings import Recordings
+    p = domain
+    m = meeting(p)
+    session, line = recording(p, m['id'])
+    service = Recordings(p.store, p.business, SimpleNamespace())
+    calls = []
+    def complete(messages, **kwargs):
+        calls.append(kwargs)
+        return {'content': json.dumps({'title':'沟通复盘','summary':'确认后续提供接口文档。','tags':[], 'expressions':[]}, ensure_ascii=False)}
+    p.business.gateway.complete = complete
+    job = p.business.submit(A, 'recording_knowledge', session['id'], '1')
+    job = p.store.update('business_jobs', A, job['id'], {'status':'running'})
+    service.knowledge(A, job)
+    assert calls[0]['timeout_seconds'] == 240
+    assert p.store.get('sessions', A, session['id'])['pipeline_status'] == 'done'
+    assert len(p.store.rows('recording_knowledge', A, session_id=session['id'])) == 1
+    p.business.structured('another background task', {})
+    assert calls[-1]['timeout_seconds'] == 90

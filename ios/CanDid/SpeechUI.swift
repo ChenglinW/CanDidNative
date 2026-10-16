@@ -673,7 +673,7 @@ extension SpeechController {
               !voiceMessage || !recording,device.recordStatus != 0,
               let fileID=device.currentFileID,let connected=device.connected else { return }
         let api=store.api
-        if let reference=trackedDevice,reference.fileID==fileID,reference.deviceID==connected.uuid,
+        if let reference=trackedDevice,reference.fileID==fileID,reference.deviceID==connected.recordingID,
            reference.backendIdentity==identity(api) {
             if meetingID != reference.sessionID || meetingSource != "soundcore" {
                 liveSentences=[];liveRevision+=1;preview="";liveOrder=[];liveText=[];captionState = .idle
@@ -686,17 +686,17 @@ extension SpeechController {
         meetingPreparing=true;defer { meetingPreparing=false }
         do {
             let sid: String
-            if let old=DeviceRecordingMap.get(api:api,fileID:fileID,deviceID:connected.uuid) { sid=old }
+            if let old=DeviceRecordingMap.get(api:api,fileID:fileID,deviceID:connected.recordingID) { sid=old }
             else {
                 let row: RecordingRecord=try await api.call("/v1/recordings",method:"POST",body:[
-                    "client_request_id":DeviceRecordingMap.requestID(api:api,fileID:fileID,deviceID:connected.uuid),"recording_source":"soundcore",
-                    "device_file_id":Int(UInt32(bitPattern:fileID)),"device_id":connected.uuid,
+                    "client_request_id":DeviceRecordingMap.requestID(api:api,fileID:fileID,deviceID:connected.recordingID),"recording_source":"soundcore",
+                    "device_file_id":Int(UInt32(bitPattern:fileID)),"device_id":connected.recordingID,
                     "consent":"yes","consent_ack_text_version":"recording-consent@1"])
-                sid=row.id;DeviceRecordingMap.set(sid,api:api,fileID:fileID,deviceID:connected.uuid)
+                sid=row.id;DeviceRecordingMap.set(sid,api:api,fileID:fileID,deviceID:connected.recordingID)
             }
-            guard identity(store.api)==identity(api),device.connected?.uuid==connected.uuid,
+            guard identity(store.api)==identity(api),device.connected?.recordingID==connected.recordingID,
                   device.currentFileID==fileID,device.recordStatus != 0 else { return }
-            trackedDevice=DeviceCaptureReference(sessionID:sid,fileID:fileID,deviceID:connected.uuid,backendIdentity:identity(api))
+            trackedDevice=DeviceCaptureReference(sessionID:sid,fileID:fileID,deviceID:connected.recordingID,backendIdentity:identity(api))
             if let data=try? JSONEncoder().encode(trackedDevice) { UserDefaults.standard.set(data,forKey:"candid-device-capture") }
             connection=api;sessionID=sid;meetingID=sid;meetingSource="soundcore";voiceMessage=false
             preview="";liveOrder=[];liveText=[];liveSentences=[];finalSentences=[:];partial="";liveRevision+=1
@@ -706,6 +706,9 @@ extension SpeechController {
     func startDevice(store:Store,device:Soundcore) async {
         await prepareDevice(store:store,device:device)
         if recording && meetingSource=="soundcore" && meetingMatches(store.api) {
+            if device.recordStatus == 1 && !device.liveAudioRequested && device.onLiveAudio != nil {
+                do { try device.acquireLiveAudio() } catch { notice = error.localizedDescription }
+            }
             if device.recordStatus==1 && !liveReady && liveFinished && !deviceLiveBlocked,let api=connection {
                 await openLive(api:api,sid:sessionID)
             }
@@ -713,7 +716,7 @@ extension SpeechController {
         }
         guard !recording,!finishing,!uploading,!meetingPreparing,!meetingSyncing,!deviceLiveBlocked,device.recordStatus==1,
               device.realtimeReady,let reference=trackedDevice,meetingMatches(store.api),
-              device.currentFileID==reference.fileID,device.connected?.uuid==reference.deviceID else { return }
+              device.currentFileID==reference.fileID,device.connected?.recordingID==reference.deviceID else { return }
         if store.voice.active {store.voice.stopAnswer()};store.stopPlayback();stopPlayback()
         do {
             audioResources=store.audio;audioLease=try store.audio.acquire(.meeting)
@@ -764,7 +767,7 @@ extension SpeechController {
     func syncEndedDeviceIfReady(store: Store, device: Soundcore) async {
         guard automaticDeviceSync,!finishing,!meetingSyncing,!uploading,
               let reference=trackedDevice,reference.backendIdentity==identity(store.api),
-              device.recordStatus==0,device.connected?.uuid==reference.deviceID,
+              device.recordStatus==0,device.connected?.recordingID==reference.deviceID,
               let file=device.files.first(where:{$0.id==reference.fileID}) else { return }
         automaticDeviceSync=false
         await syncDevice(file,store:store,device:device)
@@ -776,13 +779,13 @@ extension SpeechController {
         let api=store.api
         do {
             let sid: String
-            if let old=DeviceRecordingMap.get(api:api,fileID:file.id,deviceID:connected.uuid) { sid=old }
+            if let old=DeviceRecordingMap.get(api:api,fileID:file.id,deviceID:connected.recordingID) { sid=old }
             else {
                 let row:RecordingRecord=try await api.call("/v1/recordings",method:"POST",body:[
-                    "client_request_id":DeviceRecordingMap.requestID(api:api,fileID:file.id,deviceID:connected.uuid),"recording_source":"soundcore",
-                    "device_file_id":Int(UInt32(bitPattern:file.id)),"device_id":connected.uuid,
+                    "client_request_id":DeviceRecordingMap.requestID(api:api,fileID:file.id,deviceID:connected.recordingID),"recording_source":"soundcore",
+                    "device_file_id":Int(UInt32(bitPattern:file.id)),"device_id":connected.recordingID,
                     "consent":"yes","consent_ack_text_version":"recording-consent@1"])
-                sid=row.id;DeviceRecordingMap.set(sid,api:api,fileID:file.id,deviceID:connected.uuid)
+                sid=row.id;DeviceRecordingMap.set(sid,api:api,fileID:file.id,deviceID:connected.recordingID)
             }
             guard identity(store.api)==identity(api) else { throw PrototypeError.message("连接已变化，请返回录音创建时的后端再同步。") }
             meetingID=sid;meetingSource="soundcore";sessionID=sid;connection=api;voiceMessage=false

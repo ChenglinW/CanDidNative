@@ -1,6 +1,24 @@
 import Foundation
 import AVFoundation
 
+// The vendor SDK concatenates directory + fileName instead of adding a path separator.
+// Keep the completion boundary strict; do not accept sibling files to compensate.
+enum SoundcoreTransferPaths {
+    static func sdkDirectory(_ folder: URL) -> String {
+        let path = folder.standardizedFileURL.path
+        return path.hasSuffix("/") ? path : path + "/"
+    }
+    static func completedFile(_ path: String, in folder: URL) throws -> URL {
+        let url = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
+        let allowed = sdkDirectory(folder.standardizedFileURL.resolvingSymlinksInPath())
+        guard url.path.hasPrefix(allowed),
+              (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
+            throw PrototypeError.message("设备音频未保存在本次同步目录，请重新同步；设备原文件仍保留。")
+        }
+        return url
+    }
+}
+
 enum SoundcoreAudio {
     // SDK v1.3.01 Q&A: headerless Opus, 160-byte packets, 20 ms, 16 kHz stereo.
     static let packetBytes = 160

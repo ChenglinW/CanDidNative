@@ -9,7 +9,7 @@ def offline_application_environment():
     with tempfile.TemporaryDirectory(prefix='candid-pytest-') as folder:
         with pytest.MonkeyPatch.context() as env:
             for key in ('DEEPSEEK_API_KEY','ANKER_AI_API_KEY','DASHSCOPE_API_KEY',
-                        'MONID_API_KEY','CANDID_MEMORY_SERVICE_KEY'):
+                        'MONID_API_KEY','CANDID_MEMORY_SERVICE_KEY','SOUNDCORE_APP_KEY'):
                 env.delenv(key,raising=False)
             env.setenv('CANDID_DATA_DIR',folder)
             env.setenv('CANDID_AUTH_MODE','local')

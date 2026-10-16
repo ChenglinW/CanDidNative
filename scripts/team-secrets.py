@@ -81,7 +81,7 @@ def main():
     args = parser.parse_args()
     if args.action == 'pack':
         paths = args.env_file or [ROOT.parents[1] / '.env.anker.local', ROOT / '.env.dashscope.local',
-                                  ROOT / '.env.monid.local', ROOT / '.env.team.local']
+                                  ROOT / '.env.monid.local', ROOT / '.env.soundcore.local', ROOT / '.env.team.local']
         values = read_env(paths)
         legacy = ROOT / 'backend/data/llm-config.json'
         if legacy.exists():

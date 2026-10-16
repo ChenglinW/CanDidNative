@@ -24,6 +24,20 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(later.exists && later.isHittable)
         capture(app,"speaker-editor-later-chunk")
     }
+    func testSoundcoreConnectionHasNoTechnicalFormsAndPreservesPhoneFallback() {
+        continueAfterFailure = false
+        let app = enterApp()
+        app.buttons["录音"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["phone-recording-fallback"].waitForExistence(timeout: 10))
+        app.buttons["录音设备"].tap()
+        app.buttons["连接与同步"].tap()
+        XCTAssertTrue(app.staticTexts["连接你的录音豆"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["soundcore-simulator-note"].exists)
+        XCTAssertEqual(app.textFields.count, 0)
+        XCTAssertEqual(app.secureTextFields.count, 0)
+        XCTAssertFalse(app.buttons["soundcore-discover"].isEnabled)
+        capture(app, "soundcore-automatic-connection")
+    }
     private func capture(_ app: XCUIApplication, _ name: String) {
         if name == "onboarding-introduction" { app.scrollViews.firstMatch.swipeDown() }
         // Accessibility geometry can settle before the simulator compositor finishes keyboard motion.
@@ -375,7 +389,7 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.buttons["录音更多操作"].waitForExistence(timeout:10))
         capture(app,"v2-recorder")
         app.buttons["录音更多操作"].tap();app.buttons["设备连接与同步"].tap()
-        app.buttons["连接与授权"].tap()
+        app.buttons["连接录音豆"].tap()
         XCTAssertTrue(app.staticTexts["soundcore-simulator-note"].waitForExistence(timeout:10))
     }
     func testFidelityActualHTTPSentencePlayback() throws {

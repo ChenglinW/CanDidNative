@@ -25,6 +25,8 @@ from agent import TextAgent
 from adapters.sqlite_memory import SQLiteMemoryAdapter
 from tools.memory_tools import SourceReference
 from device_auth import DeviceAuth
+from adapters.soundcore import SoundcoreAuthorization
+soundcore_authorization = SoundcoreAuthorization()
 
 ROOT=Path(os.environ.get('CANDID_DATA_DIR',str(Path(__file__).parent/'data')))
 ROOT.mkdir(parents=True,exist_ok=True)
@@ -104,6 +106,17 @@ def owner(req:Request):
 class Input(BaseModel):model_config=ConfigDict(extra='forbid')
 class DeviceRegistrationIn(Input):
     installation_secret:str=Field(pattern=r'^[a-f0-9]{64}$')
+class SoundcoreAuthorizationIn(Input):
+    device_id: UUID
+    product_code: str = Field(min_length=1, max_length=20)
+    sdk_version: str = Field(min_length=1, max_length=30)
+
+@app.post('/v1/soundcore/authorization')
+async def authorize_soundcore(body: SoundcoreAuthorizationIn, response: Response, uid=Depends(owner)):
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['Pragma'] = 'no-cache'
+    return await soundcore_authorization.authorize(uid, str(body.device_id), body.product_code, body.sdk_version)
+
 class SessionIn(Input):
     client_request_id:UUID
     occasion_id:UUID|None=None

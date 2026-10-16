@@ -343,6 +343,7 @@ import UserNotifications
             if FileManager.default.fileExists(atPath: folder.path) { try FileManager.default.removeItem(at: folder) }
         }
         if remote { for path in localFiles.values { try? FileManager.default.removeItem(atPath: path) }; localFiles = [:]; UserDefaults.standard.removeObject(forKey: "local-recordings") }
+        soundcore.resetAuthorization()
         clearChatRecovery(); projectSpaces = []; chatReadPosition = nil; chatTask = nil; chatTasks = []; chatBusy = false; chatPartial = ""; chatDraft = ""
         for item in personalState.documents { if let path = item.localPath { try? FileManager.default.removeItem(atPath: path) } }
         personalState = OnboardingState(); persistOnboarding()
