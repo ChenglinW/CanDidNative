@@ -4,7 +4,7 @@
 
 ## 当前运行位置
 
-新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261016-faq-e895624/backend`（统一 FAQ 数据与语义分组，保留记忆库 OCR／Mock／趋势、工作区、Monid 和 D3200 修复），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
+新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261016-marks-ee2ba32/backend`（录音标记重点与来源问答，保留统一 FAQ、记忆库、工作区、Monid 和 D3200 修复），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
 
 ```sh
 ssh -i ~/Downloads/candid.pem ubuntu@47.129.137.212
@@ -82,3 +82,7 @@ sudo journalctl -u candid-cert-renew -n 30 --no-pager
 - 按 requirements 补齐 numpy；服务器针对性测试 49 项通过。发布前后 21 场记录、496 段转写、16 份录音知识、45 条聊天、12 个工作区数量一致，SQLite 完整性 ok，HTTPS／鉴权检查通过。
 - 隔离新账号公网 `/v1/library` 返回新分组策略 `library-qwen3.7-average-top15-0.6646@2`，空账号未出现其他人的资料，测试记忆已清理。
 - 生产配置真实 embedding 临时数据验收通过；Release 已覆盖安装并在既有 iPhone 启动成功。
+
+## 2026-10-16 录音标记重点发布
+
+实现 `ee2ba32`，服务器相关测试 48 项通过；SQLite 一致备份 `/var/backups/candid-marks-ee2ba32`，完整性及 HTTPS／鉴权检查通过，用户记录数量一致。收尾补齐 FAQ 输入原文时间轴。详见 [交付记录](../../docs/recording-marks/REPORT.md)。

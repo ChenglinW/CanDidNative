@@ -110,7 +110,12 @@ def test_extraction_revision_dedup_and_generic_method_scope(lib,monkeypatch):
  s=l.store.create_session(A,{'client_request_id':ident(),'kind':'live','consent':'yes','consent_ack_text_version':'v1'})
  l.store.update('sessions',A,s['id'],{'customer_confirmed_at':'2026-10-16T00:00:00+00:00','customer_workspace_id':space['id'],'transcript_revision':1})
  r=l.store.put('transcript_segments',A,{'session_id':s['id'],'speaker':'self','start_ms':0,'end_ms':3000,'text':'您关心价格还是交付？','transcript_revision':1},L1)
- monkeypatch.setattr(l.business,'structured',lambda *a,**k:{'items':[{'question':'价格怎么说？','answer':'先确认需求','topic':'价格与政策','segment_ids':[r['id']],'general_method':True}]})
+ l.store.put('marks',A,{'session_id':s['id'],'t_ms':2000},L1)
+ def model(prompt,payload,**kwargs):
+  assert payload['user_marks_ms']==[2000]
+  assert payload['segments'][0]['start_ms']==0 and payload['segments'][0]['end_ms']==3000
+  return {'items':[{'question':'价格怎么说？','answer':'先确认需求','topic':'价格与政策','segment_ids':[r['id']],'general_method':True}]}
+ monkeypatch.setattr(l.business,'structured',model)
  j=run(l,'library_extract',s['id']);assert j['status']=='completed'
  l.snapshot(A);rows=l.store.rows('library_items',A);assert len(rows)==2
  generic=next(x for x in rows if x.get('general_key'));specific=next(x for x in rows if x.get('faq_key'))
