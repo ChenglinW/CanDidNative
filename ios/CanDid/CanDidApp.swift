@@ -49,6 +49,8 @@ struct RootView: View {
             #if DEBUG
             if Store.isolatedTestRun && ProcessInfo.processInfo.arguments.contains("-candid-speaker-review") {
                 RecordingSpeakerReviewHost()
+            } else if Store.isolatedTestRun && ProcessInfo.processInfo.arguments.contains("-candid-focused-recording") {
+                NavigationStack {CompanionRecordingPage(id:"preview-a",focusMS:50_000)}
             } else {
                 content
             }

@@ -115,29 +115,6 @@ struct CompanionReportStyle: ViewModifier {
   }
 }
 
-// Fixed appearance: the root uses the system floating TabView; report selectors
-// retain native glass and shared action buttons retain their original raised surface.
-struct CompanionSelection: ViewModifier {
-  let selected: Bool
-  var classicColor: Color = Warm.lavender
-  var radius: CGFloat = 14
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-  @Environment(\.colorSchemeContrast) private var contrast
-  func body(content: Content) -> some View {
-    if #available(iOS 26.0, *), !reduceTransparency, contrast != .increased {
-      // A stable modifier keeps the foreground label mounted and above the lens.
-      // Glass.identity removes only the material, without rebuilding the control.
-      // Do not match IDs across whole controls: native morphing also fades their labels.
-      content.glassEffect(
-        selected ? .regular.tint(Warm.lavender).interactive() : .identity,
-        in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-    } else {
-      content.background {
-        if selected { RoundedRectangle(cornerRadius: radius).fill(classicColor) }
-      }
-    }
-  }
-}
 struct CompanionButtonStyle: ButtonStyle {
   var primary = false
   @Environment(\.isEnabled) private var enabled
@@ -168,24 +145,30 @@ struct CompanionPanel<Content: View>: View {
         color == Warm.lavender ? CompanionStyle.lavenderLine : CompanionStyle.line, lineWidth: 1))
   }
 }
+// Page-local categories use solid surfaces; the root TabView keeps system glass.
 struct CompanionTabs: View {
   let values: [String]
   @Binding var selection: String
   var body: some View {
-    HStack(spacing: 4) {
+    HStack(spacing: 0) {
       ForEach(values, id: \.self) { value in
-        Button {
-          selection = value
-        } label: {
-          Text(value).companionFont(13, weight: selection == value ? .semibold : .regular)
+        Button {selection = value} label: {
+          Text(value).companionFont(13, weight: .semibold)
+            .foregroundStyle(selection == value ? Warm.ink : RecordingFormat.secondary)
             .frame(maxWidth: .infinity).frame(minHeight: 44)
-            .modifier(
-              CompanionSelection(
-                selected: selection == value, classicColor: Warm.white, radius: 10))
+            .background {
+              RoundedRectangle(cornerRadius:10).fill(selection == value ? Warm.white : .clear)
+                .shadow(color:selection == value ? CompanionStyle.line : .clear,radius:0,y:2)
+                .padding(.horizontal,2)
+            }
+            // Visual gutters stay inside each button: both hit regions meet at the divider.
+            // The transparent half has exactly the same interaction region as the selected half.
+            .contentShape(.interaction,Rectangle())
         }.buttonStyle(.plain).accessibilityAddTraits(selection == value ? .isSelected : [])
       }
-    }.padding(4).background(
+    }.padding(.horizontal,2).padding(.vertical,4).background(
       CompanionStyle.line.opacity(0.55), in: RoundedRectangle(cornerRadius: 13))
+      .accessibilityIdentifier("page-content-segments")
   }
 }
 struct CompanionPageHeader<Trailing: View>: View {
@@ -739,6 +722,9 @@ struct CompanionAudioPlayer: View {
 }
 struct CompanionRecordingPage: View {
   @EnvironmentObject var store: Store
+  @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.verticalSizeClass) private var heightClass
+  private var compactHeader:Bool {typeSize.isAccessibilitySize || heightClass == .compact}
   let id: String
   var focusMS: Int? = nil
   @State private var record: RecordingRecord?
@@ -746,44 +732,71 @@ struct CompanionRecordingPage: View {
   @State private var speaker = false
   @State private var edit = false
   @State private var issue: String?
+  @State private var initialFocusApplied=false
+  @State private var contentLaidOut=false
+  private var initialFocusTarget:String? {
+    guard let focusMS else {return nil}
+    return record?.segments?.first(where:{$0.end_ms>=focusMS})?.id
+  }
   var body: some View {
-    ScrollViewReader { proxy in
-      ScrollView {
-        VStack(alignment: .leading, spacing: 18) {
-          if let r = record {
-            Text(
-              RecordingFormat.timestamp(r) + " · "
-                + RecordingFormat.clock((r.duration_ms ?? 0) / 1000)
-            ).companionFont(12).foregroundStyle(RecordingFormat.secondary)
-            Text(RecordingFormat.title(r)).companionFont(19, weight: .bold)
-            CompanionAudioPlayer(record: r)
-            CompanionTabs(values: ["复盘", "原文"], selection: $tab)
-            if tab == "复盘" { review(r) } else { transcript(r) }
-          } else if let issue {
-            Text(issue)
-            Button("重试") { Task { await load() } }
-          } else {
-            ProgressView()
+    ScrollViewReader {proxy in
+      VStack(spacing:0) {
+        if let r=record {
+          // Switching a tall transcript to a short review cannot clamp the selector's offset.
+          // Header/player/selector are shared; only the selected content scrolls.
+          recordingHeader(r)
+          ScrollView {
+            VStack(alignment:.leading,spacing:18) {
+              if compactHeader {recordingMetadata(r)}
+              if tab == "复盘" {review(r)} else {transcript(r)}
+            }.padding(.horizontal,18).padding(.top,9).padding(.bottom,18)
+              .frame(maxWidth:700,alignment:.leading).frame(maxWidth:.infinity,alignment:.top)
+              .onGeometryChange(for:CGSize.self) {$0.size} action: {size in
+                if size.width>0 && size.height>0 {contentLaidOut=true;focusInitial(proxy)}
+              }
+          }.onChange(of:initialFocusTarget) {_,_ in
+            if contentLaidOut {focusInitial(proxy)}
           }
-        }.padding(18).frame(maxWidth: 700).frame(maxWidth: .infinity)
+        } else if let issue {
+          VStack(spacing:18) {Text(issue);Button("重试") {Task {await load()}}}
+            .frame(maxWidth:.infinity,maxHeight:.infinity)
+        } else {ProgressView().frame(maxWidth:.infinity,maxHeight:.infinity)}
       }.companionReport("沟通复盘")
         .task {
-          if focusMS != nil { tab = "原文" }
+          if focusMS != nil {tab = "原文"}
           while !Task.isCancelled {
             await load()
-            if let focusMS, let s = record?.segments?.first(where: { $0.end_ms >= focusMS }) {
-              proxy.scrollTo(s.id, anchor: .center)
-            }
-            do { try await Task.sleep(for: .seconds(5)) } catch { break }
+            do {try await Task.sleep(for:.seconds(5))} catch {break}
           }
         }
-        .sheet(isPresented: $speaker, onDismiss: { Task { await load() } }) {
-          if let record { RecordingSpeakerPicker(record: record) }
+        .sheet(isPresented:$speaker,onDismiss:{Task {await load()}}) {
+          if let record {RecordingSpeakerPicker(record:record)}
         }
-        .sheet(isPresented: $edit, onDismiss: { Task { await load() } }) {
-          if let record { TranscriptEditor(record: record) }
+        .sheet(isPresented:$edit,onDismiss:{Task {await load()}}) {
+          if let record {TranscriptEditor(record:record)}
         }
-        .onDisappear { if store.recordingPlaybackID == id { store.stopPlayback() } }
+        .onDisappear {if store.recordingPlaybackID==id {store.stopPlayback()}}
+    }
+  }
+  private func focusInitial(_ proxy:ScrollViewProxy) {
+    guard !initialFocusApplied,tab == "原文",let target=initialFocusTarget else {return}
+    initialFocusApplied=true
+    // A post-layout turn lets the reader register IDs in the nested transcript builder.
+    DispatchQueue.main.async {proxy.scrollTo(target,anchor:.center)}
+  }
+  private func recordingHeader(_ r:RecordingRecord)->some View {
+    VStack(alignment:.leading,spacing:18) {
+      if !compactHeader {recordingMetadata(r)}
+      CompanionTabs(values:["复盘","原文"],selection:$tab)
+    }.padding(.horizontal,18).padding(.top,18).padding(.bottom,9)
+      .frame(maxWidth:700).frame(maxWidth:.infinity)
+  }
+  private func recordingMetadata(_ r:RecordingRecord)->some View {
+    VStack(alignment:.leading,spacing:18) {
+      Text(RecordingFormat.timestamp(r)+" · "+RecordingFormat.clock((r.duration_ms ?? 0)/1000))
+        .companionFont(12).foregroundStyle(RecordingFormat.secondary).fixedSize(horizontal:false,vertical:true)
+      Text(RecordingFormat.title(r)).companionFont(19,weight:.bold).fixedSize(horizontal:false,vertical:true)
+      CompanionAudioPlayer(record:r)
     }
   }
   @ViewBuilder private func transcript(_ r: RecordingRecord) -> some View {
@@ -943,6 +956,9 @@ struct CompanionExpressionRow: View {
 
 struct CompanionMemory: View {
   @EnvironmentObject var store: Store
+  @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.verticalSizeClass) private var heightClass
+  private var compactHeader:Bool {typeSize.isAccessibilitySize || heightClass == .compact}
   @State private var tab = "长期资料"
   @State private var filter = "全部"
   @State private var upload = false
@@ -962,12 +978,17 @@ struct CompanionMemory: View {
           ).overlay(Circle().stroke(CompanionStyle.line))
         }.frame(minWidth: 44, minHeight: 44).accessibilityLabel("上传资料")
       }
+      if hasContent {
+        VStack(alignment:.leading,spacing:16) {
+          if !compactHeader {memoryIntroduction}
+          CompanionTabs(values:["长期资料","表达积累"],selection:$tab)
+        }.padding(.horizontal,18).padding(.top,18).padding(.bottom,8)
+          .frame(maxWidth:700).frame(maxWidth:.infinity)
+      }
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
           if hasContent {
-            Text("你的资料与沟通积累").companionFont(12).foregroundStyle(RecordingFormat.secondary)
-            if let first = store.companionMemory?.discoveries.first { discoveryCard(first) }
-            CompanionTabs(values: ["长期资料", "表达积累"], selection: $tab)
+            if compactHeader {memoryIntroduction}
             if tab == "长期资料" { documents } else { expressions }
           } else {
             emptyState
@@ -980,7 +1001,8 @@ struct CompanionMemory: View {
             Text(error).companionFont(13).foregroundStyle(.red)
           }
           NavigationLink("我的介绍与资料") { PersonalProfilePage() }.companionFont(12).frame(minHeight: 44)
-        }.padding(18).frame(maxWidth: 700).frame(maxWidth: .infinity)
+        }.padding(.horizontal,18).padding(.top,hasContent ? 8:18).padding(.bottom,18)
+          .frame(maxWidth:700).frame(maxWidth:.infinity)
       }
     }.background(Warm.paper).toolbar(.hidden, for: .navigationBar)
       .fileImporter(
@@ -1004,6 +1026,12 @@ struct CompanionMemory: View {
           do { try await Task.sleep(for: .seconds(5)) } catch { break }
         }
       }
+  }
+  private var memoryIntroduction:some View {
+    VStack(alignment:.leading,spacing:16) {
+      Text("你的资料与沟通积累").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+      if let first=store.companionMemory?.discoveries.first {discoveryCard(first)}
+    }
   }
   private var emptyState: some View {
     VStack(spacing: 18) {
@@ -1408,6 +1436,15 @@ struct CompanionEvidencePage: View {
         CompanionSnapshot.self,
         ["thread": thread, "preparations": [pack], "next_preparation": pack])
       chatThread = companion?.thread
+      var longSegments:[[String:Any]]=[]
+      for index in 0..<60 {
+        var segment:[String:Any]=[:]
+        segment["id"]="preview-long-"+String(index)
+        segment["text"]="第\(index+1)段沟通记录，先确认服务范围与实施安排。"
+        segment["start_ms"]=index*5000;segment["end_ms"]=index*5000+4000
+        segment["speaker"]="unknown";segment["speaker_id"]="part0:0"
+        longSegments.append(segment)
+      }
       companionRecordings = decode(
         [RecordingRecord].self,
         [
@@ -1418,7 +1455,7 @@ struct CompanionEvidencePage: View {
             "id": $0.0, "title": $0.1, "pipeline_status": "done",
             "started_at": "2026-10-16T06:00:00Z", "duration_ms": 1_920_000,
             "transcript_revision": 1,
-            "segments": [
+            "segments": ProcessInfo.processInfo.arguments.contains("-candid-long-transcript") ? longSegments : [
               [
                 "id": "preview-line", "session_id": $0.0, "text": "请先确认服务范围，再安排三家门店试点。",
                 "start_ms": 1000, "end_ms": 4000, "speaker": "unknown", "speaker_id": "part0:0",

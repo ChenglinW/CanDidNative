@@ -167,6 +167,111 @@ final class CanDidUITests: XCTestCase {
         XCTAssertFalse(app.buttons["记忆库"].exists)
         capture(app,"v2-transcript")
     }
+    // Exercise the whole visible segment, not only the text in its centre.
+    func testReportSegmentsAcceptRepeatedEdgeTaps() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
+        let row=app.buttons.containing(.staticText,identifier:"华味餐饮 · 产品方案沟通").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout:15));row.tap()
+        XCTAssertTrue(app.buttons["原文"].waitForExistence(timeout:10))
+        exerciseSegments(app,["原文","复盘"])
+        capture(app,"solid-report-segments")
+        app.buttons["原文"].tap()
+        XCTAssertTrue(app.buttons["play-sentence-preview-line"].exists)
+        XCTAssertTrue(app.buttons["说话人认领"].exists)
+        XCTAssertTrue(app.buttons["修订原文"].exists)
+    }
+    func testMemorySegmentsAcceptRepeatedEdgeTaps() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
+        XCTAssertTrue(app.buttons["记忆库"].waitForExistence(timeout:15));app.buttons["记忆库"].tap()
+        XCTAssertTrue(app.buttons["表达积累"].waitForExistence(timeout:10))
+        exerciseSegments(app,["表达积累","长期资料"])
+        capture(app,"solid-memory-segments")
+        XCTAssertTrue(app.buttons["上传资料"].exists)
+    }
+    func testReportSelectorDoesNotMoveWhenLongTranscriptBecomesShortReview() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated","-candid-long-transcript"];app.launchEnvironment=[:];app.launch()
+        let row=app.buttons.containing(.staticText,identifier:"华味餐饮 · 产品方案沟通").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout:15));row.tap()
+        XCTAssertTrue(app.buttons["原文"].waitForExistence(timeout:10));app.buttons["原文"].tap()
+        let scroll=app.scrollViews.firstMatch
+        scroll.coordinate(withNormalizedOffset:CGVector(dx:0.9,dy:0.75)).press(forDuration:0.1,thenDragTo:scroll.coordinate(withNormalizedOffset:CGVector(dx:0.9,dy:0.60)),withVelocity:.slow,thenHoldForDuration:0.4)
+        let original=app.buttons["复盘"].frame
+        XCTAssertTrue(app.buttons["复盘"].isHittable)
+        app.buttons["复盘"].tap()
+        XCTAssertEqual(app.buttons["复盘"].frame.minY,original.minY,accuracy:2,"短内容不能把切换按钮推离原点击位置")
+        app.buttons["原文"].coordinate(withNormalizedOffset:CGVector(dx:0.08,dy:0.5)).tap()
+        XCTAssertTrue(app.buttons["原文"].isSelected)
+        XCTAssertTrue(app.buttons["play-sentence-preview-long-0"].exists)
+        capture(app,"solid-long-transcript")
+    }
+    func testTranscriptInitialFocusDoesNotRepeatOnRefresh() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated","-candid-long-transcript","-candid-focused-recording"];app.launchEnvironment=[:];app.launch()
+        let line=app.staticTexts["第11段沟通记录，先确认服务范围与实施安排。"]
+        XCTAssertTrue(line.waitForExistence(timeout:15))
+        let visible=NSPredicate(format:"hittable == true")
+        expectation(for:visible,evaluatedWith:line)
+        waitForExpectations(timeout:10)
+        let scroll=app.scrollViews.firstMatch
+        let before=line.frame.minY
+        scroll.coordinate(withNormalizedOffset:CGVector(dx:0.9,dy:0.80)).press(forDuration:0.02,thenDragTo:scroll.coordinate(withNormalizedOffset:CGVector(dx:0.9,dy:0.50)))
+        let after=line.frame.minY
+        XCTAssertGreaterThan(abs(after-before),40)
+        Thread.sleep(forTimeInterval:6)
+        XCTAssertEqual(line.frame.minY,after,accuracy:3,"定时刷新不能把用户拉回最初句子")
+        capture(app,"solid-transcript-after-refresh")
+    }
+    func testLargeTextReportKeepsSelectorAndTranscriptActionsReachable() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated","-candid-long-transcript","-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"];app.launchEnvironment=[:];app.launch()
+        let row=app.buttons.containing(.staticText,identifier:"华味餐饮 · 产品方案沟通").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout:15));row.tap()
+        let raw=app.buttons["原文"]
+        XCTAssertTrue(raw.waitForExistence(timeout:10));XCTAssertTrue(raw.isHittable);raw.tap()
+        XCTAssertTrue(raw.isSelected)
+        XCTAssertGreaterThan(app.scrollViews.firstMatch.frame.height,100,"固定页头之后仍需保留可阅读正文")
+        let y=raw.frame.minY
+        // Large text must wrap fully; metadata can scroll while the selector remains available.
+        XCTAssertGreaterThan(app.staticTexts["华味餐饮 · 产品方案沟通"].frame.height,80)
+        for _ in 0..<4 {
+            if app.buttons["说话人认领"].isHittable {break}
+            let scroll=app.scrollViews.firstMatch
+            scroll.coordinate(withNormalizedOffset:CGVector(dx:0.95,dy:0.8)).press(forDuration:0.1,thenDragTo:scroll.coordinate(withNormalizedOffset:CGVector(dx:0.95,dy:0.6)),withVelocity:.slow,thenHoldForDuration:0.3)
+        }
+        XCTAssertTrue(app.buttons["说话人认领"].isHittable)
+        XCTAssertTrue(app.buttons["修订原文"].isHittable)
+        XCTAssertTrue(raw.isHittable);XCTAssertEqual(raw.frame.minY,y,accuracy:2)
+        capture(app,"solid-report-large-text")
+    }
+    func testReportSegmentsAcceptTapsBesideMiddleDivider() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
+        let row=app.buttons.containing(.staticText,identifier:"华味餐饮 · 产品方案沟通").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout:15));row.tap()
+        let left=app.buttons["复盘"],right=app.buttons["原文"]
+        XCTAssertTrue(right.waitForExistence(timeout:10));right.tap()
+        let divider=(left.frame.maxX+right.frame.minX)/2
+        let y=left.frame.midY
+        for n in 0..<10 {
+            let target=n%2==0 ? left:right
+            let x=divider+(n%2==0 ? -1.0:1.0)
+            app.coordinate(withNormalizedOffset:.zero).withOffset(CGVector(dx:x,dy:y)).tap()
+            XCTAssertTrue(target.isSelected,"中缝旁点击必须归入对应半格；两按钮间距=\(right.frame.minX-left.frame.maxX)pt")
+        }
+    }
+    private func exerciseSegments(_ app:XCUIApplication,_ titles:[String]) {
+        let points:[CGVector]=[CGVector(dx:0.08,dy:0.5),CGVector(dx:0.92,dy:0.5),CGVector(dx:0.5,dy:0.12),CGVector(dx:0.5,dy:0.88),CGVector(dx:0.5,dy:0.5)]
+        for n in 0..<100 {
+            let title=titles[n%2];let button=app.buttons[title]
+            let before=button.frame
+            XCTAssertTrue(button.isHittable,"segment must remain visible: \(n)")
+            button.coordinate(withNormalizedOffset:points[n%points.count]).tap()
+            XCTAssertTrue(button.isSelected,"missed visible segment at tap \(n), point \(points[n%points.count]), frame \(before)")
+        }
+    }
     func testNativeTabBarKeepsSingleSystemNavigationAndFixedAppearance() {
         continueAfterFailure = false
         let app = XCUIApplication()
