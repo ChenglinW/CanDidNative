@@ -106,11 +106,19 @@ struct RecordingShell: View {
     let onSettings: () -> Void
     @State private var keyboardVisible=false
     var body: some View {
-        ZStack {
-            destination(.chat) {CompanionHome(onSettings:onSettings)}
-            destination(.memory) {CompanionMemory()}
-            destination(.recordings) {CompanionRecordings()}
+        // Layout, rather than an outer safeAreaInset, reserves space for the shared bar:
+        // nested NavigationStacks otherwise ignore that inset and cover the composer.
+        VStack(spacing:0) {
+            ZStack {
+                destination(.chat) {CompanionHome(onSettings:onSettings)}
+                destination(.memory) {CompanionMemory()}
+                destination(.recordings) {CompanionRecordings()}
+            }
+            if !keyboardVisible && navigation.visibleDetails.isEmpty {
+                CompanionTabBar(navigation:navigation)
+            }
         }
+        .background(Warm.paper)
         .fullScreenCover(isPresented:$navigation.showRecorder) {
             NavigationStack { LiveRecordingView(speech:speech,device:device,navigation:navigation).environmentObject(store) }
                 .preferredColorScheme(.light).tint(Warm.purple).fontDesign(.rounded).foregroundStyle(Warm.ink)
@@ -143,8 +151,12 @@ struct RecordingShell: View {
         .task { await store.observeDeviceActions() }
     }
     @ViewBuilder private func destination<Content:View>(_ section:CandidSection,@ViewBuilder content:()->Content)->some View {
-        NavigationStack {content().safeAreaInset(edge:.bottom,spacing:0){if !keyboardVisible && navigation.visibleDetails.isEmpty {CompanionTabBar(navigation:navigation)}}}
-            .opacity(navigation.section==section ? 1:0).allowsHitTesting(navigation.section==section)
+        NavigationStack {content()}
+            .opacity(navigation.section==section ? 1:0)
+            // Tab content changes immediately; only the shared bar animates selection.
+            // Scope this to section changes so native push/pop transitions remain intact.
+            .animation(nil,value:navigation.section)
+            .allowsHitTesting(navigation.section==section)
             .accessibilityHidden(navigation.section != section)
     }
     private func coordinateDevice() {

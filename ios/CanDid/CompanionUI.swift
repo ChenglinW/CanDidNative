@@ -158,19 +158,21 @@ struct CompanionSelection: ViewModifier {
   let selected: Bool
   var classicColor: Color = Warm.lavender
   var radius: CGFloat = 14
-  let namespace: Namespace.ID
   @AppStorage("ui.selection", store: CompanionAppearance.defaults) private var style:
     CompanionAppearance.Selection = .liquidGlass
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.colorSchemeContrast) private var contrast
   func body(content: Content) -> some View {
-    if selected {
-      if #available(iOS 26.0, *), style == .liquidGlass {
-        content.modifier(CompanionGlassControl(tint: Warm.lavender, radius: radius))
-          .glassEffectID("selection", in: namespace)
-      } else {
-        content.background(classicColor, in: RoundedRectangle(cornerRadius: radius))
-      }
+    if #available(iOS 26.0, *), style == .liquidGlass, !reduceTransparency, contrast != .increased {
+      // A stable modifier keeps the foreground label mounted and above the lens.
+      // Glass.identity removes only the material, without rebuilding the control.
+      // Do not match IDs across whole controls: native morphing also fades their labels.
+      content.glassEffect(selected ? .regular.tint(Warm.lavender).interactive() : .identity,
+        in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     } else {
-      content
+      content.background {
+        if selected { RoundedRectangle(cornerRadius: radius).fill(classicColor) }
+      }
     }
   }
 }
@@ -229,21 +231,18 @@ struct CompanionPanel<Content: View>: View {
 struct CompanionTabs: View {
   let values: [String]
   @Binding var selection: String
-  @Namespace private var selectionNamespace
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var body: some View {
     CompanionGlassGroup {
       HStack(spacing: 4) {
         ForEach(values, id: \.self) { value in
           Button {
-            withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) { selection = value }
+            selection = value
           } label: {
             Text(value).companionFont(13, weight: selection == value ? .semibold : .regular)
               .frame(maxWidth: .infinity).frame(minHeight: 44)
               .modifier(
                 CompanionSelection(
-                  selected: selection == value, classicColor: Warm.white, radius: 10,
-                  namespace: selectionNamespace))
+                  selected: selection == value, classicColor: Warm.white, radius: 10))
           }.buttonStyle(.plain).accessibilityAddTraits(selection == value ? .isSelected : [])
         }
       }
@@ -267,8 +266,6 @@ struct CompanionTabBar: View {
   @ObservedObject var navigation: RecordingNavigation
   @AppStorage("ui.navigation", store: CompanionAppearance.defaults) private var style:
     CompanionAppearance.Navigation = .fullWidth
-  @Namespace private var selectionNamespace
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var body: some View {
     Group {
       if style == .capsule {
@@ -292,7 +289,8 @@ struct CompanionTabBar: View {
   }
   private func item(_ section: CandidSection, _ title: String, _ symbol: String) -> some View {
     Button {
-      withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) { navigation.section = section }
+      // Do not inject this animation into RecordingShell's page opacity transactions.
+      navigation.section = section
     } label: {
       VStack(spacing: 4) {
         Image(systemName: symbol).font(.system(size: 20, weight: .regular))
@@ -302,7 +300,7 @@ struct CompanionTabBar: View {
         .modifier(
           CompanionSelection(
             selected: navigation.section == section,
-            radius: style == .capsule ? 100 : 14, namespace: selectionNamespace)
+            radius: style == .capsule ? 100 : 14)
         )
         .contentShape(Rectangle())
     }.foregroundStyle(navigation.section == section ? Warm.purple : RecordingFormat.secondary)

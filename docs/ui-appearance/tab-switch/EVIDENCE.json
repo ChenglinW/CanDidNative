@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-16",
+  "baseline": "fc0ea795fb5af20ebea58983fa093c692da64b16",
+  "source_sha256": {
+    "ios/CanDid/CompanionUI.swift": "7e72d54215be7a1e0f6d78a3a58c3410def69ba6f3cde609ff40642eb7cda2d9",
+    "ios/CanDid/RecordingUI.swift": "f9550bde7913fd0690e8a8a609a30273940ee529a806942094c977c574bbc314",
+    "ios/CanDidUITests/CanDidUITests.swift": "706bf1ed5a6136c554a0723b030b5185235bd9f057070cbf71730b1643a2d592"
+  },
+  "regression_before_navigation_buttons": 3,
+  "regression_after_navigation_buttons": 1,
+  "appearance_combinations": 4,
+  "result_bundles": [
+    "TabSwitch-Stable-Verified.xcresult",
+    "TabSwitch-iPad-Stable.xcresult",
+    "TabSwitch-Layout-Verified.xcresult"
+  ],
+  "unit_tests_passed": 22,
+  "ui_workflows_passed": 5,
+  "release_signed_build": "passed",
+  "physical_device": "iPhone 15 Pro, iOS 27.0.1",
+  "physical_install_and_launch": "passed",
+  "physical_frame_rate_measured": false,
+  "final_render_evidence": "XCTest screenshots; later simctl video stream showed stale frames",
+  "artifact_sha256": {
+    "before.png": "96e1394cea1297f28577ba49c3415f8b79198e7205d750f55a5dba0e4460a919",
+    "before.mp4": "7208ff5fa26910ee33449af9408c718c99c096ce32dc045612c3dd97076b9f59",
+    "ipad-home.png": "d16325635cc6c77d22ce747d486c6f35915318072ddf1c6b1024cb3e2616e2dc",
+    "iphone-home.png": "c0d95f62ca74a0c36759d41a00b0cb9e84fb8ed9f6101c347ef7d3cf0b848851"
+  }
+}

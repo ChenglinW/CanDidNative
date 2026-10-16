@@ -167,6 +167,25 @@ final class CanDidUITests: XCTestCase {
         XCTAssertFalse(app.buttons["记忆库"].exists)
         capture(app,"v2-transcript")
     }
+    func testFloatingTabSwitchesKeepOneNavigationBar() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-candid-ui-testing", "-candid-v2-populated"]
+        app.launchEnvironment = ["CANDID_ONBOARDING_TEST_ID": UUID().uuidString]
+        app.launch()
+        openAppearanceSettings(app)
+        app.buttons["悬浮胶囊"].tap(); app.buttons["液态玻璃"].tap(); app.buttons["轻盈玻璃"].tap()
+        app.buttons["完成"].tap()
+        for _ in 0..<3 {
+            for title in ["记忆库", "录音", "Candid"] {
+                let tab = app.buttons.matching(NSPredicate(format: "label == %@", title)).allElementsBoundByIndex.first { $0.isHittable }
+                XCTAssertNotNil(tab); tab?.tap()
+            }
+        }
+        capture(app, "tab-switch-floating-return")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "记忆库")).count, 1,
+                       "主导航必须只有一份常驻底栏，不能每个页面各有一份玻璃材质")
+    }
     func testAppearanceSettingsApplyPersistAndPreserveNavigation() {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
@@ -211,6 +230,11 @@ final class CanDidUITests: XCTestCase {
         openAppearanceSettings(app)
         XCTAssertTrue(app.buttons["悬浮胶囊"].isSelected)
         XCTAssertTrue(app.buttons["轻盈玻璃"].isSelected)
+        app.buttons["经典色块"].tap(); app.buttons["完成"].tap()
+        for title in ["记忆库", "录音", "Candid"] { app.buttons[title].firstMatch.tap() }
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "记忆库")).count, 1)
+        capture(app, "appearance-classic-floating-home")
+        openAppearanceSettings(app)
         app.buttons["全宽底栏"].tap(); app.buttons["经典色块"].tap(); app.buttons["原版立体"].tap()
         capture(app, "appearance-settings-classic")
         app.buttons["完成"].tap()
