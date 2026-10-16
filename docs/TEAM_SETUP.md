@@ -1,6 +1,6 @@
 # 队友接入
 
-GitHub 包含服务接入代码、配置模板和 `config/team-services.enc.json` 加密配置包。包内为百炼 Qwen3.8-Max 文本、DashScope ASR/TTS、Monid 等服务配置（保留旧安克配置供显式切换），采用 AES-256-GCM 认证加密，口令用 PBKDF2-HMAC-SHA256 派生。真实密钥不写进 Swift、源码或配置模板。
+GitHub 包含服务接入代码、配置模板和 `config/team-services.enc.json` 加密配置包。包内为百炼直连 DeepSeek V4 Pro 文本、DashScope ASR/TTS、Monid 等服务配置（保留旧安克配置供显式切换），采用 AES-256-GCM 认证加密，口令用 PBKDF2-HMAC-SHA256 派生。真实密钥不写进 Swift、源码或配置模板。
 
 安装 Python 3.12 后，在项目根目录执行：
 

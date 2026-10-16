@@ -14,7 +14,7 @@ def test_provider_wire_keeps_messages_and_tool_schema(monkeypatch, provider, str
     monkeypatch.setenv('CANDID_TEXT_PROVIDER', provider)
     monkeypatch.setenv('ANKER_AI_API_KEY', 'anker-test')
     monkeypatch.setenv('DASHSCOPE_API_KEY', 'dashscope-test')
-    monkeypatch.setenv('DASHSCOPE_TEXT_MODEL', 'qwen3.8-max')
+    monkeypatch.setenv('DASHSCOPE_TEXT_MODEL', 'deepseek-v4-pro')
     monkeypatch.delenv('DASHSCOPE_TEXT_BASE_URL', raising=False)
     gateway = Gateway()
     messages = [{'role':'system','content':'Existing prompt'}, {'role':'user','content':'Existing data'}]
@@ -26,7 +26,7 @@ def test_provider_wire_keeps_messages_and_tool_schema(monkeypatch, provider, str
         assert payload['tool_choice'] == 'auto' and payload['max_tokens'] == 4096
         if provider == 'dashscope':
             assert request.url == 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
-            assert payload['model'] == 'qwen3.8-max' and payload['enable_thinking'] is False
+            assert payload['model'] == 'deepseek-v4-pro' and payload['enable_thinking'] is False
             assert 'thinking' not in payload
         else:
             assert payload['thinking'] == {'type':'disabled'} and 'enable_thinking' not in payload
@@ -54,6 +54,12 @@ def test_dashscope_does_not_fall_back_to_anker_key(monkeypatch):
     with pytest.raises(Fault) as error:
         gateway.complete([], tools=False)
     assert error.value.code == 'AGENT_NOT_CONFIGURED'
+
+
+def test_dashscope_defaults_to_confirmed_deepseek_model(monkeypatch):
+    monkeypatch.setenv('CANDID_TEXT_PROVIDER', 'dashscope')
+    monkeypatch.delenv('DASHSCOPE_TEXT_MODEL', raising=False)
+    assert Gateway().model == 'deepseek-v4-pro'
 
 
 def test_unknown_provider_fails_at_startup(monkeypatch):

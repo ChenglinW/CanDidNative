@@ -27,7 +27,7 @@ class Gateway:
         if self.provider == 'dashscope':
             self._key = os.environ.get('DASHSCOPE_API_KEY', '')
             self.base = os.environ.get('DASHSCOPE_TEXT_BASE_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1').rstrip('/')
-            self.model = os.environ.get('DASHSCOPE_TEXT_MODEL', 'qwen3.8-max')
+            self.model = os.environ.get('DASHSCOPE_TEXT_MODEL', 'deepseek-v4-pro')
         elif self.provider == 'anker':
             self._key = os.environ.get('ANKER_AI_API_KEY', '')
             self.base = os.environ.get('ANKER_AI_BASE_URL', 'https://ai-router-cn-pub.anker-in.com').rstrip('/')

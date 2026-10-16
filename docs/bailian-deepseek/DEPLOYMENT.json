@@ -1,0 +1,30 @@
+{
+  "release": "/opt/candid/releases/20261017-deepseek-direct",
+  "previous": "/opt/candid/releases/20261017-bailian-47356e1",
+  "backup": "/var/backups/candid-deepseek-direct",
+  "model": "deepseek-v4-pro",
+  "provider": "dashscope",
+  "cloud_probe_seconds": 1.32,
+  "health_and_capabilities": {
+    "http://127.0.0.1:8000": "passed",
+    "https://47.129.137.212": "passed"
+  },
+  "downstream_byte_identical": true,
+  "before_counts": {
+    "sessions": 24,
+    "transcript_segments": 813,
+    "recording_knowledge": 18,
+    "chat_messages": 50,
+    "project_spaces": 13,
+    "device_credentials": 48
+  },
+  "after_counts": {
+    "sessions": 24,
+    "transcript_segments": 813,
+    "recording_knowledge": 18,
+    "chat_messages": 50,
+    "project_spaces": 13,
+    "device_credentials": 48
+  },
+  "integrity": "ok"
+}

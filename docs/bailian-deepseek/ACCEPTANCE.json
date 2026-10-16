@@ -1,0 +1,39 @@
+{
+  "provider": "dashscope",
+  "model": "deepseek-v4-pro",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "regression_tests": 26,
+  "wire_checks": [
+    {
+      "kind": "stream",
+      "seconds": 1.66,
+      "text": "连接成功",
+      "chunks": 2
+    },
+    {
+      "kind": "tool_call",
+      "seconds": 2.08,
+      "tool": "lookup_customer"
+    }
+  ],
+  "real_workflow": {
+    "steps": [
+      {
+        "kind": "preparation",
+        "seconds": 12.7
+      },
+      {
+        "kind": "review",
+        "seconds": 17.66
+      },
+      {
+        "kind": "faq",
+        "seconds": 26.92
+      }
+    ],
+    "saved_faq": 5,
+    "raw_unchanged": true,
+    "personal_memory_writes": 0
+  },
+  "downstream_code_and_prompts_unchanged": true
+}
