@@ -138,7 +138,7 @@ def test_retry_saves_staged_report_without_regeneration_or_duplicate(domain,monk
     finally:a.close()
 
 @pytest.mark.parametrize('pending',[False,True])
-@pytest.mark.parametrize('legacy_version',['agent-runtime@10-recovery','agent-runtime@11-progress'])
+@pytest.mark.parametrize('legacy_version',['agent-runtime@10-recovery','agent-runtime@11-progress','agent-runtime@12-research'])
 def test_explicit_legacy_retry_migrates_policy_and_preserves_user_answers(domain,pending,legacy_version):
     ready=False
     def handler(g,m):

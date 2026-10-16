@@ -1,0 +1,171 @@
+{
+  "verified_at_utc": "2026-10-16T07:13:14.786463+00:00",
+  "backend_tests": {
+    "passed": 249,
+    "baseline": 220,
+    "new_cases": 29,
+    "warnings": 2
+  },
+  "runtime": "agent-runtime@13-reading",
+  "company_skill": "1.5.1",
+  "local_aiqua": {
+    "status": "completed",
+    "seconds": 229.44,
+    "passed": true,
+    "checks": {
+      "completed": true,
+      "official_team_read": true,
+      "team_in_report": true,
+      "long_reader_used": true,
+      "no_old_dates_in_recent_section": true,
+      "time_scope_disclosed": true,
+      "cleaned_up": true
+    },
+    "tool_counts": {
+      "run_skill": 1,
+      "search_company": 5,
+      "read_source": 4,
+      "read_material_part": 9
+    },
+    "cleanup_status": "temporary_store_removed"
+  },
+  "cloud_aiqua": {
+    "status": "completed",
+    "seconds": 222.22,
+    "passed": true,
+    "checks": {
+      "completed": true,
+      "official_team_read": true,
+      "team_in_report": true,
+      "long_reader_used": true,
+      "no_old_dates_in_recent_section": true,
+      "time_scope_disclosed": true,
+      "cleaned_up": true
+    },
+    "tool_counts": {
+      "search_company": 4,
+      "read_source": 2,
+      "read_material_part": 7
+    },
+    "cleanup_status": 410
+  },
+  "cloud_final_read": {
+    "status": "completed",
+    "seconds": 16.57,
+    "passed": true,
+    "checks": {
+      "completed": true,
+      "cleaned_up": true,
+      "real_official_body": true,
+      "long_page_navigation_exposed": true
+    },
+    "tool_counts": {
+      "read_source": 1
+    },
+    "cleanup_status": 410
+  },
+  "cloud_regressions": [
+    {
+      "case": "home-web-preparation",
+      "status": "passed",
+      "seconds": 46.11,
+      "cleanup_status": 410
+    },
+    {
+      "case": "workspace-web-preparation",
+      "status": "passed",
+      "seconds": 54.95,
+      "cleanup_status": 410
+    },
+    {
+      "case": "home-offline-preparation",
+      "status": "passed",
+      "seconds": 28.4,
+      "cleanup_status": 410
+    },
+    {
+      "case": "reddit-honest-fallback",
+      "status": "passed",
+      "seconds": 30.16,
+      "cleanup_status": 410
+    }
+  ],
+  "official_read_coverage": [
+    {
+      "url": "https://www.aiqua.ai/",
+      "total_chars": 47201,
+      "ranges": [
+        [
+          0,
+          2200
+        ],
+        [
+          9700,
+          20199
+        ],
+        [
+          26915,
+          32915
+        ],
+        [
+          35058,
+          41058
+        ],
+        [
+          43014,
+          47201
+        ]
+      ],
+      "returned_unique_chars": 28886
+    }
+  ],
+  "deployment": {
+    "release": "/opt/candid/releases/20261016-research-reading-final",
+    "verified_source_files": 12,
+    "source_hashes_match": true,
+    "backup_quick_check": "ok",
+    "backup_mode": "0o600"
+  },
+  "source_sha256": {
+    "backend/adapters/monid.py": "9a00d03e45cdc3309342d00964dc34783a6b04746cf61e7a4a175e9667c31de5",
+    "backend/adapters/sources.py": "f377d548535704048a4637b183e4f728d514d9545142a0dc1dd32ac6bb0f9501",
+    "backend/adapters/web_reading.py": "ce8547a290b17e9fff211e0d2027955c999acbbe68b8818c50ff0271f11a62c5",
+    "backend/agent_config/runtime.json": "b5bcf775caff7176265f94bf2369e8941a6a74250a9e61207523310ad26040c2",
+    "backend/agent_runtime/research_policy.py": "e6050494c1b03a5b5c9eae70087ece36f0105af428a8d60a1d856f48af2a934c",
+    "backend/agent_runtime/research_time.py": "793226891a155b472dece1327fbabb3802a8277d3777950e8a542f2d5e0f36d1",
+    "backend/agent_runtime/runtime.py": "287b062600dae0d573da055fc5616c62d787e72adaed2d4050cd9e13fdfdc7fd",
+    "backend/agent_runtime/tools.py": "cbeac4cf9d610394b65035f00a33db151c1faee7cd3e3c3db34886ed4c9d217a",
+    "backend/skills/company_research/SKILL.md": "b39abcd2373cc086d83a49d04dd0740dbe34dbf20b7796d767e064801812eeb8",
+    "backend/skills/company_research/skill.json": "753044fe9f78542934394fedb6c0f4bc99ce7905269a6a16b91344745544ec2b",
+    "backend/tools/companion_tools.py": "241ed7b0bc11323ef2365f7626cbe349e52a5962e0987f069f1a118bb97a4ca6",
+    "backend/tools/material_tools.py": "0be83e6772d098e9af95fcaad7081c1eb33390f2c9896141425ef4add7366b31"
+  },
+  "iterations": [
+    {
+      "case": "local-attempt1",
+      "status": "failed",
+      "reason": "AGENT_CONTEXT_LIMIT"
+    },
+    {
+      "case": "local-attempt2",
+      "status": "failed",
+      "reason": "AGENT_STALLED; model-only correction was insufficient"
+    },
+    {
+      "case": "cloud-attempt1",
+      "status": "observer_failed",
+      "reason": "Ubuntu unattended-upgrade restarted backend and Caddy; TLS EOF/502",
+      "cleanup": "one exact interrupted synthetic owner removed; owner tombstone 410"
+    }
+  ],
+  "manual_review": {
+    "university_affiliation_conflict": true,
+    "agent_independently_verified_universities": false,
+    "verified_university_sources": [
+      "https://www.cityu.edu.hk/stfprofile/yannisun.htm",
+      "https://www.ie.cuhk.edu.hk/faculty/yan-zhenyu/"
+    ],
+    "note": "Company-site labels conflict with university staff pages; same name does not establish company employment."
+  },
+  "scope": "Backend only; no iPhone installation or UI changes; no limits added"
+}

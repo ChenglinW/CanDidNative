@@ -20,6 +20,14 @@ class ToolResult:
     def as_dict(self):
         return {'status': self.status, 'data': self.data, 'sources': self.sources, 'error': self.error}
 
+    def model_dict(self):
+        # Public events retain complete citations. In the model envelope, items
+        # already contain each passage; don't send the same body a second time.
+        result=self.as_dict()
+        if isinstance(self.data.get('items'),list):
+            result={**result,'sources':[{k:s[k] for k in ('source_id','source_version','ref','citation') if k in s} for s in self.sources]}
+        return result
+
     @classmethod
     def failure(cls, code, message, retryable=False):
         return cls('error', error={'code': code, 'message': message, 'retryable': retryable})

@@ -57,9 +57,12 @@ def source(kind, row, *, reading_range='snippet', limit=2200):
               'evidence_refs': row.get('evidence_refs', [])}
     if row.get('session_id') or row.get('source_session_id'):
         result['session_id'] = row.get('session_id') or row.get('source_session_id')
-    for key in ('start_ms', 'end_ms', 'occasion_id', 'url', 'page', 'fetched_at', 'material_kind', 'confirmation_mode', 'producer', 'personal_identity_confirmed'):
+    for key in ('start_ms', 'end_ms', 'occasion_id', 'url', 'page', 'fetched_at', 'published_at', 'publication_date_basis', 'original_total_chars', 'storage_truncated', 'material_kind', 'confirmation_mode', 'producer', 'personal_identity_confirmed'):
         if row.get(key) is not None:
             result[key] = row[key]
+    if kind == 'research' and reading_range != 'search_snippet':
+        from .web_reading import reading_metadata
+        result.update(reading_metadata(text,limit))
     return result
 
 

@@ -3,7 +3,8 @@ from pydantic import BaseModel,ConfigDict,Field
 from companion import Companion
 from agent_runtime.tools import ToolSpec,ToolResult
 from memory import Fault
-from agent_runtime.research_policy import require_preparation_research
+from agent_runtime.research_policy import require_preparation_research,delivery_gaps
+import json
 
 class Section(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -38,6 +39,9 @@ def register_companion_tools(registry,store):
         if any(s not in known for s in args['source_ids']): raise Fault('SOURCE_UNAVAILABLE','准备依据尚未读取',409)
         refs=[{'source_id':s,'source_version':known[s]['source_version']} for s in args['source_ids']]
         require_preparation_research(store,context,refs)
+        report='\n'.join('## '+part['title']+'\n'+part['text'] for part in args['sections'])
+        gaps=delivery_gaps(store,context,sources,report)
+        if gaps:raise Fault('RESEARCH_REQUIRED','准备包依据尚未核对完整：'+json.dumps(gaps,ensure_ascii=False)+'。先读取相关章节及核对近期时间，再保存。',422)
         data={k:v for k,v in args.items() if k not in {'source_ids','user_quote','time_quote'}}
         if not args['time_quote'] or args['time_quote'] not in user: data['scheduled_at']=None
         # Only names explicitly present in this user's conversation become meeting metadata.

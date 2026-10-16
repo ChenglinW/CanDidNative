@@ -2,8 +2,8 @@
   "name": "company_research",
   "title": "了解公司",
   "description": "通过已接通的公开资料搜索、正文读取和公司信息补全，整理带来源的公司沟通背景。",
-  "version": "1.4.0",
-  "body_sha256": "9e916413917fdd87f42eda6f30106d4124ff755ad27b6548080dc204f5cf8a88",
+  "version": "1.5.1",
+  "body_sha256": "b39abcd2373cc086d83a49d04dd0740dbe34dbf20b7796d767e064801812eeb8",
   "inputs": {
     "type": "object",
     "properties": {

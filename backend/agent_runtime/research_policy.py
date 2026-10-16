@@ -10,7 +10,7 @@ def policy(text):
     read_urls=urls if re.search(r'读|阅读|核实|核对|查阅|查看|根据.{0,6}官网',text) else []
     required=not offline and bool(read_urls or re.search(r'联网|上网|最新.{0,16}(业务|动态|信息|公司)|最近.{0,16}(动态|新闻)',text))
     return {'offline':offline,'required':required,'urls':read_urls if not offline else [],
-        'fresh':not offline and bool(re.search(r'最新|刷新|重新抓取|实时|最近.{0,12}(动态|新闻)|今天',text)),
+        'fresh':not offline and bool(re.search(r'近期|最新|刷新|重新抓取|实时|最近.{0,12}(动态|新闻)|今天',text)),
         'search_disabled':bool(re.search(r'(不用|不要|无需|不需要)(额外|再)?搜索',text)),
         'company_disabled':bool(re.search(r'(不用|不要|无需|不需要)(额外|再)?公司数据库',text))}
 
@@ -46,3 +46,33 @@ def require_preparation_research(store,context,references):
     missing=[url for url in rule['urls'] if not any(r.get('kind') in {'read','youtube'} and canonical_url(r.get('request',{}).get('url') or r.get('request',{}).get('youtube_url',''))==canonical_url(url) for r in usable)]
     if not usable or missing:
         raise Fault('RESEARCH_REQUIRED','尚未完成用户要求的联网核实。先读取指定公开网址或搜索并读取相关来源，将实际 research 来源加入 source_ids 后再保存；不可用时如实说明缺口，不能把本地模板当作已完成调研。',422)
+
+
+
+def recent_search_attempted(run):
+    code=(run.get('response',{}).get('providerResponse') or {}).get('httpStatus')
+    finished=(run.get('outcome') in {'content','empty'} or run.get('status') in {'FAILED','REJECTED','TIMED_OUT'}
+              or run.get('status')=='COMPLETED' and isinstance(code,int) and code>=400)
+    return run.get('kind')=='search' and bool(run.get('request',{}).get('time_range')) and finished
+
+
+def delivery_gaps(store,context,sources,content=''):
+    """Shared report and preparation gate. Only actual returned ranges count."""
+    from .research_time import window,needs_recent,dated_news_violations
+    from adapters.web_reading import unread_sections
+    rule=task_policy(store,context)
+    if rule['offline']:return {}
+    task=store.rows('agent_tasks',context.owner_id,id=context.task_id)
+    query=task[0].get('input',{}).get('content','') if task else ''
+    pages=[s for s in sources if s.get('reading_range') in {'page_excerpt','source_excerpt'} and s.get('source_id','').startswith('research:')]
+    if not any(s.get('source_id','').startswith('research:') for s in sources):return {}
+    gaps={};missing=unread_sections(pages,query)
+    if missing:gaps['unread_sections']=missing
+    if needs_recent(query):
+        timing=window(query)
+        runs=store.rows('provider_runs',context.owner_id,task_id=context.task_id)
+        if not rule['search_disabled'] and not any(recent_search_attempted(r) for r in runs):
+            gaps['recent_search_required']=timing
+        bad=dated_news_violations(content,timing)
+        if bad:gaps['historical_or_future_dates_in_recent_news']=bad
+    return gaps

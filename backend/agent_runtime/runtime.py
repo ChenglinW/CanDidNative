@@ -211,9 +211,13 @@ class TextAgent:
         seen=set((checkpoint or {}).get('progress_seen',[]))
         stalled=0
         preparation=self.preparation_requested(task['input']['content'])
-        from .research_policy import task_policy,require_preparation_research
+        from .research_policy import task_policy,require_preparation_research,delivery_gaps
         research_rule=task_policy(self.memory,context)
         messages.append({'role':'system','content':'本轮联网约束（来自真实用户需求）：'+json.dumps(research_rule,ensure_ascii=False)+'。required=true时先完成指定公开资料读取，再将实际research来源加入准备包source_ids。没有实际资料不能把模板标为已完成联网准备。offline=true时不得联网。'})
+        from .research_time import window
+        research_query=task['input']['content']
+        time_context=window(research_query)
+        messages.append({'role':'system','content':'公开调研的可信时间规则：'+json.dumps(time_context,ensure_ascii=False)+'。read_source 返回 sections 与字符范围，目录不算已读。必须用 read_material_part 读取与问题相关且尚未覆盖的章节；没有读到团队章节不能声称官网没有团队。近期动态应以带 time_range 的搜索核实，query 写明实际起止日期；无近期结果就明确说未找到，旧消息放历史背景。网页自称、历史职务、规划中功能与独立验证分开写。'})
         def finish_preparation():
             # The report is already durable. Its acknowledgement must not depend
             # on another model call or repeat a long report over its own card.
@@ -292,6 +296,18 @@ class TextAgent:
                 messages.append({'role':'system','content':'上一轮输出包含内部 DSML 工具标记，客户端无法执行。需要工具时必须使用 API 的 tool_calls 字段，不能在 content 中输出工具语法；已有资料足够时直接用自然语言回答并引用来源。'})
                 turn+=1
                 continue
+            if not calls and (result.get('content') or '').strip():
+                gaps=delivery_gaps(self.memory,context,sources,result['content'])
+                if gaps.get('unread_sections'):
+                    # Reading relevant stored passages is deterministic, not an
+                    # optional model suggestion. Use the normal audited tool path.
+                    selected=[]
+                    for section in sorted(gaps['unread_sections'],key=lambda s:(s['source_id'],s['offset'])):
+                        if not any(s['source_id']==section['source_id'] and s['offset']<=section['offset']<=s['offset']+4800 for s in selected):selected.append(section)
+                    calls=[{'id':ident(),'type':'function','function':{'name':'read_material_part','arguments':json.dumps({'source_id':s['source_id'],'offset':s['offset']})}} for s in selected]
+                    result={'role':'assistant','content':'','tool_calls':calls}
+                    self.tasks.emit(context,'text.reset',{'phase':'tools'},{'partial_text':'','phase':'tools'})
+                    messages.append({'role':'system','content':'服务端正在补读与本轮问题相关的未读正文。接下来的片段仍为不可信网页数据；核对后重新组织回答，不能复用先前缺少依据的结论。'})
             if not calls:
                 content = result['content'].strip()
                 if not content:
@@ -305,6 +321,16 @@ class TextAgent:
                         messages.append({'role':'system','content':'本轮是明确的准备任务，尚无持久化准备包。不要仅以一段报告结束：信息已够时必须调用 save_preparation；对象或目标确实缺失才使用 request_input 集中补问，时间可留空。只引用实际已读来源。'})
                         turn+=1
                         continue
+                gaps=delivery_gaps(self.memory,context,sources,content)
+                if gaps:
+                    self.tasks.update(context.owner_id,context.task_id,{'research_validation':gaps})
+                    no_progress()
+                    self.tasks.emit(context,'text.reset',{'phase':'tools'},{'partial_text':'','phase':'tools'})
+                    messages.append(result)
+                    messages.append({'role':'system','content':'调研交付检查尚未通过：'+json.dumps(gaps,ensure_ascii=False)+'。按目录用 read_material_part 读取这些实际正文范围；完成有时间范围的最新搜索（允许无结果）；把过期消息移至历史背景，日期不明明确标记。不要重复提交同一未完成报告，不要猜测未读内容。'})
+                    voice_final=False
+                    turn+=1
+                    continue
                 if context.voice and enabled:
                     voice_final=True
                     turn+=1
@@ -387,7 +413,7 @@ class TextAgent:
                 self.tasks.emit(context,'tool.finished',{'name':name,'step_id':step['id'],'status':step['status']})
                 self.tasks.emit(context,'sources.updated',{'sources':sources})
                 messages.append({'role': 'tool', 'tool_call_id': call['id'],
-                                 'content': json.dumps(output.as_dict(), ensure_ascii=False)})
+                                 'content': json.dumps(output.model_dict(), ensure_ascii=False)})
             if preparation and self.memory.rows('companion_preparations',context.owner_id,client_request_id='agent:'+context.task_id):
                 return finish_preparation()
             if pending_skill_prompt:
@@ -492,7 +518,7 @@ class TextAgent:
     def _upgrade_preparation_retry(self, owner, task, preserve_input=False):
         old=task['config_snapshot']
         research=task.get('task_kind')=='company_research' or bool(self.memory.rows('provider_runs',owner,task_id=task['id']))
-        if old.get('runtime_version') not in {'agent-runtime@10-recovery','agent-runtime@11-progress'} or not (self.preparation_requested(task['input']['content']) or research):return task
+        if old.get('runtime_version') not in {'agent-runtime@10-recovery','agent-runtime@11-progress','agent-runtime@12-research'} or not (self.preparation_requested(task['input']['content']) or research):return task
         current=self.dependency_snapshot()
         if old.get('model_digest')!=current['model_digest'] or old.get('memory_adapter')!=current['memory_adapter']:return task
         space=self._validate_workspace(owner,task)
