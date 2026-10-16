@@ -143,7 +143,7 @@ class Library:
         workspace=s.get('customer_workspace_id') if s.get('customer_confirmed_at') else None
         docs=[d for d in self.store.rows('documents',owner) if d.get('text') and ((workspace and self.spaces.allowed(owner,'document',d,workspace)) or (not workspace and (self.spaces.scope(owner,'document:'+d['id']) or {}).get('mode')=='personal'))]
         docs=[d for d in docs if self.adapter.references_status(owner,[{'source_id':'document:'+d['id'],'source_version':version(d)}],workspace)[0]['status']=='current']
-        prepared=enhance_transcript(self.store,owner,s['id'],lines)
+        prepared=enhance_transcript(self.store,owner,s['id'],lines,processor=getattr(self.business,'transcript_preparer',None))
         result=self.business.structured('从沟通原文提取有依据的常见问题及可改进/复用表达。只返回 {"items":[{"question":"问题","answer":"建议说法，不能编报价、承诺或经历","topic":"主题","segment_ids":["原文id"],"state":"improve或reusable","used_text":"原文实际说法","outcome":"unknown或positive或questioned","reason":"有具体原文依据的效果说明","document_id":"实际适用资料id或空","document_quote":"资料逐字原文或空","general_method":false}]}。最多12条。普通追问不代表失败，只有明确理解/行动才positive。未知说话人不写成用户经历。原文不足则items为空。只有可抽象为提问、澄清、确认下一步等通用方法时general_method=true，客户事实不是通用方法。',
             {'scenario':scenario,'topics':topics,'segments':[{'id':r['id'],'start_ms':r['start_ms'],'end_ms':r['end_ms'],'speaker':r.get('speaker'),'text':r['text']} for r in prepared],'documents':[{'id':d['id'],'text':d['text'][:18000]} for d in docs]},timeout_seconds=180)
         byid={r['id']:r for r in lines};added=0
