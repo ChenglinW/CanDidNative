@@ -113,7 +113,7 @@ def test_extraction_revision_dedup_and_generic_method_scope(lib,monkeypatch):
  l.store.put('marks',A,{'session_id':s['id'],'t_ms':2000},L1)
  def model(prompt,payload,**kwargs):
   assert 'user_marks_ms' not in payload and 'user_marks_ms' not in prompt
-  assert '系统标记提示·非原话：用户标记关注此处' in payload['segments'][0]['text']
+  assert payload['segments'][0]['text']==r['text'] # No model-consent: unchanged transcript fallback.
   assert payload['segments'][0]['start_ms']==0 and payload['segments'][0]['end_ms']==3000
   return {'items':[{'question':'价格怎么说？','answer':'先确认需求','topic':'价格与政策','segment_ids':[r['id']],'general_method':True}]}
  monkeypatch.setattr(l.business,'structured',model)
