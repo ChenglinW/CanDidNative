@@ -20,7 +20,7 @@ class Gateway:
     configured=True;base='https://offline.invalid';model='offline-model'
     def __init__(self):self.calls=[];self.block=False;self.ask=False;self.entered=threading.Event();self.release=threading.Event()
     def complete(self,messages,tools=True,*,on_delta=None,cancellation=None,**kwargs):
-        self.calls.append(tools)
+        self.calls.append(tools);self.last_messages=messages
         if self.ask:
             self.ask=False
             return {'role':'assistant','content':'','tool_calls':[{'id':'question-1','function':{'name':'request_input','arguments':json.dumps({'question':'目标是什么？','options':[]})}}]}
@@ -159,3 +159,11 @@ def test_http_cancel_stops_output_even_when_agent_has_already_completed(system):
     with client.websocket_connect(path) as ws:
         ws.send_json({'token':'offline-token','generation_id':value['generation_id']})
         assert ws.receive_json()['code']=='VOICE_OUTPUT_STOPPED'
+
+
+def test_spoken_answer_uses_same_grounded_task_with_short_reply_instruction(system):
+    client,agent,store,gateway,speech,thread=system
+    task=post(client,body(thread)).json();wait(agent,task['id'],'completed')
+    assert '连续语音对话的最终回答' in gateway.last_messages[-1]['content']
+    assert '姓名、数字' in gateway.last_messages[-1]['content']
+    assert any(m['content']=='收到。' for m in store.rows('chat_messages',OWNER,thread_id=thread))

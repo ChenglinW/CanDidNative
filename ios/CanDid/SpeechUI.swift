@@ -56,6 +56,8 @@ struct PendingRecording: Codable, Identifiable {
     var id: String; var path: String; var milliseconds: Int; var backendIdentity: String
 }
 
+enum SpeechPlaybackState:String {case idle,preparing,playing,paused,failed}
+
 @MainActor final class SpeechController: ObservableObject {
     @Published var recording = false
     @Published var voiceMessage = false
@@ -65,6 +67,11 @@ struct PendingRecording: Codable, Identifiable {
     @Published var uploading = false
     @Published var finishing = false
     @Published var playing = false
+    @Published private(set) var playbackState:SpeechPlaybackState = .idle
+    @Published private(set) var spokenMessage:ChatMessage?
+    var hasSpeechPlayback:Bool {playbackState != .idle}
+    private var playbackGeneration=UUID()
+    private var backgroundObserver:NSObjectProtocol?
     @Published var pending: [PendingRecording] = []
     @Published var liveSentences: [LiveRecordingSentence] = []
     @Published var liveRevision = 0
@@ -127,19 +134,23 @@ struct PendingRecording: Codable, Identifiable {
         if let data = UserDefaults.standard.data(forKey: "candid-device-capture") {
             trackedDevice = try? JSONDecoder().decode(DeviceCaptureReference.self, from: data)
         }
-        interruptedObserver=NotificationCenter.default.addObserver(forName:AVAudioSession.interruptionNotification,object:nil,queue:.main) { [weak self] _ in
+        interruptedObserver=NotificationCenter.default.addObserver(forName:AVAudioSession.interruptionNotification,object:nil,queue:.main) { [weak self] notification in
             Task { @MainActor in
                 guard let self else { return }
-                self.stopPlayback()
+                if (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt) != AVAudioSession.InterruptionType.began.rawValue {return}
+                self.pauseSpeechPlayback()
                 if self.recording && self.meetingSource != "soundcore" {
                     await self.finishCapture(); self.notice="录音被系统打断，已保存本机文件，可继续上传。"
                 }
             }
         }
+        backgroundObserver=NotificationCenter.default.addObserver(forName:UIApplication.didEnterBackgroundNotification,object:nil,queue:.main) { [weak self] _ in
+            Task { @MainActor in self?.pauseSpeechPlayback() }
+        }
         routeObserver=NotificationCenter.default.addObserver(forName:AVAudioSession.routeChangeNotification,object:nil,queue:.main) { [weak self] notification in
             let reason=(notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt) ?? 0
             if reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue {
-                Task { @MainActor in self?.stopPlayback() }
+                Task { @MainActor in self?.pauseSpeechPlayback() }
             }
         }
     }
@@ -172,7 +183,7 @@ struct PendingRecording: Codable, Identifiable {
         guard voice || store.soundcore.recordStatus == 0 else { notice="设备正在录音，请使用设备完成本场录音。"; return }
         if !voice && !store.cloudStorageAllowed { notice="请先确认录音保存与处理许可。"; return }
         meetingPreparing=true;defer { meetingPreparing=false }
-        store.stopPlayback();stopPlayback(); notice=nil; preview=""; finalSentences=[:]; liveOrder=[];liveText=[]; partial=""; seconds=0
+        if store.voice.active {store.voice.stopAnswer()};store.stopPlayback();stopPlayback(); notice=nil; preview=""; finalSentences=[:]; liveOrder=[];liveText=[]; partial=""; seconds=0
         liveSentences=[];liveRevision+=1;captionState = .idle;hasCaptionGap=false
         phonePaused=false;pausedAt=nil;totalPauseSeconds=0
         deviceRecordingUncertain=false
@@ -392,47 +403,119 @@ struct PendingRecording: Codable, Identifiable {
             await startDevice(store:store,device:device)
         } else if recording,let api=connection { await openLive(api:api,sid:sessionID) }
     }
-    func stopPlayback() { if let playbackLease {audioResources?.release(playbackLease)};playbackLease=nil;if let (api,id)=ttsJob { speechCancel=Task { _=try? await api.raw("/v1/business-jobs/"+id+"/cancel",method:"POST") };ttsJob=nil };playback?.cancel();playback=nil;player?.stop();player=nil;playing=false;paused=false }
-    func pausePlayback() { paused.toggle();if paused { player?.pause() } else { player?.play() } }
+    func stopPlayback() {
+        playbackGeneration=UUID()
+        if let playbackLease {audioResources?.release(playbackLease)};playbackLease=nil
+        if let (api,id)=ttsJob {speechCancel=Task {_=try? await api.raw("/v1/business-jobs/"+id+"/cancel",method:"POST")};ttsJob=nil}
+        playback?.cancel();playback=nil;player?.stop();player=nil;playing=false;paused=false
+        playbackState = .idle;spokenMessage=nil
+    }
+    func pauseSpeechPlayback() {
+        guard [.preparing,.playing].contains(playbackState) else{return}
+        paused=true;player?.pause();playbackState = .paused
+    }
+    func pausePlayback() {
+        guard hasSpeechPlayback else{return}
+        if playbackState == .paused {paused=false;playbackState = player == nil ? .preparing:.playing;player?.play()}
+        else {pauseSpeechPlayback()}
+    }
     func speak(_ message:ChatMessage,api:API,resources:AudioResources?=nil) {
         guard resources?.voiceActive != true else {notice="请先暂停或结束连续语音，再播放历史回答。";return}
-        stopPlayback();
+        guard !activeMeeting else {notice="会议录音期间已暂停朗读，请录音结束后播放。";return}
+        if spokenMessage?.id==message.id && [.preparing,.playing,.paused].contains(playbackState) {pausePlayback();return}
+        stopPlayback()
         if let resources {do {audioResources=resources;playbackLease=try resources.acquire(.manualSpeech)} catch {notice=error.localizedDescription;return}}
-        notice=nil;completedClips=[]
-        let ownedLease=playbackLease
+        notice=nil;completedClips=[];spokenMessage=message;playbackState = .preparing
+        let generation=playbackGeneration;let ownedLease=playbackLease
         playback=Task { [weak self] in
-            guard let self else { return }
+            guard let self else {return}
             defer {if let ownedLease {resources?.release(ownedLease)};if self.playbackLease==ownedLease {self.playbackLease=nil}}
             do {
                 await self.speechCancel?.value
                 try Task.checkCancellation()
                 let job:BusinessJob=try await api.call("/v1/chat/messages/"+message.id+"/speak",method:"POST")
-                try Task.checkCancellation();self.ttsJob=(api,job.id)
+                // Stop may win while the submission is in flight. Cancel its receipt too.
+                guard generation==self.playbackGeneration,!Task.isCancelled else {_=try? await api.raw("/v1/business-jobs/"+job.id+"/cancel",method:"POST");return}
+                self.ttsJob=(api,job.id)
                 for _ in 0..<600 {
                     try Task.checkCancellation()
                     let current:BusinessJob=try await api.call("/v1/business-jobs/"+job.id)
-                    if current.status=="failed" || current.status=="interrupted" || current.status=="cancelled" { throw PrototypeError.message(current.error ?? "播报处理未完成，文字仍可阅读。") }
+                    if current.status=="failed" || current.status=="interrupted" || current.status=="cancelled" {throw PrototypeError.message(current.error ?? "播报处理未完成，文字仍可阅读。")}
                     let outputs:[SpeechClip]=try await api.all("/v1/speech-clips?job_id="+job.id)
                     for clip in outputs.sorted(by:{$0.part<$1.part}) where !self.completedClips.contains(clip.id) {
-                        try Task.checkCancellation()
                         let raw=try await api.raw("/v1/speech/"+clip.id)
                         try Task.checkCancellation()
+                        guard generation==self.playbackGeneration else{return}
                         if let ownedLease,resources?.owns(ownedLease) != true {return}
+                        self.player=try AVAudioPlayer(data:raw)
+                        while self.paused {try Task.checkCancellation();try await Task.sleep(for:.milliseconds(50))}
+                        try Task.checkCancellation()
                         let session=AVAudioSession.sharedInstance();try session.setCategory(.playback,mode:.spokenAudio);try session.setActive(true)
-                        self.player=try AVAudioPlayer(data:raw);self.player?.play();self.playing=true
-                        while self.player?.isPlaying == true || self.paused { try Task.checkCancellation();try await Task.sleep(for:.milliseconds(100)) }
-                        self.completedClips.insert(clip.id)
+                        self.player?.play();self.playing=true;self.playbackState = .playing
+                        while self.player?.isPlaying == true || self.paused {try Task.checkCancellation();try await Task.sleep(for:.milliseconds(50))}
+                        self.completedClips.insert(clip.id);self.player=nil
+                        self.playbackState = .preparing
                     }
-                    if current.status=="completed" { self.ttsJob=nil;self.playing=false;return }
-                    try await Task.sleep(for:.milliseconds(500))
+                    if current.status=="completed" {
+                        guard generation==self.playbackGeneration else{return}
+                        self.ttsJob=nil;self.playing=false;self.playbackState = .idle;self.spokenMessage=nil;return
+                    }
+                    try await Task.sleep(for:.milliseconds(300))
                 }
                 throw PrototypeError.message("播报处理超时，文字仍可阅读。")
-            } catch is CancellationError { self.playing=false }
-            catch { self.notice=error.localizedDescription;self.playing=false }
+            } catch {
+                guard generation==self.playbackGeneration else{return}
+                if error is CancellationError {return}
+                self.notice=error.localizedDescription;self.playing=false;self.playbackState = .failed
+            }
+        }
+    }
+
+}
+struct SpeechClip:Decodable,Identifiable { var id:String;var part:Int }
+
+struct SpeechMessageButton:View {
+    @EnvironmentObject var store:Store
+    @ObservedObject var speech:SpeechController
+    let message:ChatMessage
+    private var selected:Bool {speech.spokenMessage?.id==message.id && speech.hasSpeechPlayback}
+    var body:some View {
+        Button(selected ? (speech.playbackState == .paused ? "继续朗读":speech.playbackState == .failed ? "重试朗读":"暂停朗读") : "朗读回答",systemImage:selected ? "speaker.wave.2.fill":"speaker.wave.2") {
+            store.stopPlayback();speech.speak(message,api:store.api,resources:store.audio)
+        }.font(.caption).frame(minHeight:44).accessibilityIdentifier("speak-message-"+message.id)
+    }
+}
+
+struct SpeechPlaybackBar:View {
+    @EnvironmentObject var store:Store
+    @ObservedObject var speech:SpeechController
+    private var title:String {
+        switch speech.playbackState {
+        case .preparing:return "正在准备声音"
+        case .playing:return "正在朗读回答"
+        case .paused:return "朗读已暂停"
+        case .failed:return "朗读失败，文字仍可查看"
+        case .idle:return ""
+        }
+    }
+    var body:some View {
+        if speech.hasSpeechPlayback {
+            HStack(spacing:8) {
+                Image(systemName:"speaker.wave.2").foregroundStyle(Warm.purple).accessibilityHidden(true)
+                Text(title).font(.caption).lineLimit(2)
+                Spacer(minLength:0)
+                if speech.playbackState == .failed {
+                    Button("重试") {if let message=speech.spokenMessage {speech.speak(message,api:store.api,resources:store.audio)}}.frame(minWidth:44,minHeight:44)
+                } else {
+                    Button(speech.playbackState == .paused ? "继续":"暂停") {speech.pausePlayback()}.frame(minWidth:44,minHeight:44)
+                }
+                Button("停止",systemImage:"stop.fill") {speech.stopPlayback()}.labelStyle(.iconOnly).frame(minWidth:44,minHeight:44).accessibilityLabel("停止朗读")
+            }.font(.caption).buttonStyle(.borderless).tint(Warm.purple).frame(minHeight:44)
+                .padding(.horizontal,12).background(Warm.lavender,in:RoundedRectangle(cornerRadius:14))
+                .accessibilityIdentifier("speech-playback-bar")
         }
     }
 }
-struct SpeechClip:Decodable,Identifiable { var id:String;var part:Int }
 
 struct SpeechToolbar: View {
     @EnvironmentObject var store: Store
@@ -444,7 +527,7 @@ struct SpeechToolbar: View {
                 Spacer()
                 Button {store.recordingNavigation.newMeeting = !speech.activeMeeting && store.soundcore.recordStatus==0;store.recordingNavigation.showRecorder=true} label:{Label("沟通录音",systemImage:"record.circle")}
             }.font(.caption).frame(minHeight:44)
-            if speech.playing {HStack {Button("暂停/继续") {speech.pausePlayback()};Button("停止播报") {speech.stopPlayback()}}.font(.caption).frame(minHeight:44)}
+            SpeechPlaybackBar(speech:speech)
         }.padding(.horizontal,22)
     }
 }
@@ -631,7 +714,7 @@ extension SpeechController {
         guard !recording,!finishing,!uploading,!meetingPreparing,!meetingSyncing,!deviceLiveBlocked,device.recordStatus==1,
               device.realtimeReady,let reference=trackedDevice,meetingMatches(store.api),
               device.currentFileID==reference.fileID,device.connected?.uuid==reference.deviceID else { return }
-        store.stopPlayback();stopPlayback()
+        if store.voice.active {store.voice.stopAnswer()};store.stopPlayback();stopPlayback()
         do {
             audioResources=store.audio;audioLease=try store.audio.acquire(.meeting)
             let decoder=try DevicePCMDecoder();recording=true;started=Date();seconds=device.durationMS/1000

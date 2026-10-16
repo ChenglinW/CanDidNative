@@ -384,6 +384,7 @@ struct CompanionHome: View {
   }
   private var dock: some View {
     VStack(spacing: 10) {
+      SpeechPlaybackBar(speech:store.speech)
       CompanionQuickActions(
         hasRecording: !records.isEmpty, prepare: { send("帮我准备下一场沟通。") },
         review: {

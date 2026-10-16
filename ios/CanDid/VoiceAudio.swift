@@ -39,6 +39,15 @@ final class VoiceActivityDetector {
     }
 }
 
+// A pause applies to the entire stream, including buffers arriving after the tap.
+struct SpeechPlaybackGate {
+    private(set) var paused=false
+    mutating func pause() {paused=true}
+    mutating func resume() {paused=false}
+    mutating func reset() {paused=false}
+    var canPlay:Bool {!paused}
+}
+
 // Conversion is serialized on the input tap. UI/state crosses to MainActor only with owned bytes.
 final class VoiceCapture {
     static let shared=VoiceCapture()
@@ -58,6 +67,7 @@ final class VoiceCapture {
     var capturedPCMBytes:Int {stateLock.lock();defer{stateLock.unlock()};return capturedBytes}
     private var epoch=UUID()
     private var scheduled=0
+    private(set) var playbackGate=SpeechPlaybackGate()
     private var stopped=false
     private var tapInstalled=false
     private let stateLock=NSLock()
@@ -119,18 +129,18 @@ final class VoiceCapture {
         let values=pcm.withUnsafeBytes {Array($0.bindMemory(to:Int16.self))}
         buffer.frameLength=AVAudioFrameCount(values.count)
         for i in values.indices {output[i]=Float(values[i])/32768}
-        let stamp=epoch;scheduled+=1;onPlaybackChanged?(true)
+        let stamp=epoch;scheduled+=1;if playbackGate.canPlay {onPlaybackChanged?(true)}
         player.scheduleBuffer(buffer,completionCallbackType:.dataPlayedBack) { [weak self] _ in
             Task { @MainActor in
                 guard let self,self.epoch==stamp else{return};self.scheduled=max(0,self.scheduled-1)
                 if self.scheduled==0 {self.onPlaybackChanged?(false)};completion()
             }
         }
-        if !player.isPlaying {player.play()}
+        if playbackGate.canPlay && !player.isPlaying {player.play()}
     }
-    @MainActor func stopPlayback() {epoch=UUID();scheduled=0;player.stop();onPlaybackChanged?(false)}
-    @MainActor func pausePlayback() {player.pause();onPlaybackChanged?(false)}
-    @MainActor func resumePlayback() {if scheduled>0 {player.play();onPlaybackChanged?(true)}}
+    @MainActor func stopPlayback() {epoch=UUID();scheduled=0;playbackGate.reset();player.stop();onPlaybackChanged?(false)}
+    @MainActor func pausePlayback() {playbackGate.pause();player.pause();onPlaybackChanged?(false)}
+    @MainActor func resumePlayback() {playbackGate.resume();if scheduled>0 {player.play();onPlaybackChanged?(true)}}
     @MainActor func stop() {
         stopPlayback();onFrame=nil;onError=nil
         if onMeetingFrame==nil {stopEngine()}

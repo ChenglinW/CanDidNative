@@ -49,7 +49,7 @@ struct VoiceConversationView:View {
                     Mascot(size:106)
                 }.accessibilityHidden(true)
                 Text(status).font(.title2.bold()).contentTransition(.opacity)
-                Text(voice.microphonePaused ? "点击继续后再说。" : "自然地说，停一下我就接话。\n我说话时，你也可以开口打断。")
+                Text(voice.microphonePaused ? "对话收音与播报已暂停，点击继续后再说。" : "自然地说，停一下我就接话。\n我说话时，你也可以开口打断。")
                     .font(.subheadline).foregroundStyle(RecordingFormat.secondary).multilineTextAlignment(.center).lineSpacing(5).fixedSize(horizontal:false,vertical:true)
             }.padding(.horizontal,24)
             Spacer(minLength:20)
@@ -74,9 +74,12 @@ struct VoiceConversationView:View {
                 }
                 Button("开始自由对话") {voice.enter(store:store)}.buttonStyle(RecordingPrimary()).padding(22)
             } else {
+                if voice.answering {
+                    Button("停止回答",systemImage:"stop.circle") {voice.stopAnswer()}
+                        .frame(minHeight:44).accessibilityIdentifier("voice-stop-answer")
+                }
                 HStack(spacing:28) {
-                    Button {if voice.microphonePaused {voice.resume()} else{voice.pause()}} label:{VStack(spacing:8){Image(systemName:voice.microphonePaused ? "mic":"mic.slash").font(.title2).frame(width:54,height:54).background(Warm.lavender,in:Circle());Text(voice.microphonePaused ? "继续":"静音").font(.caption)}}
-                    Button {voice.exit()} label:{VStack(spacing:8){Image(systemName:"keyboard").font(.title2).frame(width:54,height:54).background(Warm.white,in:Circle());Text("切文字").font(.caption)}}
+                    Button {if voice.microphonePaused {voice.resume()} else{voice.pause()}} label:{VStack(spacing:8){Image(systemName:voice.microphonePaused ? "mic":"mic.slash").font(.title2).frame(width:54,height:54).background(Warm.lavender,in:Circle());Text(voice.microphonePaused ? "继续对话":"暂停对话").font(.caption)}}
                     Button {voice.exit()} label:{VStack(spacing:8){Image(systemName:"xmark").font(.title2).frame(width:54,height:54).background(Warm.orange,in:Circle());Text("结束").font(.caption)}}
                 }.foregroundStyle(Warm.ink).padding(.top,25).padding(.bottom,25)
             }

@@ -542,7 +542,7 @@ struct ChatView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) { Mascot(size: 23); Text("Candid").font(.caption).foregroundStyle(.secondary) }
                 VStack(alignment: .leading, spacing: 14) {
-                    if message.incomplete != true { Button("播报",systemImage:"speaker.wave.2") { store.stopPlayback();store.speech.speak(message,api:store.api,resources:store.audio) }.font(.caption).frame(minHeight:44) }
+                    if message.incomplete != true { SpeechMessageButton(speech:store.speech,message:message) }
                     if message.incomplete == true { Label("未完成 · 已停止", systemImage: "stop.circle").font(.caption).foregroundStyle(.secondary) }
                     if let id=message.preparation_package_id {NavigationLink{CompanionPreparationPage(id:id)}label:{Label("查看会前准备包",systemImage:"doc.text")}.frame(minHeight:44).accessibilityIdentifier("chat-preparation-"+id)}
                     if let id=message.recording_id {NavigationLink{CompanionRecordingPage(id:id)}label:{Label("查看这场复盘",systemImage:"waveform")}.frame(minHeight:44).accessibilityIdentifier("chat-recording-"+id)}

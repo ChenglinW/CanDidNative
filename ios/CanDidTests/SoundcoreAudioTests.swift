@@ -1,5 +1,6 @@
 import XCTest
 import AVFoundation
+import SwiftUI
 @testable import CanDid
 
 private final class OnboardingStubProtocol: URLProtocol {
@@ -32,6 +33,87 @@ final class SoundcoreAudioTests: XCTestCase {
         XCTAssertEqual(pairs[1].following.map(\.id),["d"])
         XCTAssertEqual(pairs[0].following[0].speaker,"unknown","问答呈现不能猜测本人身份")
         XCTAssertTrue(CompanionExchange.extract([]).isEmpty)
+    }
+    @MainActor func testSpeechPauseDuringPreparationAndBetweenClips() async throws {
+        let store=Store(localDirectory:FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let controller=store.speech;let resources=store.audio
+        let folder=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+        defer {controller.stopPlayback();try? FileManager.default.removeItem(at:folder);URLProtocol.unregisterClass(OnboardingStubProtocol.self);OnboardingStubProtocol.handler=nil}
+        let file=folder.appendingPathComponent("speech.wav")
+        let format=AVAudioFormat(standardFormatWithSampleRate:24000,channels:1)!
+        let buffer=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:12000)!;buffer.frameLength=12000
+        for i in 0..<12000 {buffer.floatChannelData![0][i]=0}
+        try AVAudioFile(forWriting:file,settings:format.settings).write(from:buffer)
+        let wav=try Data(contentsOf:file)
+        var submissions=0
+        URLProtocol.registerClass(OnboardingStubProtocol.self)
+        OnboardingStubProtocol.handler={request in
+            let path=request.url!.path
+            if path.hasSuffix("/speak") {submissions+=1;return Data(#"{"id":"job","kind":"tts","object_id":"m","status":"completed"}"#.utf8)}
+            if path.hasSuffix("/speech-clips") {return Data(#"{"data":[{"id":"a","part":0},{"id":"b","part":1}],"next_cursor":null}"#.utf8)}
+            if path.contains("/speech/") {return wav}
+            return Data(#"{"id":"job","kind":"tts","object_id":"m","status":"completed"}"#.utf8)
+        }
+        let message=ChatMessage(id:"m",role:"assistant",content:"测试。",sources:[],tool_steps:[],created_at:"")
+        let api=API(base:"http://onboarding-test.invalid",token:"test")
+        controller.speak(message,api:api,resources:resources)
+        XCTAssertEqual(controller.playbackState,.preparing)
+        controller.pauseSpeechPlayback()
+        try await Task.sleep(for:.milliseconds(500))
+        XCTAssertEqual(controller.playbackState,.paused,controller.notice ?? "下载完成不能解除暂停")
+        XCTAssertFalse(controller.playing)
+        let renderer=ImageRenderer(content:SpeechPlaybackBar(speech:controller).environmentObject(store).padding(12).frame(width:402).background(Warm.paper))
+        renderer.scale=3
+        let snapshot=try XCTUnwrap(renderer.uiImage)
+        let attachment=XCTAttachment(image:snapshot);attachment.name="tts-paused-controls";attachment.lifetime = .keepAlways;add(attachment)
+        controller.speak(message,api:api,resources:resources)
+        try await Task.sleep(for:.milliseconds(100))
+        XCTAssertEqual(submissions,1,"同一消息继续不得重复提交")
+        NotificationCenter.default.post(name:UIApplication.didEnterBackgroundNotification,object:nil)
+        try await Task.sleep(for:.milliseconds(650))
+        XCTAssertEqual(controller.playbackState,.paused,"跨越下一片段仍保持暂停")
+        controller.pausePlayback()
+        try await Task.sleep(for:.milliseconds(1300))
+        XCTAssertEqual(controller.playbackState,.idle)
+        XCTAssertNil(resources.owner)
+    }
+    @MainActor func testStoppedSpeechIgnoresLateSubmissionFailures() async throws {
+        let controller=SpeechController();let resources=AudioResources()
+        defer {controller.stopPlayback();URLProtocol.unregisterClass(OnboardingStubProtocol.self);OnboardingStubProtocol.handler=nil}
+        URLProtocol.registerClass(OnboardingStubProtocol.self)
+        OnboardingStubProtocol.handler={_ in Thread.sleep(forTimeInterval:0.15);throw URLError(.cannotConnectToHost)}
+        let api=API(base:"http://onboarding-test.invalid",token:"test")
+        let first=ChatMessage(id:"first",role:"assistant",content:"第一条",sources:[],tool_steps:[],created_at:"")
+        var second=first;second.id="second"
+        controller.speak(first,api:api,resources:resources)
+        try await Task.sleep(for:.milliseconds(20))
+        controller.speak(second,api:api,resources:resources)
+        XCTAssertEqual(controller.spokenMessage?.id,"second")
+        controller.stopPlayback()
+        try await Task.sleep(for:.milliseconds(400))
+        XCTAssertEqual(controller.playbackState,.idle);XCTAssertNil(controller.spokenMessage)
+        XCTAssertNil(controller.notice,"已停止轮次的迟到错误不能覆盖当前界面")
+        XCTAssertNil(resources.owner)
+    }
+    @MainActor func testStreamPauseGatePersistsAcrossIncomingBuffersAndStop() {
+        let capture=VoiceCapture.shared
+        capture.pausePlayback()
+        XCTAssertFalse(capture.playbackGate.canPlay)
+        capture.pausePlayback()
+        XCTAssertFalse(capture.playbackGate.canPlay)
+        capture.resumePlayback()
+        XCTAssertTrue(capture.playbackGate.canPlay)
+        capture.pausePlayback();capture.stopPlayback()
+        XCTAssertTrue(capture.playbackGate.canPlay,"新一代播放不继承旧暂停")
+    }
+    @MainActor func testSharedMeetingLeaseSurvivesVoiceRelease() throws {
+        let resources=AudioResources()
+        let meeting=try resources.acquire(.meeting);let voice=try resources.acquire(.voice)
+        XCTAssertThrowsError(try resources.acquire(.manualSpeech))
+        resources.release(voice)
+        XCTAssertTrue(resources.owns(meeting));XCTAssertFalse(resources.voiceActive)
+        resources.release(meeting);XCTAssertNil(resources.owner)
     }
     @MainActor func testSentencePlaybackSeeksStopsAtEndAndRestarts() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

@@ -107,7 +107,7 @@ struct RecordingShell: View {
     @State private var keyboardVisible=false
     var body: some View {
         TabView(selection:$navigation.section) {
-            destination(.chat) { CompanionHome(onSettings:onSettings) }
+            destination(.chat) { CompanionHome(onSettings:{speech.pauseSpeechPlayback();onSettings()}) }
                 .tabItem { Label("Candid",systemImage:"bubble.left") }.tag(CandidSection.chat)
             destination(.memory) { CompanionMemory() }
                 .tabItem { Label("记忆库",systemImage:"book") }.tag(CandidSection.memory)
@@ -115,6 +115,8 @@ struct RecordingShell: View {
                 .tabItem { Label("录音",systemImage:"mic") }.tag(CandidSection.recordings)
         }
         .background(Warm.paper)
+        .onChange(of:navigation.section) {_,value in if value != .chat {speech.pauseSpeechPlayback()} }
+        .onChange(of:navigation.visibleDetails) {_,value in if !value.isEmpty {speech.pauseSpeechPlayback()} }
         .fullScreenCover(isPresented:$navigation.showRecorder) {
             NavigationStack { LiveRecordingView(speech:speech,device:device,navigation:navigation).environmentObject(store) }
                 .preferredColorScheme(.light).tint(Warm.purple).fontDesign(.rounded).foregroundStyle(Warm.ink)

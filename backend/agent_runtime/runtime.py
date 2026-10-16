@@ -221,7 +221,12 @@ class TextAgent:
                 if not context.voice or committed:
                     self.tasks.text(context,text)
                 if committed: committed.push(text)
-            result = self.gateway.complete(messages, tools=enabled and bool(schemas), schemas=schemas,
+            # Spoken replies are the same persisted text, grounded in the same tool results.
+            # Reports live in saved artifacts; do not run a separate free-form summary model.
+            output_messages=messages
+            if context.voice and not enabled:
+                output_messages=[*messages,{'role':'system','content':'这是连续语音对话的最终回答，请用适合听的自然短句回应，通常先讲两三句重点。已有实际保存的准备包或复盘报告时，先讲重点并提示可以打开查看；没有保存报告时不能声称已有报告。用户要求详细讲时可以展开。姓名、数字、承诺、结论及不确定条件必须与工具结果一致。不要念网址、引用编号、Markdown 标记或内部工具过程。不要为了简短漏掉关键限制。'}]
+            result = self.gateway.complete(output_messages, tools=enabled and bool(schemas), schemas=schemas,
                                            timeout_seconds=min(remaining, budget.model_timeout_seconds),
                                            cancellation=context.cancellation,
                                            on_delta=delta)

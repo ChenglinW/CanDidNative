@@ -55,3 +55,7 @@ sudo journalctl -u candid-cert-renew -n 30 --no-pager
 ## HTML 还原配套字段（2026-10-16）
 
 本轮在原 V2 release 上复制发布目录，只替换 `tools/companion_tools.py` 并更新对应测试。新增可选 participants，仅保存用户对话里出现的原话片段；旧准备包与旧客户端继续兼容。目标服务器相关测试 20 项通过，本地完整后端测试 166 项通过；原库使用 SQLite backup API 备份到 `/var/backups/candid-before-ui-fidelity.sqlite3`，检查完整性为 ok。切换后 candid active，回环与公网正常 TLS `/health` 均正常。未迁移数据目录或供应商配置。原生 UI、逐句回听和验收见 [本轮报告](../../docs/ui-fidelity/REPORT.md)。
+
+## 2026-10-16 TTS 更新
+
+在现有 release 上更新 `app.py`、`agent_runtime/runtime.py`、`tasks/recordings.py`，补充口语最终回答和按正文／模型／音色／策略区分缓存。三个文件的旧版本备份在 `/opt/candid/rollback/20261016-tts`；数据、环境变量和凭证不变。服务重启、health 及真实供应商音频输出已核对，见 [TTS 交付](../../docs/tts-playback/REPORT.md)。

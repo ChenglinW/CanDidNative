@@ -41,6 +41,7 @@ private final class VoiceInput {
     @Published private(set) var notice:String?
     @Published private(set) var recoveries:[VoiceRecovery]=[]
     @Published private(set) var microphonePaused=false
+    @Published private(set) var answering=false
     private weak var store:Store?
     private var api:API?
     private var thread:String?
@@ -91,7 +92,10 @@ private final class VoiceInput {
         #if DEBUG
         if ProcessInfo.processInfo.environment["CANDID_INITIAL_SCREEN"]=="voice" {showContinuous=true}
         #endif
-        observer=NotificationCenter.default.addObserver(forName:AVAudioSession.interruptionNotification,object:nil,queue:.main) { [weak self] _ in Task { @MainActor in self?.pause(reason:"语音被系统打断，点击继续后再说。") } }
+        observer=NotificationCenter.default.addObserver(forName:AVAudioSession.interruptionNotification,object:nil,queue:.main) { [weak self] notification in
+            guard (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt)==AVAudioSession.InterruptionType.began.rawValue else{return}
+            Task { @MainActor in self?.pause(reason:"语音被系统打断，点击继续后再说。") }
+        }
         routeObserver=NotificationCenter.default.addObserver(forName:AVAudioSession.routeChangeNotification,object:nil,queue:.main) { [weak self] notification in
             let reason=(notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt) ?? 0
             if [AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue,AVAudioSession.RouteChangeReason.newDeviceAvailable.rawValue].contains(reason) {
@@ -140,7 +144,7 @@ private final class VoiceInput {
                 microphone.onPlaybackChanged={ [weak self] playing in
                     guard let self,self.epoch==stamp else{return};self.isPlaying=playing
                     if playing && input==nil {phase = .speaking}
-                    else if !playing && outputFinished && input==nil && mode != nil {phase = .listening}
+                    else if !playing && outputFinished && input==nil && mode != nil {answering=false;phase = .listening}
                 }
                 try microphone.start();UIImpactFeedbackGenerator(style:.light).impactOccurred();mark("capture_started")
                 guard scopeValid(stamp) else{microphone.stop();releaseAudio();return}
@@ -264,10 +268,10 @@ private final class VoiceInput {
             if epoch==stamp {notice="发送结果未确认，已保留这句话；请核对后继续。";phase = .failed}
         }
     }
-    private func interruptReply() {
-        stopOutput()
+    private func interruptReply(clearResponse:Bool=true) {
+        stopOutput();answering=false
         guard let reply,reply.epoch==epoch,let api,let thread else{self.reply=nil;return}
-        pendingCancel.insert(reply.request);cancelledRequests.insert(reply.request);if cancelledRequests.count>256 {cancelledRequests=[reply.request]};self.reply=nil;response="";mark("barge_stopped")
+        pendingCancel.insert(reply.request);cancelledRequests.insert(reply.request);if cancelledRequests.count>256 {cancelledRequests=[reply.request]};self.reply=nil;if clearResponse {response=""};mark("barge_stopped")
         Task {
             if (try? await api.raw("/v1/voice/threads/"+thread+"/requests/"+reply.request.uuidString+"/cancel",method:"POST")) != nil {pendingCancel.remove(reply.request)}
             else if epoch==reply.epoch {notice="本机已停止播报，服务器取消尚未确认；新输入仍会保留。"}
@@ -275,6 +279,10 @@ private final class VoiceInput {
     }
     private func startOutput(task:AgentTask,generation:UUID,stamp:UUID) {
         stopOutput();outputFinished=false;response="";phase = .thinking
+        guard store?.speech.activeMeeting != true,store?.soundcore.recordStatus==0 else {
+            answering=false;phase = .listening;notice="会议录音中，回答以文字显示。";return
+        }
+        answering=true
         guard let api else{return}
         do {
             var components=URLComponents(url:try api.url("/v1/voice/output/"+task.id),resolvingAgainstBaseURL:false)!
@@ -301,16 +309,20 @@ private final class VoiceInput {
                                 outputControl=Task {await previous?.value;try? await socket.send(.string("{\"type\":\"played\",\"seq\":\(seq)}"))}
                             }
                         }
-                        if event["type"] as? String=="finished" {outputFinished=true;if !isPlaying && input==nil {phase = .listening};return}
+                        if event["type"] as? String=="finished" {outputFinished=true;if !isPlaying && input==nil {answering=false;phase = .listening};return}
                     }
-                } catch {if scopeValid(stamp),reply?.generation==generation {notice=error.localizedDescription;stopOutput();if input==nil {phase = .listening}}}
+                } catch {if scopeValid(stamp),reply?.generation==generation {notice=error.localizedDescription;answering=false;stopOutput();if input==nil {phase = .listening}}}
             }
         } catch {notice=error.localizedDescription}
     }
     private func stopOutput() {outputTask?.cancel();outputControl?.cancel();output?.cancel(with:.goingAway,reason:nil);output=nil;capture?.stopPlayback();isPlaying=false;candidatePaused=false;audioBytes=0}
     private func releaseAudio(keepCapture:Bool=false) {if let lease {store?.audio.release(lease)};lease=nil;if !keepCapture {capture=nil};vad=nil}
+    func stopAnswer() {
+        interruptReply(clearResponse:false)
+        if mode == .continuous && !microphonePaused {phase = .listening;notice="已停止回答，继续听你说。"}
+    }
     func pause(reason:String?=nil) {
-        guard active else{return};epoch=UUID();beginTask?.cancel();holding=false
+        guard active else{return};interruptReply(clearResponse:false);epoch=UUID();beginTask?.cancel();holding=false
         if let input,!input.committed {preserve(input,text:input.preview,request:nil,unknown:false);input.segments.forEach{$0.abort()};self.input=nil}
         segments.values.forEach{$0.cancel()};segments=[:];stopOutput();capture?.stop();releaseAudio();microphonePaused=true;phase = .paused;notice=reason
         if mode == .hold {mode=nil}

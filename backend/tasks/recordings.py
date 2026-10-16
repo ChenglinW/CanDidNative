@@ -203,6 +203,9 @@ class Recordings:
             ids=Product(self.store,self.business).discovery_candidates(owner,domain.thread(owner)['workspace_id'],candidates)
         return {'discovery_ids':ids}
 
+    def speech_version(self,message):
+        return hashlib.sha256(json.dumps([message['content'],self.speech.tts_model,self.speech.voice,'verbatim-v2-wav24k'],ensure_ascii=False).encode()).hexdigest()
+
     def tts(self,owner,job):
         message=self.store.get('chat_messages',owner,job['object_id'])
         if message['role']!='assistant' or message.get('incomplete') or message.get('status') in {'incomplete','cancelled'}:
@@ -216,16 +219,16 @@ class Recordings:
                 if len(current)+len(part)>800:groups.append(current);current=''
                 current+=part
         if current:groups.append(current)
-        clips=[]
+        clips=[];cache_version=self.speech_version(message)
         folder=self.store.root/owner/'tts';folder.mkdir(parents=True,exist_ok=True)
         for number,text in enumerate(groups):
-            prior=next((s for s in self.store.rows('speech_outputs',owner,message_id=message['id']) if s.get('part')==number),None)
+            prior=next((s for s in self.store.rows('speech_outputs',owner,message_id=message['id']) if s.get('part')==number and s.get('cache_version')==cache_version),None)
             if prior:clips.append(prior['id']);continue
             raw,usage=self.speech.synthesize(text,lambda:self.business.guard(owner,job))
             with self.store.transaction(owner):
                 self.business.guard(owner,job)
                 identifier=ident();path=folder/(identifier+'.wav');path.write_bytes(raw);path.chmod(0o600)
                 row=self.store.put('speech_outputs',owner,{'id':identifier,'message_id':message['id'],'job_id':job['id'],'part':number,
-                    'storage_path':str(path.relative_to(self.store.root)),'model':self.speech.tts_model,'voice':self.speech.voice,'usage':usage},L1,source='device')
+                    'cache_version':cache_version,'storage_path':str(path.relative_to(self.store.root)),'model':self.speech.tts_model,'voice':self.speech.voice,'usage':usage},L1,source='device')
                 clips.append(row['id'])
         return {'clip_ids':clips,'model':self.speech.tts_model,'voice':self.speech.voice}

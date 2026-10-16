@@ -867,9 +867,9 @@ def revise_recording_transcript(id:str,body:RecordingRevisionIn,uid=Depends(owne
 
 @app.post('/v1/chat/messages/{id}/speak')
 def speak_message(id:str,uid=Depends(owner)):
-    store.get('chat_messages',uid,id)
+    message=store.get('chat_messages',uid,id)
     speech.check()
-    job=business.submit(uid,'tts',id,speech.tts_model+':'+speech.voice)
+    job=business.submit(uid,'tts',id,recordings.speech_version(message))
     return business.retry(uid,job['id']) if job['status'] in {'failed','interrupted','cancelled'} else job
 
 @app.get('/v1/speech/{id}')
