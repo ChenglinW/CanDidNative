@@ -107,8 +107,9 @@ class TextAgent:
                 'tasks':[self.tasks.public(t) for t in tasks]}
 
     def dependency_snapshot(self):
-        model = {'provider': 'anker', 'model': self.gateway.model,
-                 'endpoint': public_endpoint(self.gateway.base), 'version': 'anker-chat@2'}
+        provider = getattr(self.gateway, 'provider', 'anker')
+        model = {'provider': provider, 'model': self.gateway.model,
+                 'endpoint': public_endpoint(self.gateway.base), 'version': provider+'-chat@2'}
         return {'runtime_version': self.config.version, 'model': model, 'model_digest': fingerprint(model),
                 'tools': self.registry.snapshot(), 'base_rules_digest': fingerprint(BASE_RULES),
                 'memory_adapter': {'name': self.memory_adapter.name,
@@ -624,7 +625,7 @@ class TextAgent:
                         'thread_id':task['thread_id'],'role':'assistant','content':task['partial_text'],
                         'client_request_id':task['client_request_id'],'sources':[],
                         'tool_steps':task.get('visible_steps',[]),'task_id':task_id,'turn_id':task['turn_id'],
-                        'attempt':task['attempt'],'producer':'anker:'+self.gateway.model,'model':self.gateway.model,
+                        'attempt':task['attempt'],'producer':getattr(self.gateway,'provider','anker')+':'+self.gateway.model,'model':self.gateway.model,
                         'incomplete':True,'excluded_from_summary':True},L1,source='ai')
                     refs.append({'kind':'incomplete_chat_message','id':message['id']})
                 error = {'code':'AGENT_CANCELLED','message':'已停止生成','retryable':True}
@@ -715,12 +716,12 @@ class TextAgent:
                     answer = self.memory.put('chat_messages',owner,{
                         'thread_id':thread_id,'role':'assistant','content':content,'client_request_id':task['client_request_id'],
                         'sources':sources,'tool_steps':user_steps,'task_id':task_id,'turn_id':task['turn_id'],'attempt':attempt,'workspace_id':context.workspace_id,
-                        'producer':'anker:'+self.gateway.model,'model':self.gateway.model,'incomplete':False},L1,source='ai')
+                        'producer':getattr(self.gateway,'provider','anker')+':'+self.gateway.model,'model':self.gateway.model,'incomplete':False},L1,source='ai')
                     if any(s.get('material_kind')=='public_company' for s in sources):
                         self.memory.put('agent_sources',owner,{'title':'公司沟通资料 · '+self.workspaces.get(owner,context.workspace_id)['name'],
                             'text':content,'material_kind':'ai_suggestion','reading_range':'ai_report','status':'active',
                             'workspace_id':context.workspace_id,'task_id':task_id,'message_id':answer['id'],
-                            'producer':'anker/'+self.gateway.model,'rubric_version':'research-report@1','acquired':True,
+                            'producer':getattr(self.gateway,'provider','anker')+'/'+self.gateway.model,'rubric_version':'research-report@1','acquired':True,
                             'evidence_refs':reference_set(sources)},'L2_inferred',source='ai')
                     self.tasks.finish(owner,task_id,answer)
                     self.tasks.update(owner,task_id,{'tool_steps':steps,'visible_steps':user_steps})

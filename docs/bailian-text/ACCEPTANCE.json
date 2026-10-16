@@ -1,0 +1,51 @@
+{
+  "provider": "dashscope",
+  "model": "qwen3.8-max",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "enable_thinking": false,
+  "tested_callable_models": [
+    "qwen3.8-max",
+    "qwen3.7-plus",
+    "qwen3.8-flash"
+  ],
+  "regression_tests": 70,
+  "real_workflow": {
+    "steps": [
+      {
+        "kind": "preparation",
+        "seconds": 12.56
+      },
+      {
+        "kind": "review",
+        "seconds": 16.78
+      },
+      {
+        "kind": "faq",
+        "seconds": 23.4
+      }
+    ],
+    "saved_faq": 7,
+    "raw_unchanged": true,
+    "personal_memory_writes": 0
+  },
+  "wire_smoke": [
+    {
+      "kind": "stream",
+      "seconds": 0.86,
+      "text": "连接成功",
+      "chunks": 2
+    },
+    {
+      "kind": "tool_call",
+      "seconds": 1.13,
+      "tool": "lookup_customer"
+    }
+  ],
+  "unchanged_files": [
+    "backend/tasks/business.py",
+    "backend/tasks/recordings.py",
+    "backend/memory_library.py",
+    "backend/recording_marks.py",
+    "backend/transcript_enrichment.py"
+  ]
+}

@@ -1,4 +1,4 @@
-"""Existing Anker text gateway; new model selection remains explicit."""
+"""Server-only OpenAI-compatible text providers; no cross-provider fallback."""
 import os
 import json
 import time
@@ -23,9 +23,17 @@ def visible_prefix(text):
 
 class Gateway:
     def __init__(self):
-        self._key = os.environ.get('ANKER_AI_API_KEY', '')
-        self.base = os.environ.get('ANKER_AI_BASE_URL', 'https://ai-router-cn-pub.anker-in.com').rstrip('/')
-        self.model = os.environ.get('ANKER_AI_MODEL', 'hackathon/v_model/deepseek-v4-pro')
+        self.provider = os.environ.get('CANDID_TEXT_PROVIDER', 'anker').strip().lower()
+        if self.provider == 'dashscope':
+            self._key = os.environ.get('DASHSCOPE_API_KEY', '')
+            self.base = os.environ.get('DASHSCOPE_TEXT_BASE_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1').rstrip('/')
+            self.model = os.environ.get('DASHSCOPE_TEXT_MODEL', 'qwen3.8-max')
+        elif self.provider == 'anker':
+            self._key = os.environ.get('ANKER_AI_API_KEY', '')
+            self.base = os.environ.get('ANKER_AI_BASE_URL', 'https://ai-router-cn-pub.anker-in.com').rstrip('/')
+            self.model = os.environ.get('ANKER_AI_MODEL', 'hackathon/v_model/deepseek-v4-pro')
+        else:
+            raise ValueError('Unsupported CANDID_TEXT_PROVIDER')
 
     @property
     def configured(self):
@@ -34,8 +42,11 @@ class Gateway:
     def complete(self, messages, tools=True, *, schemas=None, timeout_seconds=90, max_tokens=4096, cancellation=None, on_delta=None):
         if not self.configured:
             raise Fault('AGENT_NOT_CONFIGURED', '文本 Agent 尚未配置模型网关 Key', 503)
-        payload = {'model': self.model, 'messages': messages, 'max_tokens': max_tokens,
-                   'thinking': {'type': 'disabled'}}
+        payload = {'model': self.model, 'messages': messages, 'max_tokens': max_tokens}
+        if self.provider == 'dashscope':
+            payload['enable_thinking'] = False
+        else:
+            payload['thinking'] = {'type': 'disabled'}
         if tools:
             if schemas is None:
                 from tools.memory_tools import DEFINITIONS
