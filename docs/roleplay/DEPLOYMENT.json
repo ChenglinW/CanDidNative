@@ -1,0 +1,16 @@
+{
+  "provider": "dashscope",
+  "model": "deepseek-v4-pro",
+  "integrity": "ok",
+  "downstream_prompts_unchanged": true,
+  "release": "20261017-roleplay",
+  "source_commit": "31966da",
+  "local_and_public_api_checks": "passed",
+  "server_backend_tests": 379,
+  "migration_trial_original_records_unchanged": true,
+  "existing_user_edits_preserved": true,
+  "production_record_counts_unchanged": true,
+  "backup_created": true,
+  "iphone_install": "success",
+  "iphone_launch": "success"
+}

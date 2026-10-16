@@ -56,5 +56,12 @@
   },
   "native_ui_flows_passed": 2,
   "native_ui_final_result": "Roleplay-Shipping.xcresult: 2 passed",
-  "recording_and_faq_prompts_unchanged": true
+  "recording_and_faq_prompts_unchanged": true,
+  "physical_device": {
+    "model": "iPhone 15 Pro",
+    "installation": "success",
+    "launch": "success",
+    "process_id": 8234,
+    "physical_microphone_acoustic_test": false
+  }
 }
