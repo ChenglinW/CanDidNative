@@ -12,7 +12,8 @@
         "ios/CanDid/VoiceViews.swift",
         "ios/CanDid/ChatView.swift",
         "ios/CanDid/Onboarding.swift",
-        "ios/CanDid/VoiceSession.swift"
+        "ios/CanDid/VoiceSession.swift",
+        "ios/CanDid/MemoryLibrary.swift"
       ],
       "nativeUnits": "All geometry in DESIGN.md is native logical points; component HTML/CSS previews use the same numeric CSS px values as an illustrative translation, not physical CSS pt.",
       "previewBoundary": "Static component previews preserve extracted color and geometry. They do not reproduce Dynamic Type, SF Symbols, Apple semantic colors, native navigation, hit testing or SwiftUI lifecycle behavior. No web hover/focus states are invented.",
@@ -184,6 +185,22 @@
       "home-header": {
         "typeCap": "...DynamicTypeSize.xxxLarge",
         "microphone": "Fixed 17pt symbol inside 44×44pt circular button."
+      },
+      "memory-library": {
+        "tabs": [
+          "我",
+          "FAQ",
+          "背景资料"
+        ],
+        "layout": "CompanionPageHeader 23pt title and 44pt upload hit area; solid CompanionTabs outside ScrollView, including empty library; 18pt body padding and 700pt maximum width. Root TabView unchanged. Main reading-column VStack explicitly fills available width with leading alignment.",
+        "me": "Near-white metrics card, lavender discovery card, profile and story/material rows. Purple trend line/points; per-session text remains available. Metrics detail filters sales/interview. Concentrated confirmation/profile entries and per-session metric records expose full-row contentShape hit regions.",
+        "faq": "Native rounded search; warm-orange improve panel shows first two by default; topic/question menu; full-row NavigationLink. Lavender current-saying panel; versions, source playback, document linking, reminder toggle and separate Mock records. Document references show readable titles and push LibraryLinkedDocument; superseded/removed references explain current availability.",
+        "states": "expression_state improve/reusable, evidence_state ready/missing/changed/expired and effect_state untried/positive/questioned are independent. Row label prioritizes expired, changed, improve, positive, then untried; missing evidence is explained in detail. Editing does not validate evidence or effectiveness.",
+        "metricsBoundary": "One eligible recording gives single-session data, three show trends, six enable non-overlapping first-three/latest-three comparison. Weighted self-segment duration; transcript-estimated pace/fillers and claimed-speaker coverage, no precise acoustic pauses or radar score.",
+        "practiceBoundary": "Text or existing speech-to-text input; independent practice records and retries. Model feedback or saved suggestion does not count as real-world use. Successful saving uses a separate purple notice; errors retain red feedback.",
+        "documents": "Version/status rows; detail includes change summary, retry pending sync, original file, replacement, per-page source/review warning, history restore and removal. Apple Vision locally recognizes supported PDF/images; original files still upload and remain retained.",
+        "scopeBoundary": "Legacy FAQ inherits asset scope; replacement synchronization inherits old document scope. Private customer facts stay scoped; separately shared general-method material does not publish its private provenance.",
+        "emptyLoadingError": "Persistent tabs/upload, initial progress, reread on load failure, source-gap/empty/search states and import errors. No production seed from reference HTML. Failed/interrupted document-sync jobs offer 继续整理 from 我."
       }
     },
     "assetProvenance": [
@@ -209,8 +226,8 @@
     ],
     "documentationUpdate": {
       "date": "2026-10-16",
-      "scope": "Authorized merge of independent customer workspace UI from docs/workspace-ui/BRIEF.md and current source. Unrelated tokens and historical evidence retained.",
-      "evidenceBoundary": "This documenter performed static consistency checks only. Initial review captures predated fixes; main task reports refreshed AcceptedPhone/AcceptedTablet captures at the original review paths. Current visual verdict belongs to docs/workspace-ui/UI_REVIEW.md. Functional/build results are attributed to the main task in docs/workspace-ui/DESIGN_UPDATE.md."
+      "scope": "Authorized scoped merge of memory library 我/FAQ/背景资料 from docs/memory-library/BRIEF.md and current SwiftUI/backend source. Warm, root navigation and unrelated tokens/history retained.",
+      "evidenceBoundary": "This documenter performed static source/document and JSON consistency checks only. No app run, build, tests, screenshots, provider or hardware validation performed; docs/memory-library/DESIGN_UPDATE.md records boundaries. Earlier workspace evidence remains in docs/workspace-ui/DESIGN_UPDATE.md."
     }
   },
   "components": [
@@ -296,7 +313,7 @@
   ],
   "narrative": {
     "northStar": "Warm 原生沟通界面",
-    "overview": "本文件记录已批准的 Warm 原生实现，沿用已有 Warm 配色、系统圆角字体和紫色双气泡 Mascot。少量信息、清楚的正文层级、浅色圆角容器与原生控件构成持续的沟通界面；页面策略以 `PRODUCT.md` 与 `docs/workspace-ui/BRIEF.md` 为准。\n\n应用主体、会议录音全屏页与连续语音页均使用 Warm 浅色世界。深度主要通过色面、留白与轻描边表达，导航、安全区、sheet、系统材料和 SF Symbols 由平台提供。独立客户对话使用原生 push/back；准备包切换与语音状态变化尊重 Reduce Motion。",
+    "overview": "本文件记录已批准的 Warm 原生实现，沿用已有 Warm 配色、系统圆角字体和紫色双气泡 Mascot。少量信息、清楚的正文层级、浅色圆角容器与原生控件构成持续的沟通界面；页面策略以 `PRODUCT.md`、`docs/workspace-ui/BRIEF.md` 与 `docs/memory-library/BRIEF.md` 为准。\n\n应用主体、会议录音全屏页与连续语音页均使用 Warm 浅色世界。深度主要通过色面、留白与轻描边表达，导航、安全区、sheet、系统材料和 SF Symbols 由平台提供。独立客户对话使用原生 push/back；准备包切换与语音状态变化尊重 Reduce Motion。",
     "keyCharacteristics": [
       "米白页面、近白内容、淡紫准备色面、紫色交互与暖橙主要动作。",
       "系统圆角语义文字、原生三目的地和可访问的安全区布局。",

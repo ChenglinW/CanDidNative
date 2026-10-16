@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 import module_spplinkKit
 import AVFoundation
@@ -5,6 +6,7 @@ import SwiftUI
 @testable import CanDid
 
 private final class OnboardingStubProtocol: URLProtocol {
+
     static var handler: ((URLRequest) throws -> Data)?
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "onboarding-test.invalid" }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -19,6 +21,24 @@ private final class OnboardingStubProtocol: URLProtocol {
 }
 
 final class SoundcoreAudioTests: XCTestCase {
+    func testNativeVisionReadsImageAndMixedPDFPages() throws {
+        let image=UIGraphicsImageRenderer(size:CGSize(width:1000,height:500)).image {ctx in
+            UIColor.white.setFill();ctx.fill(CGRect(x:0,y:0,width:1000,height:500))
+            ("Delivery 3 weeks\nPrice 180000" as NSString).draw(at:CGPoint(x:60,y:80),withAttributes:[.font:UIFont.systemFont(ofSize:42),.foregroundColor:UIColor.black])
+        }
+        let result=try NativeDocumentOCR.recognizeImage(image)
+        XCTAssertTrue(result.0.contains("180000"));XCTAssertTrue(result.0.lowercased().contains("delivery"))
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pdf")
+        defer {try? FileManager.default.removeItem(at:url)}
+        let pdf=UIGraphicsPDFRenderer(bounds:CGRect(x:0,y:0,width:600,height:800))
+        try pdf.writePDF(to:url) {ctx in
+            ctx.beginPage();("Text page" as NSString).draw(at:CGPoint(x:40,y:80),withAttributes:[.font:UIFont.systemFont(ofSize:32)])
+            ctx.beginPage();image.draw(in:CGRect(x:0,y:30,width:600,height:300))
+        }
+        let pages=try NativeDocumentOCR.recognize(url)
+        XCTAssertEqual(pages.count,2);XCTAssertTrue((pages[1]["text"] as? String ?? "").contains("180000"))
+    }
+
     func testCustomerPreparationOrderingUsesMeetingTimeThenCreationAndKeepsOverdueVisible() throws {
         func pack(_ id:String,_ meeting:String?,_ created:String)->CompanionPreparation {
             CompanionPreparation(id:id,client:id,goal:"试点",scenario:"sales",scheduled_at:meeting,sections:[],status:"ready",version:1,created_at:created)

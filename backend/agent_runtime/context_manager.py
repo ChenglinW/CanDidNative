@@ -107,6 +107,9 @@ class ContextManager:
                 start=len(row['text'])-9500
                 item.update(text='实时字幕快照尾部，未经校准，未认领说话人：\n'+row['text'][start:],offset=start,text_truncated=True)
             retrieval['items']=[item,*retrieval.get('items',[])]
+        from .runtime import TextAgent
+        if TextAgent.preparation_requested(input_text):
+            retrieval['items']=[item for item in retrieval.get('items',[]) if item.get('remind') is not False]
         # Include only items that fit; source numbering is assigned before the model sees them.
         chosen, used = [], 0
         for item in retrieval.get('items', []):

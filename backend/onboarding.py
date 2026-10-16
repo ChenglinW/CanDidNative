@@ -73,11 +73,11 @@ class Onboarding:
                          'error': job.get('error'), 'job_id': job.get('id')})
         return rows
 
-    def intake(self, owner, filename, raw):
+    def intake(self, owner, filename, raw, native_ocr=False):
         self.store.check_owner(owner)
         name = Path(filename).name[:180]
         extension = Path(name).suffix.lower()
-        if extension not in {'.pdf', '.docx', '.pptx', '.txt', '.md'}: raise Fault('FILE_TYPE_UNSUPPORTED', '请选择 PDF、DOCX、PPTX、TXT 或 Markdown 文件', 422)
+        if extension not in {'.pdf', '.docx', '.pptx', '.txt', '.md', '.jpg', '.jpeg', '.png', '.heic'}: raise Fault('FILE_TYPE_UNSUPPORTED', '请选择 PDF、DOCX、PPTX、TXT 或 Markdown 文件', 422)
         if not raw: raise Fault('FILE_EMPTY', '文件为空，请重新选择', 422)
         if len(raw) > 25_000_000: raise Fault('UPLOAD_TOO_LARGE', '单份文件最多 25 MB', 413)
         digest = hashlib.sha256(raw).hexdigest()
@@ -89,7 +89,7 @@ class Onboarding:
             target = folder/(id+extension); target.write_bytes(raw); target.chmod(0o600)
             self.store.put('documents', owner, {'id': id, 'title': name, 'sha256': digest, 'extension': extension,
                 'storage_path': str(target.relative_to(self.store.root)), 'material_kind': 'onboarding_original',
-                'status': 'active', 'acquired': False}, L1)
+                'status': 'active', 'acquired': False, 'native_ocr':native_ocr}, L1)
             self.business.submit(owner, 'onboarding_document', id)
             return next(x for x in self.documents(owner) if x['id'] == id)
 
@@ -100,8 +100,14 @@ class Onboarding:
             if self.removed(owner, original['id']): raise Fault('DOCUMENT_REMOVED', '这份资料已移除', 409)
         raw = (self.store.root/original['storage_path']).read_bytes()
         pages = []
+        ocr=next(iter(self.store.rows('document_ocr',owner,original_id=original['id'])),None)
         try:
-            if original['extension'] == '.pdf':
+            if ocr:
+                pages=ocr['pages'];text='\n\n'.join('[第'+str(p['page'])+'页'+(' · OCR部分内容待核对' if p.get('review_required') else '')+']\n'+p['text'] for p in pages);meaningful=bool(text.strip())
+            elif original['extension'] in {'.jpg','.jpeg','.png','.heic'}:
+                return {'needs_ocr':True,'document_id':original['id']}
+            elif original['extension'] == '.pdf':
+                if original.get('native_ocr'):return {'needs_ocr':True,'document_id':original['id']}
                 from document_text import pdf_text
                 text, pages = pdf_text(raw)
                 meaningful = True
@@ -138,13 +144,45 @@ class Onboarding:
             self.business.guard(owner, job)
             if self.removed(owner, original['id']): raise Fault('DOCUMENT_REMOVED', '这份资料已移除', 409)
             prior = self.store.rows('documents', owner, onboarding_original_id=original['id'])
-            parsed = prior[0] if prior else self.store.put('documents', owner, {'title': original['title'], 'text': text, 'pages': pages,
-                'sha256': original['sha256'], 'status': 'active', 'acquired': True, 'version': 1,
+            signature=hashlib.sha256(str(ocr['pages']).encode()).hexdigest() if ocr else 'text@1'
+            parsed = next((p for p in prior if p.get('extraction_signature','text@1')==signature),None)
+            parsed = parsed if parsed else self.store.put('documents', owner, {'title': original['title'], 'text': text, 'pages': pages,
+                'sha256': original['sha256'], 'status': 'active', 'acquired': True, 'version': len(prior)+1, 'extraction_signature':signature,
                 'onboarding_original_id': original['id'], 'material_kind': 'user_document', 'reading_range': 'user_document'}, L1)
             # Original bytes remain immutable; only extracted user evidence gets personal scope.
             scope = self.business.workspaces.scope(owner, 'document:'+parsed['id'])
-            if not scope: self.business.workspaces.set_scope(owner, 'document:'+parsed['id'], 'personal', [], 0)
+            if not scope:
+                old_scope=self.business.workspaces.scope(owner,'document:'+prior[0]['id']) if prior else None
+                self.business.workspaces.set_scope(owner, 'document:'+parsed['id'], old_scope['mode'] if old_scope else 'personal', old_scope['workspace_ids'] if old_scope else [], 0)
             return {'document_id': parsed['id'], 'characters': len(text), 'processing': 'local_text_extraction'}
+
+    def ocr(self, owner, id, payload):
+        with self.store.transaction(owner):
+            original=self.store.get('documents',owner,id)
+            if self.removed(owner,id):raise Fault('DOCUMENT_REMOVED','资料已移除',409)
+            if original['sha256']!=payload['sha256']:raise Fault('DOCUMENT_CHANGED','文件版本不匹配',409)
+            pages=payload['pages']
+            if len({p['page'] for p in pages})!=len(pages):raise Fault('OCR_PAGE_INVALID','页码重复',422)
+            expected=1
+            if original['extension']=='.pdf':
+                from pypdf import PdfReader
+                reader=PdfReader(io.BytesIO((self.store.root/original['storage_path']).read_bytes()))
+                if reader.is_encrypted and not reader.decrypt(''):raise Fault('PDF_PASSWORD_REQUIRED','请先解除PDF密码',422)
+                expected=len(reader.pages)
+            if sorted(p['page'] for p in pages)!=list(range(1,expected+1)):raise Fault('OCR_PAGE_INVALID','请补齐全部页的识别状态',422)
+            if sum(len(p['text']) for p in pages)>200000:raise Fault('DOCUMENT_TOO_LONG','文字超过20万字符',422)
+            prior=self.store.rows('document_ocr',owner,original_id=id)
+            record={'original_id':id,'pages':sorted(pages,key=lambda p:p['page']),'processor':payload['processor']}
+            if prior:self.store.update('document_ocr',owner,prior[0]['id'],record)
+            else:self.store.put('document_ocr',owner,record,L1)
+            # Native text extraction already succeeded: keep immutable evidence and avoid duplicate pages.
+            parsed=self.store.rows('documents',owner,onboarding_original_id=id)
+            signature=hashlib.sha256(str(record['pages']).encode()).hexdigest()
+            if parsed and parsed[0].get('extraction_signature')==signature:return {'document_id':parsed[0]['id'],'pages':len(pages),'already_parsed':True}
+            jobs=self.store.rows('business_jobs',owner,kind='onboarding_document',object_id=id)
+            # New revision handles an earlier completed needs_ocr receipt and interrupted imports.
+            job=self.business.submit(owner,'onboarding_document',id,'ocr-'+hashlib.sha256(str(record).encode()).hexdigest()[:20])
+            return {'job_id':job['id'],'pages':len(pages)}
 
     def remove(self, owner, id):
         with self.store.transaction(owner):
@@ -168,13 +206,13 @@ def install(app, owner, get_service):
     def save(body: OnboardingIn, uid=Depends(owner)): return get_service().save(uid, body)
 
     @app.post('/v1/onboarding/documents')
-    async def upload(req: Request, filename: str, uid=Depends(owner)):
+    async def upload(req: Request, filename: str, native_ocr:bool=False, uid=Depends(owner)):
         raw = bytearray()
         async for chunk in req.stream():
             raw.extend(chunk)
             if len(raw) > 25_000_000: raise Fault('UPLOAD_TOO_LARGE', '单份文件最多 25 MB', 413)
         import asyncio
-        return await asyncio.to_thread(get_service().intake, uid, filename, bytes(raw))
+        return await asyncio.to_thread(get_service().intake, uid, filename, bytes(raw), native_ocr)
 
     @app.post('/v1/onboarding/documents/{id}/retry')
     def retry(id: UUID, uid=Depends(owner)):

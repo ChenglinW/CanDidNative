@@ -205,7 +205,7 @@ extension Store {
         var failures:[String]=[]
         for url in urls {
             do {
-                guard ["pdf", "docx", "pptx", "txt", "md"].contains(url.pathExtension.lowercased()) else { throw PrototypeError.message("请选择 PDF、DOCX、PPTX、TXT 或 Markdown 文件。") }
+                guard ["pdf", "docx", "pptx", "txt", "md", "png", "jpg", "jpeg", "heic"].contains(url.pathExtension.lowercased()) else { throw PrototypeError.message("请选择 PDF、图片、DOCX、PPTX、TXT 或 Markdown 文件。") }
                 let target=try await ImportedDocumentFiles.copy(url,into:root.appendingPathComponent("OnboardingFiles"),maxBytes:25_000_000)
                 guard identity==DeviceRecordingMap.identity(api) else {try? FileManager.default.removeItem(at:target);return}
                 personalState.documents.append(OnboardingDocument(id:UUID().uuidString,title:url.lastPathComponent,status:"local",localPath:"OnboardingFiles/"+target.lastPathComponent))
@@ -242,7 +242,8 @@ extension Store {
 extension API {
     func uploadOnboarding(_ file: URL, title: String) async throws -> OnboardingDocument {
         var parts = URLComponents(url: try url("/v1/onboarding/documents"), resolvingAgainstBaseURL: false)!
-        parts.queryItems = [URLQueryItem(name: "filename", value: title)]
+        let needsOCR = ["pdf","png","jpg","jpeg","heic"].contains(file.pathExtension.lowercased())
+        parts.queryItems = [URLQueryItem(name: "filename", value: title),URLQueryItem(name:"native_ocr",value:needsOCR ? "true":"false")]
         var request = URLRequest(url: parts.url!); request.httpMethod = "POST";request.timeoutInterval=120
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
@@ -251,7 +252,13 @@ extension API {
             let error = try? JSONDecoder().decode(APIError.self, from: raw)
             throw PrototypeError.message(error?.error.message ?? "资料上传失败，本机文件已保留。")
         }
-        return try JSONDecoder().decode(OnboardingDocument.self, from: raw)
+        let receipt=try JSONDecoder().decode(OnboardingDocument.self, from: raw)
+        if needsOCR {
+            let pages=try await Task.detached(priority:.userInitiated) {try NativeDocumentOCR.recognize(file)}.value
+            let digest=SHA256.hash(data:try Data(contentsOf:file)).map {String(format:"%02x",$0)}.joined()
+            _ = try await self.raw("/v1/library/documents/"+receipt.id+"/ocr",method:"POST",body:["sha256":digest,"processor":"apple-vision@1","pages":pages])
+        }
+        return receipt
     }
 }
 

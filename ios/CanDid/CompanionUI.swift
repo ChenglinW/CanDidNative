@@ -1161,7 +1161,7 @@ struct CompanionExpressionRow: View {
   }
 }
 
-struct CompanionMemory: View {
+struct LegacyCompanionMemory: View {
   @EnvironmentObject var store: Store
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.verticalSizeClass) private var heightClass

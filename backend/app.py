@@ -978,3 +978,9 @@ install_onboarding(app, owner, onboarding_service)
 from companion_routes import router as companion_router
 import sys as _sys
 app.include_router(companion_router(_sys.modules[__name__]))
+
+from memory_library import Library, install as install_library
+def library_service():
+    return Library(store,business,onboarding_service())
+library_service()
+install_library(app,owner,library_service)

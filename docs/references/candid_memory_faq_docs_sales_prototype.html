@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Can Did · 记忆库 FAQ 与背景资料原型（汽车销售）</title>
+<style>
+/* 团队 tokens：CanDid-design-tokens 2026-10-16-chat-approved */
+:root{color-scheme:light;--bg:#ebe6db;--ph:#f7f3e9;--card:#fffefb;--ink:#34352e;--ink2:#77776c;--mute:#a2978c;--line:#e6e1d5;--pu:#7250a1;--pl:#7250a1;--acb:#eee7fa;--ac:#7250a1;--lavline:#dfd2f0;--apri:#ffc078;--apri-ink:#48351f;--ok:#4b6632;--okb:#e8f0d7;--wn:#8c571e;--wnb:#fff0db;--dg:#a44532;--dgb:#f7e6e1;--soft:#eee9df;--tabs:#ece7dc}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.85 ui-rounded,"SF Pro Rounded","PingFang SC",system-ui,sans-serif;padding:max(20px,env(safe-area-inset-top)) 16px 40px}
+.wrap{max-width:940px;margin:0 auto}
+h1{font-size:20px;font-weight:600;margin:0 0 2px}.sub{color:var(--ink2);font-size:13px;margin:0 0 18px}
+.cols{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.ph{width:100%;max-width:402px;background:var(--ph);border:1px solid var(--line);border-radius:28px;padding:20px 22px;flex:none;position:relative}
+.notes{flex:1;min-width:280px;font-size:13px;color:var(--ink2);line-height:1.75}
+.notes h2{font-size:14px;color:var(--ink);margin:18px 0 6px;font-weight:600}.notes h2:first-child{margin-top:0}
+.notes ul{margin:0;padding-left:18px}.notes li{margin:0 0 4px}
+.notes table{border-collapse:collapse;width:100%;font-size:12.5px}.notes td{border-top:1px solid var(--line);padding:5px 6px 5px 0;vertical-align:top}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:14px 16px;margin:0 0 12px}
+.clk{cursor:pointer}.clk:focus-visible,button:focus-visible,[role=tab]:focus-visible{outline:2px solid var(--pu);outline-offset:3px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mut{color:var(--ink2);font-size:12px}.dg{color:var(--dg)}
+button{font:inherit;font-size:13px;font-weight:600;color:var(--pu);background:var(--card);border:1px solid #e3dbeb;border-radius:12px;padding:10px 14px;min-height:44px;cursor:pointer;line-height:1.4}
+button.on{border-color:var(--acb);background:var(--acb);color:var(--pu)}
+button.pri{background:var(--apri);border-color:var(--apri);color:var(--apri-ink)}
+.back{display:flex;align-items:center;gap:2px;border:0;background:none;color:var(--pu);padding:6px 0;margin-left:-4px;font-size:14px;min-height:44px}
+.tag{font-size:11px;padding:2px 8px;border-radius:8px;white-space:nowrap;line-height:1.6;font-weight:500}
+.seg{display:flex;gap:3px;background:var(--tabs);border-radius:13px;padding:4px;margin:0 0 8px;font-size:13px;text-align:center}
+.seg div{flex:1;padding:8px 0;border-radius:10px;color:var(--ink2);cursor:pointer;font-weight:650;min-height:36px}.seg .s{background:var(--card);color:var(--ink);box-shadow:0 2px 0 #ddd5c6}
+.lead{font-size:12px;color:var(--ink2);margin:0 0 14px;line-height:1.6}
+.disc{background:var(--acb);border:1.5px solid var(--lavline);color:var(--ink);border-radius:20px;padding:14px 16px;margin:0 0 12px}
+.disc .go{color:var(--pu)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.chips button{border-radius:99px;padding:6px 12px;font-size:12px;color:var(--ink2);border-color:var(--line)}
+.chips button.on{color:var(--pu)}
+.h2{font-size:12px;color:var(--ink2);margin:20px 0 8px}
+.quote{border-left:3px solid var(--line);padding:2px 0 2px 10px;margin:6px 0;font-size:15px}
+.sig{font-size:12px;margin-top:4px;display:flex;align-items:center;gap:4px}
+.toast{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--ph);font-size:13px;padding:8px 14px;border-radius:12px;white-space:nowrap}
+.sw{width:44px;height:26px;border-radius:13px;background:#e5ddee;position:relative;flex:none;border:0;padding:0;min-height:0}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .22s}
+.sw.on{background:var(--pu)}.sw.on::after{left:21px}
+.tile{width:37px;height:42px;border-radius:11px;background:var(--acb);color:var(--pu);display:flex;align-items:center;justify-content:center;flex:none}
+.dd{min-height:36px;padding:6px 10px;font-size:12px;color:var(--ink);border:1.5px solid var(--line);border-radius:12px;display:inline-flex;align-items:center;gap:4px;font-weight:600}
+.menu{position:absolute;right:0;top:calc(100% + 4px);z-index:5;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:4px;min-width:150px;box-shadow:0 6px 18px rgba(52,53,46,.08)}
+.menu button{display:flex;justify-content:space-between;width:100%;border:0;background:none;color:var(--ink);font-weight:500;padding:8px 10px;min-height:40px;border-radius:9px;text-align:left}
+.menu button.sel{background:var(--acb);color:var(--pu);font-weight:600}
+.box{border-radius:20px;padding:18px 18px 12px;margin:0 0 12px;border:1.5px solid var(--line)}
+.box.bad{background:var(--wnb);border-color:#f0d3a8}.box.bad .bx-k{color:var(--wn)}
+.box.good{background:var(--okb);border-color:#d5e1c1}.box.good .bx-k{color:var(--ok)}
+.bx-n{font-size:30px;font-weight:650;line-height:1;letter-spacing:-.5px}
+.box.bad .bx-n{color:var(--wn)}.box.good .bx-n{color:var(--ok)}
+.bx-list{margin-top:10px;background:var(--card);border-radius:14px;padding:0 12px}
+.bx-row{display:flex;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid var(--line);min-height:44px}
+.bx-row:last-child{border-bottom:0}
+.tb{border:0;background:none;color:var(--pu);font-size:13px;font-weight:650;padding:8px 0;min-height:40px}
+.search{display:flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:0 14px;min-height:44px;margin:0 0 12px;color:var(--ink2)}
+.search input{border:0;outline:0;background:transparent;font:inherit;font-size:14px;color:var(--ink);flex:1;min-width:0;padding:10px 0}
+textarea,.inp{width:100%;font:inherit;font-size:14px;line-height:1.7;color:var(--ink);background:var(--ph);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:4px;resize:vertical}
+textarea:focus,.inp:focus{outline:2px solid var(--pu);outline-offset:1px}
+@media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
+</style></head><body>
+<div class="wrap">
+<h1>Can Did · 记忆库：FAQ 与背景资料（汽车销售）</h1>
+<p class="sub">交互原型，客户与门店均为虚构，数据均为示例。点框、卡片进入详情，左上角返回。「我」tab 见表达雷达原型。</p>
+<div class="cols">
+<div class="ph" id="app"></div>
+<div class="notes">
+<h2>三个 tab 的分工</h2>
+<table>
+<tr><td><b>我</b></td><td>你讲得怎么样。表达雷达，已在另一份原型完成。</td></tr>
+<tr><td><b>FAQ</b></td><td>客户常问什么，你怎么答最好。来自录音复盘与口述复盘。</td></tr>
+<tr><td><b>背景资料</b></td><td>你上传的事实依据。只能上传文件。价格、配置、交期、政策只能引用这里。</td></tr>
+</table>
+<h2>FAQ 分成两个互不重叠的部分</h2>
+<ul>
+<li><b>待改进</b>（顶部大框）：答得不好或资料里没有的问题，每条写明原因。默认显示 2 条，就地展开。</li>
+<li><b>值得复用的回答</b>（下方）：只放好的：用过且管用的、用户更新打磨过的、随资料同步的。右上角小菜单切换「按主题 / 按问题」。</li>
+<li>一条问题只会在其中一处。待改进的问题在两种情况下移到「值得复用」：用户更新了说法，或在 Mock 里练过并答好。</li>
+<li>值得复用的说法如果在之后的拜访里又被追问，会退回待改进。</li>
+</ul>
+<h2>默认当作事实，随时可以更新</h2>
+<ul>
+<li>从录音里提取的问题和说法，默认直接入库，不逐条让用户确认。</li>
+<li>每条说法和每份资料都有「更新」入口。例如双十一的优惠和新年的优惠不同，用户可以随时改成当下的说法，并标注适用时间。</li>
+<li>有适用时间的说法，过期后会提醒更新。</li>
+<li>旧版本保留在「版本记录」里，不会丢。</li>
+<li>背景资料出了新版本时，引用它的说法自动同步，详情页标明「已按新资料同步」，看得到改了什么，也可以再改。</li>
+</ul>
+<h2>状态标签（每条只显示一个）</h2>
+<table>
+<tr><td>缺资料</td><td>被问 ≥2 次，背景资料里没有可引用的内容。Candid 不编数字。</td></tr>
+<tr><td>待改进</td><td>最近一次回答后，客户追问、要求具体，或话题就此中断。</td></tr>
+<tr><td>资料已更新</td><td>引用的资料出了新版本，说法已自动同步。</td></tr>
+<tr><td>还没用过</td><td>新更新的说法，还没在拜访里用过。</td></tr>
+<tr><td>管用</td><td>用过，且最近一次使用后客户没有追问，并推进到下一步。属于推断，详情页写明依据。</td></tr>
+</table>
+<h2>主题</h2>
+<ul>
+<li>主题来自场景模板。汽车销售默认 6 个；面试模板换成自我介绍、经历与故事、专业问题、动机与规划等。</li>
+<li>每个问题一个主题，AI 自动归类，详情页可「改主题」。</li>
+</ul>
+<h2>范围</h2>
+<ul>
+<li>客户的个人信息不进 FAQ 和背景资料，只留在对应客户的工作区。客户原话只保留改写后的要点。</li>
+<li>背景资料对所有客户共用；每条证据都标明是哪位客户、哪一场、第几分钟。</li>
+</ul>
+<h2>待确认</h2>
+<ul>
+<li>资料更新后自动同步说法：是否需要一个「本次同步了哪些说法」的汇总提醒。</li>
+<li>「管用」是否要求用过 ≥2 次，目前按最近一次。</li>
+</ul>
+</div></div></div>
+<script>
+var IC={r:'<path d="M9 6l6 6-6 6"/>',l:'<path d="M15 6l-6 6 6 6"/>',p:'<path d="M7 4v16l13-8z"/>',i:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',f:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',u:'<path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/>',w:'<path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17.5v.5"/>',car:'<path d="M4 13l2-5h12l2 5v4H4z"/><path d="M6 17v2M18 17v2"/><path d="M7.5 14h.01M16.5 14h.01"/>',tag:'<path d="M3 12V4h8l10 10-8 8z"/><path d="M7.5 7.5h.01"/>',card:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/>',swap:'<path d="M7 7h12l-3-3M17 17H5l3 3"/>',box:'<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',ppl:'<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5c3 0 5.5 1.5 5.5 4.5"/>',s:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',pen:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>'};
+function ic(n,s){return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none">'+IC[n]+'</svg>'}
+function tg(t,bg,c){return '<span class="tag" style="background:'+bg+';color:'+c+'">'+t+'</span>'}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
+var ST={gap:['缺资料','var(--dgb)','var(--dg)'],improve:['待改进','var(--wnb)','var(--wn)'],synced:['资料已更新','var(--acb)','var(--pu)'],'try':['还没用过','var(--soft)','var(--ink2)'],ok:['管用','var(--okb)','var(--ok)']};
+function stg(k){var s=ST[k];return tg(s[0],s[1],s[2])}
+var CATS=[['car','车型与配置','car'],['price','价格与保值','tag'],['fin','金融与分期','card'],['trade','置换','swap'],['deliv','交付与售后','box'],['story','用车场景','ppl']];
+function catName(id){for(var i=0;i<CATS.length;i++)if(CATS[i][0]===id)return CATS[i][1];return '其他'}
+
+var FAQ=[
+{id:'price',cat:'price',q:'跟同价位的其他品牌比，贵在哪？',n:7,c:5,st:'ok',src:'price',pg:'第 2 页 · 同价位配置对比',reason:'上次用完，客户接着问了金融方案',
+ cur:{kind:'mine',who:'10 月 10 日更新',t:'您现在主要在跟哪几台比？我把同配置的拉出来，一项一项对给您看，差价在哪一目了然。'},
+ ev:[{who:'欧阳先生 · 第 1 次到店 · 05:20',t:'这个主要是品牌，然后它底盘调校、那个悬挂，嗯，还有就是……（连续讲了约 2 分钟配置）',sig:'客户追问：「所以具体差在哪？」'}],
+ uses:[['翁先生 · 第 1 次到店',0,'客户追问「同配置差多少钱」'],['欧阳先生 · 第 3 次到店',1,'客户接着问金融方案']],
+ why:'最近一次使用后，客户没有追问，直接问到了金融方案。这是推断，不代表成交原因。',
+ asked:[['欧阳先生','第 1 次到店','05:20',1],['翁先生','第 1 次到店','08:40',1],['欧阳先生','第 3 次到店','06:05',1]],more:4},
+{id:'promo',cat:'price',q:'现在有什么优惠？',n:6,c:5,st:'ok',src:'price',pg:'第 1 页 · 备注',reason:'用完客户约了到店',
+ cur:{kind:'mine',who:'10 月 14 日更新',period:'双十一活动 · 11 月 1 日至 11 日',t:'双十一期间店里有置换补贴和金融贴息两项。具体到您这台配置能用多少，我当天找经理确认，给您书面的。'},
+ hist:[{who:'10 月 6 日 · 平时',t:'优惠每周经理都会重新批，我不先给您一个可能会变的数。您把配置定下来，我当天去帮您争取，给您书面的。'}],
+ uses:[['欧阳先生 · 电话回访',1,'客户说「那你先帮我问问」，约了到店']],why:'最近一次使用后，客户没有追问，约了下一次到店。',
+ asked:[['翁先生','第 1 次到店','15:02',1],['欧阳先生','电话回访','06:40',1]],more:4},
+{id:'kids',cat:'story',kind:'案例',q:'家里有孩子，日常用起来方便吗？',n:4,c:3,st:'ok',src:'brochure',pg:'第 6 至 7 页 · 空间与儿童座椅接口',reason:'讲完客户约了周末带太太来',
+ cur:{kind:'mine',who:'10 月 9 日存入 · 约 70 秒',t:'上个月有位车主跟您情况挺像，两个孩子，一个还坐安全座椅。他最担心后排装两个座椅之后挤。来试驾那天我让他把自家的座椅带来，现场装上，他太太坐后排中间试了一下……'},
+ uses:[['欧阳先生 · 电话回访',1,'客户说「那我周末带太太来看看」']],why:'最近一次讲完后，客户主动约了下一次到店。',
+ asked:[['欧阳先生','电话回访','05:30',1],['陈女士','第 1 次到店','06:44',0]],more:2},
+{id:'ev',cat:'car',q:'纯电版和燃油版怎么选？',n:5,c:4,st:'try',src:'brochure',pg:'第 4 至 9 页 · 车型与配置等级',reason:'新说法，还没在拜访里用过',
+ cur:{kind:'mine',who:'10 月 13 日更新',t:'先不急着选。您说说平时一天大概开多远、家里能不能装充电桩，我按您的情况把两种都算给您看。'},
+ uses:[],why:'这条说法更新后还没在拜访里用过。',
+ asked:[['欧阳先生','第 1 次到店','09:10',1],['陈女士','第 1 次到店','04:20',0]],more:3},
+{id:'trade',cat:'trade',q:'旧车置换大概能抵多少？',n:3,c:3,st:'try',src:'trade2',pg:'流程说明 · 第 1 步',reason:'新说法，还没在拜访里用过',
+ cur:{kind:'mine',who:'10 月 12 日更新',t:'您先把行驶证和保养记录发我，评估师给您出一个书面价，比口头估得准，也方便您比较。'},
+ uses:[],why:'这条说法更新后还没在拜访里用过。',
+ asked:[['欧阳先生','第 1 次到店','19:30',1],['陈女士','第 1 次到店','13:12',0]],more:1},
+{id:'deliv',cat:'deliv',q:'现在订，多久能提车？',n:6,c:6,st:'synced',src:'deliv',pg:'第 1 页 · 现车交付',
+ sync:'交付说明 10 月 15 日更新到 v3，现车交付从「约 2 周」改为「约 3 周」。这条说法已经同步。',
+ cur:{kind:'sync',who:'10 月 15 日按交付说明 v3 同步',t:'现车的话签完大概三周能提，期车以厂家的排产通知为准，我拿到通知第一时间告诉您。'},
+ hist:[{who:'10 月 3 日 · 依据交付说明 v2',t:'现车的话签完大概两周左右就能提，期车要看厂家排产。'}],
+ asked:[['欧阳先生','电话回访','04:48',1],['翁先生','第 1 次到店','16:20',1],['陈女士','第 1 次到店','09:02',0]],more:3},
+{id:'winter',cat:'car',q:'冬天续航会打几折？',n:5,c:4,st:'gap',src:null,reason:'客户追问「大概少多少」，资料里也没有',
+ gap:'背景资料里没有冬季实际续航的内容，官方手册只有官方工况下的数据。Candid 不会替你估一个数字。',
+ cur:{kind:'bridge',who:'资料补齐前',t:'这个我不想随口给您报个数。我把官方的测试条件和本地车主的实际情况整理好，今天发您。'},
+ ev:[{who:'欧阳先生 · 电话回访 · 02:10',t:'这个看温度，一般会少一些，正常开的话问题不大。',sig:'客户追问：「大概少多少？」'}],
+ asked:[['欧阳先生','电话回访','02:10',1],['陈女士','第 1 次到店','11:32',1],['翁先生','第 1 次到店','14:05',1]],more:2},
+{id:'resid',cat:'price',q:'保值率怎么样？',n:4,c:3,st:'improve',src:null,reason:'客户追问「有数据吗」，同类追问 3 次',
+ gap:'背景资料里没有保值率或残值数据。补一份资料后，这条可以改成有依据的回答。',
+ cur:{kind:'ai',who:'Candid 根据你的拜访整理',t:'您打算开几年？在意的是几年后卖得上价，还是置换方便？我按您的情况，用资料里的数据给您说，不先下结论。'},
+ ev:[{who:'翁先生 · 第 1 次到店 · 12:40',t:'这个牌子保值率一直挺好的，您放心。',sig:'客户追问：「有数据吗？」'}],
+ asked:[['翁先生','第 1 次到店','12:40',1],['欧阳先生','第 1 次到店','17:15',1]],more:2},
+{id:'down',cat:'fin',q:'首付最低多少？能分几期？',n:4,c:4,st:'improve',src:null,reason:'答得太笼统，客户没有再接话',
+ gap:'金融方案 2026 Q4 还在解析，完成前不能引用具体数字。',
+ cur:{kind:'ai',who:'Candid 根据你的拜访整理',t:'首付和期数要看您选哪套方案。我把店里最常用的两套列出来对比，今天发您，您看哪套更合适。'},
+ ev:[{who:'翁先生 · 第 1 次到店 · 17:48',t:'这个金融那边方案挺多的，回头让金融专员跟您细说。',sig:'客户没有接话，话题就此结束（推断：没给到具体信息）'}],
+ asked:[['欧阳先生','第 1 次到店','21:05',1],['翁先生','第 1 次到店','17:48',1]],more:2},
+{id:'rate',cat:'fin',q:'贷款利率是多少？',n:3,c:3,st:'gap',src:null,reason:'资料里没有利率，客户追问「几个点」',
+ gap:'金融方案 2026 Q4 还在解析，完成前不能引用具体利率。',
+ cur:{kind:'bridge',who:'资料补齐前',t:'利率可能每个月调，我不想跟您说一个过期的数。今天我跟金融专员确认好，把两套方案一起发您。'},
+ ev:[{who:'欧阳先生 · 电话回访 · 07:15',t:'利率应该不高，具体我问一下。',sig:'客户追问：「大概几个点？」'}],
+ asked:[['欧阳先生','电话回访','07:15',1]],more:2},
+{id:'maint',cat:'deliv',q:'保养一年大概多少钱？',n:3,c:2,st:'gap',src:null,reason:'客户追问「差不多是多少」，资料里也没有',
+ gap:'背景资料里没有保养价格。可以上传门店的保养价目表。',
+ cur:{kind:'bridge',who:'资料补齐前',t:'保养费用我按门店的价目表给您列一份，今天发您，不跟您说个大概的数。'},
+ ev:[{who:'欧阳先生 · 第 3 次到店 · 11:20',t:'保养的话，嗯，跟同级别的差不多吧。',sig:'客户追问：「差不多是多少？」'}],
+ asked:[['陈女士','第 1 次到店','15:40',0],['欧阳先生','第 3 次到店','11:20',1]],more:1}
+];
+var FILES=[
+{id:'brochure',name:'Macan 电子手册 2026 款.pdf',kind:'官方资料',ver:'v1',date:'10 月 2 日',st:'done',
+ ok:['车型与配置等级说明（第 4 至 9 页）','空间、座椅与儿童座椅接口（第 6 至 7 页）','官方工况下的续航与能耗数据（第 12 页）'],
+ todo:['冬季、高速等实际工况的数据，手册里没有'],hist:[['v1','10 月 2 日','首次上传']]},
+{id:'price',name:'价格与配置表.pdf',kind:'门店资料',ver:'v3',date:'10 月 8 日',st:'done',
+ ok:['各配置等级指导价与选装包价格（第 1 至 2 页）','同价位配置对比（第 2 页）'],
+ todo:['门店优惠以展厅经理当周审批为准，不在资料里'],hist:[['v3','10 月 8 日','更新选装包价格'],['v2','9 月 20 日',''],['v1','9 月 1 日','首次上传']]},
+{id:'deliv',name:'交付说明.pdf',kind:'门店资料',ver:'v3',date:'10 月 15 日',st:'updated',
+ diff:[['现车交付','约 2 周','约 3 周'],['期车','未说明','以厂家排产通知为准']],
+ ok:['现车约 3 周交付（第 1 页）','期车以厂家排产通知为准（第 1 页）','交车前检查与交付流程（第 2 页）'],
+ todo:[],hist:[['v3','10 月 15 日','现车周期调整'],['v2','9 月 28 日',''],['v1','9 月 1 日','首次上传']]},
+{id:'fin',name:'金融方案 2026 Q4.pdf',kind:'门店资料',ver:'v1',date:'刚刚',st:'proc'},
+{id:'comp',name:'竞品对比笔记（拍照）.jpg',kind:'自己整理',ver:'v1',date:'10 月 14 日',st:'fail',err:'照片有反光，第 2 段文字识别不出来。'},
+{id:'trade2',name:'置换评估流程.pdf',kind:'门店资料',ver:'v1',date:'10 月 12 日',st:'done',
+ ok:['评估需要行驶证、保养记录，由评估师出书面价（第 1 步）'],todo:['具体抵扣金额以评估结果为准'],hist:[['v1','10 月 12 日','首次上传']]}
+];
+var S={tab:'faq',mode:'topic',sort:'n',menu:null,q:'',from:null,pick:false,edit:false,exp:{},view:'home',id:null,remind:{price:true,kids:true,promo:true},toast:''},app=document.getElementById('app'),tt;
+function fq(id){for(var i=0;i<FAQ.length;i++)if(FAQ[i].id===id)return FAQ[i]}
+function fl(id){for(var i=0;i<FILES.length;i++)if(FILES[i].id===id)return FILES[i]}
+function bad(f){return f.st==='gap'||f.st==='improve'}
+function good(f){return f.st==='ok'||f.st==='try'||f.st==='synced'}
+function faqUsing(fid){return FAQ.filter(function(f){return f.src===fid})}
+function seg(){return '<div style="font-size:24px;font-weight:650;letter-spacing:-.4px;margin:4px 0 12px">记忆库</div><div class="seg" role="tablist">'+[['me','我'],['faq','FAQ'],['docs','背景资料']].map(function(t){return '<div role="tab" tabindex="0" data-tab="'+t[0]+'" class="'+(S.tab===t[0]?'s':'')+'" aria-selected="'+(S.tab===t[0])+'">'+t[1]+'</div>'}).join('')+'</div>'}
+
+/* ---------- FAQ 首页 ---------- */
+function qRowFull(f){var src=f.src?fl(f.src):null;return '<div class="card clk" data-open="'+f.id+'" role="button" tabindex="0"><div class="row" style="align-items:flex-start"><b style="font-size:15px;line-height:1.5">'+f.q+'</b>'+ic('r',16)+'</div><div class="row" style="margin-top:6px"><span class="mut">'+tg(catName(f.cat),'var(--acb)','var(--pu)')+(f.kind?' '+tg('案例','var(--soft)','var(--ink2)'):'')+' 被问 '+f.n+' 次 · '+f.c+' 位客户</span>'+stg(f.st)+'</div>'+(src?'<div class="mut" style="margin-top:4px;color:var(--mute)">依据：'+src.name.replace(/\.(pdf|jpg)$/,'')+' '+src.ver+'</div>':(bad(f)?'<div class="mut" style="margin-top:4px;color:var(--wn)">'+f.reason+'</div>':'<div class="mut" style="margin-top:4px;color:var(--mute)">依据：你的说法，暂无资料</div>'))+'</div>'}
+function results(){var q=S.q.trim();if(!q)return '';var L=FAQ.filter(function(f){return f.q.indexOf(q)>-1||catName(f.cat).indexOf(q)>-1});
+return '<div class="h2" style="margin-top:4px">找到 '+L.length+' 个问题</div>'+(L.length?L.map(qRowFull).join(''):'<div class="card mut">没有找到。换个说法试试，比如「利率」「交期」。</div>')}
+function bigBox(kind){
+var isBad=kind==='bad',L=FAQ.filter(isBad?bad:good).sort(function(a,b){if(!isBad){var d=(b.st==='ok'?1:0)-(a.st==='ok'?1:0);if(d)return d}return b.n-a.n}),open=S.exp[kind],show=open?L:L.slice(0,2);
+var h='<div class="box '+(isBad?'bad':'good')+'"><div class="row" style="align-items:flex-start"><div><div style="font-size:12px" class="bx-k">'+(isBad?'待改进':'值得复用')+'</div><div style="font-size:17px;font-weight:650;line-height:1.5;margin-top:2px">'+(isBad?'这些问题，下次可以答得更好':'答得好的，留着下次用')+'</div></div><div class="bx-n">'+L.length+'</div></div><div class="bx-list">';
+show.forEach(function(f){h+='<div class="bx-row clk" data-open="'+f.id+'" role="button" tabindex="0"><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;line-height:1.5">'+f.q+'</div><div class="mut" style="margin-top:2px">'+f.reason+'</div></div>'+(isBad?'':stg(f.st))+ic('r',16)+'</div>'});
+h+='</div>'+(L.length>2?'<button class="tb" data-exp="'+kind+'">'+(open?'收起':'展开全部 '+L.length+' 个')+'</button>':'')+'</div>';return h}
+var MODES=[['topic','按主题'],['q','按问题']],SORTS=[['n','被问最多'],['ok','管用的优先']];
+function dd(key,opts,cur){var lab='';opts.forEach(function(o){if(o[0]===cur)lab=o[1]});
+var h='<div style="position:relative"><button class="dd" data-menu="'+key+'" aria-haspopup="listbox" aria-expanded="'+(S.menu===key)+'">'+lab+' <span aria-hidden="true" style="font-size:10px">▾</span></button>';
+if(S.menu===key)h+='<div class="menu" role="listbox">'+opts.map(function(o){return '<button role="option" aria-selected="'+(o[0]===cur)+'" data-pickopt="'+key+':'+o[0]+'" class="'+(o[0]===cur?'sel':'')+'"><span>'+o[1]+'</span>'+(o[0]===cur?'<span>✓</span>':'')+'</button>'}).join('')+'</div>';
+return h+'</div>'}
+function faqHome(){
+var G=FAQ.filter(good),h=seg()+'<p class="lead">客户常问什么，你怎么答最好。先把答得不好的改好，答得好的留着下次用。</p>'+
+'<label class="search">'+ic('s',16)+'<input id="q" value="'+esc(S.q)+'" placeholder="搜问题，比如「利率」" aria-label="搜索 FAQ"></label><div id="res">'+results()+'</div><div id="browse" style="'+(S.q.trim()?'display:none':'')+'">'+
+bigBox('bad')+
+'<div class="disc clk" data-open="price" role="button" tabindex="0"><div style="font-size:12px;color:var(--pu)">跨场发现 · 来自 5 位客户的 7 次拜访</div><div style="font-size:15px;font-weight:650;margin:6px 0 10px;line-height:1.6">客户问「贵在哪」时，有 4 次你先讲了约 2 分钟配置，客户追问「所以差在哪」</div><div class="row" style="font-size:13px"><span class="mut">说得不对？可以修正</span><span class="go" style="display:flex;align-items:center;gap:2px;font-weight:600">看看这条'+ic('r',16)+'</span></div></div>'+
+'<div style="margin:24px 0 10px"><div class="row" style="gap:8px"><span style="font-size:17px;font-weight:650">值得复用的回答 <span class="mut" style="font-weight:400;font-size:13px">'+G.length+'</span></span><div style="display:flex;gap:6px">'+(S.mode==='q'?dd('sort',SORTS,S.sort):'')+dd('mode',MODES,S.mode)+'</div></div><div class="mut" style="margin-top:2px">用过、管用的说法，和你打磨好的说法。待改进的问题改好或练好之后，会移到这里。</div></div>';
+if(S.mode==='topic'){h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+CATS.forEach(function(c){var L=G.filter(function(f){return f.cat===c[0]}),top=L.slice().sort(function(a,b){return b.n-a.n})[0];
+h+='<div class="card clk" data-cat="'+c[0]+'" role="button" tabindex="0" style="margin:0;padding:14px"><span class="tile" style="width:34px;height:34px">'+ic(c[2],18)+'</span><div style="font-size:14px;font-weight:650;margin-top:8px">'+c[1]+'</div><div class="mut">'+(L.length?L.length+' 个回答':'还没有')+'</div>'+(top?'<div class="mut" style="color:var(--mute);margin-top:4px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">常被问：'+top.q+'</div>':'<div class="mut" style="color:var(--mute);margin-top:4px;line-height:1.5">这个主题下的问题还在打磨</div>')+'</div>'});
+h+='</div>'}
+else{var L=G.slice().sort(function(a,b){if(S.sort==='ok'){var d=(b.st==='ok'?1:0)-(a.st==='ok'?1:0);if(d)return d}return b.n-a.n});h+=L.map(qRowFull).join('')}
+return h+'</div>'}
+function catPage(){
+var c=null;CATS.forEach(function(x){if(x[0]===S.id)c=x});var L=FAQ.filter(function(f){return f.cat===S.id&&good(f)}).sort(function(a,b){return b.n-a.n});
+var h='<button class="back" data-b>'+ic('l',18)+'FAQ</button><div style="display:flex;align-items:center;gap:10px;margin:2px 0 4px"><span class="tile" style="width:34px;height:34px">'+ic(c[2],18)+'</span><div style="font-size:17px;font-weight:650">'+c[1]+'</div></div><div class="mut" style="margin:0 0 12px">'+L.length+' 个值得复用的回答 · 按被问次数排序</div>';
+if(!L.length)h+='<div class="card mut">这个主题下还没有可复用的回答。待改进的问题改好或练好之后，会出现在这里。</div>';
+return h+L.map(qRowFull).join('')}
+
+/* ---------- FAQ 详情 ---------- */
+var KIND={mine:'你的说法',ai:'Candid 整理的说法',sync:'已按新资料同步',bridge:'资料补齐前，先这样说'};
+function faqDetail(){
+var f=fq(S.id),bl=S.from?(S.from.v==='cat'?catName(S.from.id):'背景资料'):'FAQ';
+var h='<button class="back" data-b>'+ic('l',18)+bl+'</button><div style="font-size:17px;font-weight:650;line-height:1.5;margin:2px 0 6px">'+f.q+'</div><div class="row" style="margin:0 0 6px"><span class="mut" style="font-size:13px">被问 '+f.n+' 次 · '+f.c+' 位客户</span>'+stg(f.st)+'</div><div style="display:flex;align-items:center;gap:6px;margin:0 0 8px;flex-wrap:wrap"><span class="mut">主题</span>'+tg(catName(f.cat),'var(--acb)','var(--pu)')+(f.kind?tg('案例','var(--soft)','var(--ink2)'):'')+'<button class="tb" data-act="pick" style="min-height:32px;padding:0 6px">改主题</button></div>'+(S.pick?'<div class="chips">'+CATS.map(function(c){return '<button data-setcat="'+c[0]+'" class="'+(f.cat===c[0]?'on':'')+'">'+c[1]+'</button>'}).join('')+'</div>':'');
+if(f.sync)h+='<div class="card" style="background:var(--acb);border-color:var(--lavline)"><div style="font-size:13px">'+f.sync+'</div><button class="tb" data-file="'+f.src+'">看看资料改了什么</button></div>';
+if(f.gap)h+='<div class="card" style="border-color:#e9c9c0"><div class="dg" style="font-size:13px">'+f.gap+'</div><button class="pri" data-act="upload" style="margin-top:8px;display:flex;align-items:center;gap:6px">'+ic('u',16)+'补充资料</button></div>';
+// 现在的说法
+h+='<div class="row" style="margin:20px 0 8px"><span class="h2" style="margin:0">现在的说法</span>'+(S.edit?'':'<button class="tb" data-act="edit" style="display:flex;align-items:center;gap:4px">'+ic('pen',14)+'更新</button>')+'</div>';
+if(S.edit){var cur=f.cur||{t:''};h+='<div class="card"><label class="mut" for="ed">换成你现在会怎么说</label><textarea id="ed" rows="4">'+esc(cur.t)+'</textarea><label class="mut" for="pd" style="display:block;margin-top:8px">适用时间（可选，比如「新年活动 · 1 月 1 日至 15 日」）</label><input id="pd" class="inp" value="'+esc(cur.period||'')+'" placeholder="不填就是长期有效"><div style="display:flex;gap:8px;margin-top:10px"><button class="pri" data-act="save">保存</button><button data-act="cancel">取消</button></div><div class="mut" style="margin-top:6px;color:var(--mute)">旧版本会留在版本记录里</div></div>'}
+else if(f.cur){h+='<div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+tg(KIND[f.cur.kind],f.cur.kind==='bridge'?'var(--dgb)':'var(--acb)',f.cur.kind==='bridge'?'var(--dg)':'var(--pu)')+(f.cur.period?tg('适用：'+f.cur.period,'var(--wnb)','var(--wn)'):'')+'</div><div class="quote" style="margin-top:8px">'+f.cur.t+'</div><div class="mut">'+f.cur.who+'</div>'+(f.cur.period?'<div class="mut" style="color:var(--mute);margin-top:2px">活动结束后会提醒你更新</div>':'')+'</div>'}
+if(bad(f)&&!S.edit)h+='<div class="card" style="background:var(--wnb);border-color:#f0d3a8"><div style="font-size:13px;color:var(--wn)">这条还在「待改进」。把说法更新好，或者在 Mock 里练过、答好了，就会移到「值得复用的回答」。</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="pri" data-act="edit">更新说法</button><button data-act="practice">用 Mock 练一练</button></div></div>';
+if(f.uses){h+='<div class="h2">用过这个说法</div><div class="card" style="padding:0 16px">';
+if(!f.uses.length)h+='<div class="mut" style="padding:12px 0">还没在拜访里用过。下次被问到前，会在会前简报里提醒你。</div>';
+f.uses.forEach(function(u,i){h+='<div class="row" style="padding:10px 0;'+(i<f.uses.length-1?'border-bottom:1px solid var(--line)':'')+'"><span style="font-size:13px">'+u[0]+'<br><span class="mut">'+u[2]+'</span></span>'+(u[1]?tg('推进了','var(--okb)','var(--ok)'):tg('被追问','var(--dgb)','var(--dg)'))+'</div>'});
+h+='</div><div class="mut" style="display:flex;gap:6px;margin:0 0 10px;color:var(--mute)">'+ic('i',14)+'<span>'+f.why+'</span></div>'}
+if(f.ev){h+='<div class="h2">你当时怎么说</div>';f.ev.forEach(function(v){h+='<div class="card"><div class="mut">'+v.who+'</div><div class="quote">'+v.t+'</div><div class="sig dg">'+ic('i',14)+v.sig+'</div><div style="font-size:12px;color:var(--pu);display:flex;align-items:center;gap:4px;margin-top:6px">'+ic('p',14)+'回听这一段</div></div>'})}
+if(f.src){var d=fl(f.src);h+='<div class="row" style="margin:20px 0 8px"><span class="h2" style="margin:0">依据</span><button class="tb" data-file="'+d.id+'">更新资料</button></div><div class="card clk" data-file="'+d.id+'" role="button" tabindex="0"><div class="row"><span style="display:flex;gap:10px;align-items:center"><span class="tile">'+ic('f',18)+'</span><span><b style="font-size:14px">'+d.name+'</b><br><span class="mut">'+d.ver+' · '+f.pg+'</span></span></span>'+ic('r',16)+'</div></div>'}
+h+='<div class="h2">谁问过</div><div class="card" style="padding:0 16px">';
+f.asked.forEach(function(a){h+='<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:13px">'+a[0]+' · '+a[1]+'</span>'+(a[3]?'<span style="font-size:12px;color:var(--pu);display:flex;align-items:center;gap:4px">'+ic('p',14)+a[2]+'</span>':tg('口述','var(--soft)','var(--ink2)'))+'</div>'});
+h+='<div class="mut" style="padding:9px 0;color:var(--mute)">另外 '+f.more+' 次 · 客户原话只保留改写后的要点</div></div>';
+h+='<div class="card row"><span style="font-size:14px">被问到前，在会前简报里提醒我</span><button class="sw'+(S.remind[f.id]?' on':'')+'" data-act="remind" role="switch" aria-checked="'+!!S.remind[f.id]+'" aria-label="会前简报提醒"></button></div>';
+if(f.hist&&f.hist.length){h+='<div class="h2">版本记录</div><div class="card" style="padding:0 16px">';f.hist.forEach(function(v,i){h+='<div style="padding:10px 0;'+(i<f.hist.length-1?'border-bottom:1px solid var(--line)':'')+'"><div class="mut">'+v.who+'</div><div style="font-size:13px;color:var(--ink2);margin-top:2px">'+v.t+'</div></div>'});h+='</div>'}
+return h}
+
+/* ---------- 背景资料 ---------- */
+function fileState(d){
+if(d.st==='proc')return tg('解析中','var(--soft)','var(--ink2)');
+if(d.st==='fail')return tg('解析失败','var(--dgb)','var(--dg)');
+if(d.st==='updated')return tg('刚更新','var(--acb)','var(--pu)');
+return ''}
+function docsHome(){
+var GAP=FAQ.filter(function(f){return !f.src}).sort(function(a,b){return b.n-a.n});
+var h=seg()+'<p class="lead">你上传的事实依据。回答价格、配置、交期和政策时，Candid 只引用这里。</p>'+
+'<div class="box bad"><div class="row" style="align-items:flex-start"><div><div class="bx-k" style="font-size:12px">缺资料</div><div style="font-size:17px;font-weight:650;line-height:1.5;margin-top:2px">客户问过，但资料里没有</div></div><div class="bx-n">'+GAP.length+'</div></div><div class="bx-list">'+
+GAP.slice(0,3).map(function(f){return '<div class="bx-row clk" data-open="'+f.id+'" role="button" tabindex="0"><div style="flex:1"><div style="font-size:14px;font-weight:600">'+f.q+'</div><div class="mut">被问 '+f.n+' 次</div></div>'+ic('r',16)+'</div>'}).join('')+'</div><button class="pri" data-act="upload" style="display:flex;align-items:center;gap:6px;margin-top:10px">'+ic('u',16)+'补充资料</button></div>';
+FILES.forEach(function(d){var n=faqUsing(d.id).length,clk=d.st!=='proc';
+h+='<div class="card'+(clk?' clk':'')+'" '+(clk?'data-file="'+d.id+'" role="button" tabindex="0"':'')+'><div class="row" style="align-items:flex-start"><span style="display:flex;gap:10px;align-items:flex-start"><span class="tile">'+ic('f',18)+'</span><span><b style="font-size:14px;line-height:1.5">'+d.name+'</b><br><span class="mut">'+d.kind+' · '+d.ver+' · '+d.date+'</span></span></span>'+fileState(d)+'</div>'+
+(d.st==='done'?'<div class="mut" style="margin-top:6px">支撑 '+n+' 条 FAQ</div>':'')+
+(d.st==='updated'?'<div class="mut" style="margin-top:6px;color:var(--pu)">已同步 '+n+' 条 FAQ 的说法</div>':'')+
+(d.st==='proc'?'<div class="mut" style="margin-top:6px">正在读取内容，完成前不会被引用</div>':'')+
+(d.st==='fail'?'<div class="mut dg" style="margin-top:6px">'+d.err+'</div><div style="display:flex;gap:8px;margin-top:8px"><button data-act="retry">重试</button><button data-act="retry">重新拍照上传</button></div>':'')+'</div>'});
+return h+'<button class="pri" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px" data-act="upload">'+ic('u',16)+'上传文件</button><div class="mut" style="text-align:center;margin-top:6px;color:var(--mute)">支持 PDF 和图片 · 资料对所有客户共用</div>'}
+function docDetail(){
+var d=fl(S.id),h='<button class="back" data-b>'+ic('l',18)+'背景资料</button><div style="font-size:17px;font-weight:650;line-height:1.5;margin:2px 0">'+d.name+'</div><div class="row" style="margin:0 0 10px"><span class="mut" style="font-size:13px">'+d.kind+' · 当前 '+d.ver+' · '+d.date+'</span>'+fileState(d)+'</div>';
+if(d.st==='fail')return h+'<div class="card" style="border-color:#e9c9c0"><div class="dg" style="font-size:13px">'+d.err+'</div><div class="mut" style="margin-top:6px">文件已保留，没有被删除。</div><div style="display:flex;gap:8px;margin-top:8px"><button class="pri" data-act="retry">重试</button><button data-act="retry">重新拍照上传</button></div></div>';
+if(d.diff){h+='<div class="card" style="background:var(--acb);border-color:var(--lavline)"><b style="font-size:13px;color:var(--pu)">这次更新改了什么</b>';
+d.diff.forEach(function(x){h+='<div class="row" style="font-size:13px;margin-top:6px"><span>'+x[0]+'</span><span><s style="color:var(--mute)">'+x[1]+'</s> → <b>'+x[2]+'</b></span></div>'});h+='</div>'}
+h+='<div class="h2">已确认的内容</div><div class="card">'+d.ok.map(function(x){return '<div style="font-size:13px;padding:3px 0">· '+x+'</div>'}).join('')+'</div>';
+if(d.todo&&d.todo.length)h+='<div class="h2">仍需确认</div><div class="card">'+d.todo.map(function(x){return '<div style="font-size:13px;padding:3px 0;color:var(--wn)">· '+x+'</div>'}).join('')+'</div>';
+var U=faqUsing(d.id);h+='<div class="h2">引用这份资料的 FAQ</div>';
+if(!U.length)h+='<div class="card mut">还没有 FAQ 引用这份资料。</div>';
+U.forEach(function(f){h+='<div class="card clk row" data-open="'+f.id+'" role="button" tabindex="0"><span style="font-size:14px">'+f.q+'</span>'+stg(f.st)+'</div>'});
+h+='<div class="mut" style="margin:0 0 10px;color:var(--mute)">上传新版本后，引用它的说法会自动同步，旧版本保留，随时可以再改。</div>';
+h+='<div class="h2">版本</div><div class="card" style="padding:0 16px">';
+d.hist.forEach(function(v,i){h+='<div class="row" style="padding:9px 0;'+(i<d.hist.length-1?'border-bottom:1px solid var(--line)':'')+';font-size:13px"><span><b>'+v[0]+'</b> · '+v[1]+'</span><span class="mut">'+(i===0?'当前':v[2])+'</span></div>'});
+return h+'</div><button class="pri" style="width:100%" data-act="upload">上传新版本</button>'}
+function meTab(){return seg()+'<p class="lead">你讲得怎么样。</p><div class="card mut" style="font-size:13px">这一页沿用《记忆库「我」页 · 表达雷达原型》，此处不重复实现。</div>'}
+
+/* ---------- 渲染与交互 ---------- */
+function render(){
+var v=S.view==='cat'?catPage():S.view==='faq'?faqDetail():S.view==='file'?docDetail():S.tab==='faq'?faqHome():S.tab==='docs'?docsHome():meTab();
+app.innerHTML=v+(S.toast?'<div class="toast" role="status">'+S.toast+'</div>':'');bind()}
+function go(view,id){S.view=view;S.id=id||null;S.edit=false;S.pick=false;S.menu=null;render();window.scrollTo(0,0)}
+function toast(t){S.toast=t;render();clearTimeout(tt);tt=setTimeout(function(){S.toast='';render()},1900)}
+function bindRes(){Array.prototype.forEach.call(app.querySelectorAll('#res [data-open]'),function(el){el.addEventListener('click',function(){S.from=null;go('faq',el.getAttribute('data-open'))})})}
+function bind(){
+var all=function(sel,f){Array.prototype.forEach.call(app.querySelectorAll(sel),function(el){var run=function(e){e.stopPropagation();f(el)};el.addEventListener('click',run);el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();run(e)}})})};
+all('[data-tab]',function(el){S.tab=el.getAttribute('data-tab');go('home')});
+all('[data-open]',function(el){S.from=S.view==='cat'?{v:'cat',id:S.id}:(S.view==='file'?{v:'file',id:S.id}:null);go('faq',el.getAttribute('data-open'))});
+all('[data-file]',function(el){S.from=null;go('file',el.getAttribute('data-file'))});
+all('[data-cat]',function(el){go('cat',el.getAttribute('data-cat'))});
+all('[data-exp]',function(el){var k=el.getAttribute('data-exp');S.exp[k]=!S.exp[k];render()});
+all('[data-menu]',function(el){var k=el.getAttribute('data-menu');S.menu=S.menu===k?null:k;render()});
+all('[data-pickopt]',function(el){var v=el.getAttribute('data-pickopt').split(':');if(v[0]==='mode')S.mode=v[1];else S.sort=v[1];S.menu=null;render()});
+all('[data-setcat]',function(el){var f=fq(S.id);f.cat=el.getAttribute('data-setcat');S.pick=false;toast('已改到「'+catName(f.cat)+'」，以后同类问题会参考你的选择')});
+all('[data-b]',function(){if(S.view==='faq'&&S.from){var fr=S.from;S.from=null;go(fr.v,fr.id)}else go('home')});
+all('[data-act]',function(el){var a=el.getAttribute('data-act'),f=S.id?fq(S.id):null;
+ if(a==='pick'){S.pick=!S.pick;render()}
+ else if(a==='remind'){S.remind[S.id]=!S.remind[S.id];render()}
+ else if(a==='edit'){S.edit=true;render();var e=app.querySelector('#ed');if(e)e.focus()}
+ else if(a==='cancel'){S.edit=false;render()}
+ else if(a==='save'){var t=app.querySelector('#ed').value.trim(),p=app.querySelector('#pd').value.trim();if(!t){toast('先写下你会怎么说');return}
+  if(f.cur&&f.cur.kind!=='bridge')f.hist=[{who:f.cur.who+(f.cur.period?' · '+f.cur.period:''),t:f.cur.t}].concat(f.hist||[]);
+  var was=bad(f);f.cur={kind:'mine',who:'刚刚更新',t:t,period:p||null};if(was||f.st==='ok'){f.st='try';f.reason='新说法，还没在拜访里用过';f.uses=[];f.why='这条说法更新后还没在拜访里用过。';f.gap=null}
+  S.edit=false;toast(was?'已更新，移到「值得复用的回答」':'已更新，旧版本保留在版本记录里')}
+ else if(a==='practice'){toast('已加入下次 Mock：Candid 会扮演客户问你这题')}
+ else if(a==='upload'){FILES.unshift({id:'n'+Date.now(),name:'新上传的文件.pdf',kind:'门店资料',ver:'v1',date:'刚刚',st:'proc'});S.tab='docs';go('home');toast('已上传，正在解析')}
+ else if(a==='retry'){var d=fl('comp');d.st='proc';d.date='刚刚';S.tab='docs';go('home');toast('正在重新解析')}
+});
+var qi=app.querySelector('#q');if(qi)qi.addEventListener('input',function(){S.q=qi.value;app.querySelector('#res').innerHTML=results();app.querySelector('#browse').style.display=S.q.trim()?'none':'';bindRes()});
+}
+app.addEventListener('click',function(){if(S.menu){S.menu=null;render()}});
+render();
+</script>
+</body></html>

@@ -1,6 +1,45 @@
 import XCTest
 
 final class CanDidUITests: XCTestCase {
+    private func libraryApp(large:Bool=false)->XCUIApplication {
+        let app=XCUIApplication();app.launchArguments=large ? ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"]:[]
+        app.launchEnvironment=["CANDID_LOCAL_BACKEND":"1","CANDID_BACKEND_PORT":"8897","CANDID_BACKEND_TOKEN":"candid-v2-local-acceptance","CANDID_ACCEPTANCE_CACHE":UUID().uuidString]
+        app.launch();let skip=app.buttons["直接开始，之后再介绍"];if skip.waitForExistence(timeout:5) {skip.tap()}
+        XCTAssertTrue(app.buttons["记忆库"].waitForExistence(timeout:25));app.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["FAQ"].waitForExistence(timeout:20));return app
+    }
+    func testMemoryLibraryActualHTTPFAQMockAndVersion() {
+        continueAfterFailure=false
+        let app=libraryApp();XCTAssertTrue(app.staticTexts["你的沟通，慢慢看得见变化。"].waitForExistence(timeout:15));capture(app,"memory-me")
+        app.buttons["FAQ"].tap();capture(app,"memory-faq");let search=app.textFields["libraryFAQSearch"];search.tap();search.typeText("价格")
+        let row=app.buttons.containing(.staticText,identifier:"价格怎么解释？").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout:10));row.tap()
+        XCTAssertTrue(app.staticTexts["现在的说法"].waitForExistence(timeout:10));capture(app,"memory-faq-detail")
+        let evidence=app.buttons["门店交付说明.txt"]
+        if !evidence.isHittable {app.swipeUp()};XCTAssertTrue(evidence.exists);evidence.tap()
+        XCTAssertTrue(app.buttons["上传新版本"].waitForExistence(timeout:10));capture(app,"memory-linked-document")
+        app.navigationBars.buttons.firstMatch.tap();app.swipeDown()
+        app.buttons["用 Mock 练一练"].tap();let answer=app.textViews["练习回答"]
+        XCTAssertTrue(answer.waitForExistence(timeout:10));answer.tap();answer.typeText("I will clarify the customer needs first.")
+        app.buttons["提交回答"].tap()
+        XCTAssertTrue(app.staticTexts["先确认需求这个方向很好；下一次请补上明确的下一步。"].waitForExistence(timeout:35));capture(app,"memory-mock")
+        app.swipeUp();let save=app.buttons["保存为我的新说法"];if !save.isHittable {app.swipeDown()};save.tap()
+        XCTAssertTrue(app.staticTexts["已保存新说法，仍待实战使用。"].waitForExistence(timeout:10))
+    }
+    func testMemoryLibraryDocumentsAndMetrics() {
+        continueAfterFailure=false
+        let app=libraryApp();let metrics=app.buttons.containing(.staticText,identifier:"表达与趋势").firstMatch
+        XCTAssertTrue(metrics.waitForExistence(timeout:15));metrics.tap();XCTAssertTrue(app.staticTexts["最早三场 · 起点"].waitForExistence(timeout:10));capture(app,"memory-metrics")
+        app.navigationBars.buttons.firstMatch.tap();app.buttons["背景资料"].tap()
+        let doc=app.buttons.containing(.staticText,identifier:"门店交付说明.txt").firstMatch
+        XCTAssertTrue(doc.waitForExistence(timeout:15));capture(app,"memory-documents");doc.tap()
+        XCTAssertTrue(app.buttons["上传新版本"].waitForExistence(timeout:10));XCTAssertTrue(app.staticTexts["当前交付三周。价格以门店书面报价为准。"].exists);capture(app,"memory-document-detail")
+    }
+    func testMemoryLibraryLargeText() {
+        continueAfterFailure=false
+        let app=libraryApp(large:true);capture(app,"memory-large-me");app.buttons["FAQ"].tap()
+        XCTAssertTrue(app.buttons["背景资料"].isHittable);XCTAssertTrue(app.textFields["libraryFAQSearch"].exists);capture(app,"memory-large-faq")
+    }
     func testCustomerDashboardAndIndependentWorkspaceKeepRecapAndTranscriptPlayback() {
         continueAfterFailure=false
         let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()

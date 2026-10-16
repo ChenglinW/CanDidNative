@@ -4,7 +4,7 @@ from memory import Fault, L1, ident, now
 from adapters.sources import SOURCE_TABLES, text_of
 
 MATERIAL_TABLES = {**SOURCE_TABLES, 'session':'sessions'}
-PERSONAL_KINDS = {'asset','experience','document','personal','discovery'}
+PERSONAL_KINDS = {'faq','asset','experience','document','personal','discovery'}
 
 
 class WorkspaceStore:
