@@ -4,7 +4,7 @@ from memory import Fault, L1, ident, now
 from adapters.sources import SOURCE_TABLES, text_of
 
 MATERIAL_TABLES = {**SOURCE_TABLES, 'session':'sessions'}
-PERSONAL_KINDS = {'asset','experience','document','personal','discovery'}
+PERSONAL_KINDS = {'faq','asset','experience','document','personal','discovery'}
 
 
 class WorkspaceStore:
@@ -29,7 +29,7 @@ class WorkspaceStore:
                 return prior
             creation_input = {'name':name,'goal':goal}
             automatic_name = not name
-            name = name or '新的沟通 '+str(len(self.list(owner))+1)
+            name = name or '新会话'
             wid = ident()
             if thread is None:
                 thread = self.store.put('chat_threads',owner,{'title':name,'workspace_id':wid,
@@ -77,7 +77,13 @@ class WorkspaceStore:
         messages = sorted(self.store.rows('chat_messages',owner,thread_id=thread['id']),
                           key=lambda m:(m['created_at'],m['id']))
         tasks = self.store.rows('agent_tasks',owner,thread_id=thread['id'])
-        return {**row,'task_status':thread['status'],'message_count':len(messages),
+        confirmed = [s for s in self.store.rows('sessions',owner)
+                     if s.get('customer_workspace_id') == row['id'] and s.get('customer_confirmed_at') and not s.get('fixture')]
+        packs = self.store.rows('companion_preparations',owner,workspace_id=row['id'])
+        activity = [row['created_at']] + [m['created_at'] for m in messages if m.get('role')=='user']
+        activity += [p['created_at'] for p in packs] + [s['customer_confirmed_at'] for s in confirmed]
+        return {**row,'customer_id':row['id'],'last_active_at':max(activity),
+                'confirmed_recording_count':len(confirmed),'task_status':thread['status'],'message_count':len(messages),
                 'last_message':messages[-1]['content'][:100] if messages else '',
                 'queued_count':sum(t['status']=='queued' for t in tasks)}
 
@@ -145,6 +151,15 @@ class WorkspaceStore:
             thread=self.store.get('chat_threads',owner,row['thread_id'])
             explicit=self.scope(owner,'message:'+row['id'])
             return thread.get('workspace_id')==workspace_id or bool(explicit and explicit['mode']=='spaces' and workspace_id in explicit['workspace_ids'])
+        recording_id = row.get('session_id') or row.get('source_session_id') or (row['id'] if kind=='session' else None)
+        if recording_id:
+            session = self.store.get('sessions',owner,recording_id)
+            if session.get('customer_assignment_required'):
+                # Tags remain descriptive. Only the confirmed primary customer receives dynamic memory.
+                if not session.get('customer_confirmed_at'):return False
+                if session.get('customer_workspace_id')==workspace_id:return True
+                explicit=self.scope(owner,kind+':'+row['id']) or self.scope(owner,'session:'+recording_id)
+                return bool(explicit and explicit['mode']=='spaces' and workspace_id in explicit['workspace_ids'])
         if kind in {'personal','discovery'} and row.get('general_personal') and row.get('status')=='confirmed':
             return True
         if kind in {'personal','discovery'} and row.get('archive_workspace_id')==workspace_id:

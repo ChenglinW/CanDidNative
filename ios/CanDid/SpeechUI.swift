@@ -43,6 +43,7 @@ struct RecordingRecord: Decodable, Identifiable {
     var jobs: [BusinessJob]?; var transcript_revision: Int?
     var marks:[RecordingMark]?
     var duration_ms: Int?; var title: String?; var kind: String?; var fixture: Bool?; var device_file_id: Int?
+    var customer_workspace_id:String?;var customer_confirmed_at:String?;var customer_assignment_revision:Int?
 }
 struct RecordingMark:Decodable,Identifiable {var id:String;var t_ms:Int;var user_label:String?}
 struct LiveRecordingSentence: Identifiable {
@@ -199,7 +200,7 @@ enum SpeechPlaybackState:String {case idle,preparing,playing,paused,failed}
                 sessionID=nil;meetingSource=nil;meetingID=nil
             } else {
                 let session: RecordingRecord=try await api.call("/v1/recordings",method:"POST",body:[
-                    "client_request_id":UUID().uuidString,"recording_source":"iphone","consent":"yes","consent_ack_text_version":"recording-consent@1"])
+                    "client_request_id":UUID().uuidString,"recording_source":"iphone","consent":"yes","consent_ack_text_version":"recording-consent@1","customer_assignment_required":true])
                 sessionID=session.id;meetingID=session.id;meetingSource="iphone";meetingProgress=nil
             }
             let identifier=sessionID ?? UUID().uuidString
@@ -691,7 +692,7 @@ extension SpeechController {
                 let row: RecordingRecord=try await api.call("/v1/recordings",method:"POST",body:[
                     "client_request_id":DeviceRecordingMap.requestID(api:api,fileID:fileID,deviceID:connected.recordingID),"recording_source":"soundcore",
                     "device_file_id":Int(UInt32(bitPattern:fileID)),"device_id":connected.recordingID,
-                    "consent":"yes","consent_ack_text_version":"recording-consent@1"])
+                    "consent":"yes","consent_ack_text_version":"recording-consent@1","customer_assignment_required":true])
                 sid=row.id;DeviceRecordingMap.set(sid,api:api,fileID:fileID,deviceID:connected.recordingID)
             }
             guard identity(store.api)==identity(api),device.connected?.recordingID==connected.recordingID,
@@ -784,7 +785,7 @@ extension SpeechController {
                 let row:RecordingRecord=try await api.call("/v1/recordings",method:"POST",body:[
                     "client_request_id":DeviceRecordingMap.requestID(api:api,fileID:file.id,deviceID:connected.recordingID),"recording_source":"soundcore",
                     "device_file_id":Int(UInt32(bitPattern:file.id)),"device_id":connected.recordingID,
-                    "consent":"yes","consent_ack_text_version":"recording-consent@1"])
+                    "consent":"yes","consent_ack_text_version":"recording-consent@1","customer_assignment_required":true])
                 sid=row.id;DeviceRecordingMap.set(sid,api:api,fileID:file.id,deviceID:connected.recordingID)
             }
             guard identity(store.api)==identity(api) else { throw PrototypeError.message("连接已变化，请返回录音创建时的后端再同步。") }

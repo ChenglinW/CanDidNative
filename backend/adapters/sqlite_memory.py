@@ -78,12 +78,19 @@ class SQLiteMemoryAdapter:
             original=row.get('onboarding_original_id') or (row['id'] if row.get('material_kind')=='onboarding_original' else None)
             if original and self.store.db.execute("SELECT 1 FROM requests WHERE owner_id=? AND request_id=? AND kind='onboarding_document_removed'",(owner,original)).fetchone():
                 raise Fault('SOURCE_UNAVAILABLE','资料已移除',404)
+        if kind=='document' and row.get('onboarding_original_id'):
+            original=row['onboarding_original_id']
+            family=next((f for f in self.rows('document_families',owner) if original in f.get('versions',[])),None)
+            parsed=self.rows('documents',owner,onboarding_original_id=original)
+            if (family and family['current_id']!=original) or (parsed and parsed[0]['id']!=row['id']):row={**row,'status':'superseded'}
         self._require_scope(owner,kind,row,workspace_id)
         scope_versions = self.workspaces.scope_versions(owner,kind,row)
         if scope_versions:
             row = {**row,'context_scope_versions':scope_versions}
         if row.get('fixture') or str(row.get('producer', '')).startswith('fixture'):
             raise Fault('SOURCE_UNAVAILABLE', '示例资料不能作为真实记忆', 404)
+        if kind=='transcript' and row.get('transcript_revision',1)!=self.get('sessions',owner,row['session_id']).get('transcript_revision',1):
+            row={**row,'status':'superseded'}
         if kind == 'transcript' and row.get('speaker') != 'self':
             session = self.get('sessions',owner,row['session_id'])
             if session.get('consent')!='yes' or not session.get('llm_consent_at'):
@@ -91,7 +98,7 @@ class SQLiteMemoryAdapter:
             row = {**row,'personal_identity_confirmed':False}
         if kind in {'document','research'} and not row.get('text'):
             raise Fault('SOURCE_UNREADABLE', '资料正文尚未取得或解析', 409)
-        if kind in {'personal','knowledge','discovery','asset'}:
+        if kind in {'personal','knowledge','discovery','asset','faq'}:
             for reference in row.get('evidence_refs',[]):
                 parent_kind,_,parent_id=reference.get('source_id','').partition(':')
                 parent_table=SOURCE_TABLES.get(parent_kind)
@@ -169,7 +176,7 @@ class SQLiteMemoryAdapter:
                 raise Fault('BAD_REQUEST', '场次不属于该场合', 422)
         terms, ranked, excluded = self._terms(query), [], []
         sessions = {r['id']: r for r in self.rows('sessions', owner)}
-        kinds = ['asset', 'experience', 'occasion', 'personal', 'discovery'] + ([] if confirmed_only else ['transcript'])
+        kinds = ['faq', 'asset', 'experience', 'occasion', 'personal', 'discovery'] + ([] if confirmed_only else ['transcript'])
         for kind in kinds:
             for row in self.rows(SOURCE_TABLES[kind], owner):
                 if not self.workspaces.allowed(owner,kind,row,workspace_id):
@@ -179,7 +186,7 @@ class SQLiteMemoryAdapter:
                     continue
                 if kind == 'transcript' and row.get('speaker') != 'self':
                     continue
-                if kind != 'transcript' and (row.get('trust') != L3 or (kind != 'occasion' and row.get('status') != 'confirmed')):
+                if kind not in {'transcript','faq'} and (row.get('trust') != L3 or (kind != 'occasion' and row.get('status') != 'confirmed')):
                     continue
                 if session_id and sid != session_id:
                     continue
@@ -187,6 +194,7 @@ class SQLiteMemoryAdapter:
                 # Unbound confirmed personal material can be relevant in any occasion.
                 if occasion_id and oid and oid != occasion_id:
                     continue
+                if kind=='faq' and row.get('status')!='active':continue
                 haystack = (row.get('title', '') + ' ' + text_of(kind, row) + ' ' + json.dumps(row.get('tags', []), ensure_ascii=False)).lower()
                 score = sum(1 for term in terms if term in haystack)
                 if not score:

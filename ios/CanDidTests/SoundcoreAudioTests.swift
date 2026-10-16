@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 import module_spplinkKit
 import AVFoundation
@@ -5,6 +6,7 @@ import SwiftUI
 @testable import CanDid
 
 private final class OnboardingStubProtocol: URLProtocol {
+
     static var handler: ((URLRequest) throws -> Data)?
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "onboarding-test.invalid" }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -19,6 +21,72 @@ private final class OnboardingStubProtocol: URLProtocol {
 }
 
 final class SoundcoreAudioTests: XCTestCase {
+    func testNativeVisionReadsImageAndMixedPDFPages() throws {
+        let image=UIGraphicsImageRenderer(size:CGSize(width:1000,height:500)).image {ctx in
+            UIColor.white.setFill();ctx.fill(CGRect(x:0,y:0,width:1000,height:500))
+            ("Delivery 3 weeks\nPrice 180000" as NSString).draw(at:CGPoint(x:60,y:80),withAttributes:[.font:UIFont.systemFont(ofSize:42),.foregroundColor:UIColor.black])
+        }
+        let result=try NativeDocumentOCR.recognizeImage(image)
+        XCTAssertTrue(result.0.contains("180000"));XCTAssertTrue(result.0.lowercased().contains("delivery"))
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pdf")
+        defer {try? FileManager.default.removeItem(at:url)}
+        let pdf=UIGraphicsPDFRenderer(bounds:CGRect(x:0,y:0,width:600,height:800))
+        try pdf.writePDF(to:url) {ctx in
+            ctx.beginPage();("Text page" as NSString).draw(at:CGPoint(x:40,y:80),withAttributes:[.font:UIFont.systemFont(ofSize:32)])
+            ctx.beginPage();image.draw(in:CGRect(x:0,y:30,width:600,height:300))
+        }
+        let pages=try NativeDocumentOCR.recognize(url)
+        XCTAssertEqual(pages.count,2);XCTAssertTrue((pages[1]["text"] as? String ?? "").contains("180000"))
+    }
+
+    func testCustomerPreparationOrderingUsesMeetingTimeThenCreationAndKeepsOverdueVisible() throws {
+        func pack(_ id:String,_ meeting:String?,_ created:String)->CompanionPreparation {
+            CompanionPreparation(id:id,client:id,goal:"试点",scenario:"sales",scheduled_at:meeting,sections:[],status:"ready",version:1,created_at:created)
+        }
+        let older=pack("earlier","2026-10-18T10:00:00+08:00","2026-10-16T04:00:00Z")
+        let later=pack("later","2026-10-19T09:00:00+08:00","2026-10-16T01:00:00Z")
+        let unknownA=pack("unknown-a",nil,"2026-10-16T02:00:00Z")
+        let unknownB=pack("unknown-b",nil,"2026-10-16T03:00:00Z")
+        let overdue=pack("overdue","2020-01-01T00:00:00Z","")
+        var finished=later;finished.id="completed";finished.status="completed"
+        XCTAssertEqual(CustomerWorkspacePresentation.preparations([unknownA,older,finished,overdue,unknownB,later]).map(\.id),["later","earlier","overdue","unknown-b","unknown-a"])
+    }
+    @MainActor func testCustomerDraftsAndNewConversationStaySeparate() async throws {
+        let store=Store(localDirectory:FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        store.seedCompanionPreview();store.clearChatRecovery()
+        await store.selectProjectSpace("preview-customer-0");store.saveChatDraft("甲客户草稿")
+        await store.selectProjectSpace("preview-customer-1");XCTAssertEqual(store.chatDraft,"");store.saveChatDraft("乙客户草稿")
+        await store.selectProjectSpace("preview-customer-0");XCTAssertEqual(store.chatDraft,"甲客户草稿")
+        store.beginNewCustomerConversation();XCTAssertNil(store.chatThread);XCTAssertTrue(store.newWorkspacePending)
+        store.saveChatDraft("新会话草稿")
+        await store.selectProjectSpace("preview-customer-1");XCTAssertEqual(store.chatDraft,"乙客户草稿")
+        store.beginNewCustomerConversation();XCTAssertEqual(store.chatDraft,"新会话草稿")
+        store.clearChatRecovery()
+    }
+    @MainActor func testRestoringArchivedCustomerLeavesNewConversationMode() async throws {
+        URLProtocol.registerClass(OnboardingStubProtocol.self)
+        defer {URLProtocol.unregisterClass(OnboardingStubProtocol.self);OnboardingStubProtocol.handler=nil}
+        let store=Store(localDirectory:FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        store.seedCompanionPreview();store.clearChatRecovery();store.base="http://onboarding-test.invalid";store.remote=true
+        var archived=store.projectSpaces[1];archived.status="archived"
+        var restored=archived;restored.status="active";restored.version+=1
+        let thread=ChatThread(id:restored.default_thread_id,title:restored.name,status:"idle",activity:[],message_count:0,updated_at:"",workspace_id:restored.id)
+        func object<T:Encodable>(_ value:T)throws->Any {try JSONSerialization.jsonObject(with:JSONEncoder().encode(value))}
+        let restoredJSON=try object(restored),threadJSON=try object(thread)
+        OnboardingStubProtocol.handler={request in
+            let path=request.url!.path
+            if path.hasSuffix("/restore") {return try JSONSerialization.data(withJSONObject:restoredJSON)}
+            if path=="/v1/project-spaces" {return try JSONSerialization.data(withJSONObject:["data":[restoredJSON],"next_cursor":NSNull()])}
+            if path=="/v1/chat/threads" {return try JSONSerialization.data(withJSONObject:["data":[threadJSON],"next_cursor":NSNull()])}
+            return try JSONSerialization.data(withJSONObject:["thread":threadJSON,"messages":[],"tasks":[]])
+        }
+        store.beginNewCustomerConversation();XCTAssertTrue(store.newWorkspacePending)
+        await store.archiveProjectSpace(restore:true,selected:archived)
+        XCTAssertFalse(store.newWorkspacePending)
+        XCTAssertEqual(store.chatThread?.id,restored.default_thread_id)
+        XCTAssertEqual(store.currentProjectSpace?.id,restored.id)
+        store.clearChatRecovery()
+    }
     @MainActor func testDismissedTaskRecoveryPersistsAndIsScopedToAttemptAndThread() throws {
         let store=Store(localDirectory:FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         store.chatThread=ChatThread(id:"recovery-test-"+UUID().uuidString,title:"Test",status:"idle",activity:[],message_count:0,updated_at:"")

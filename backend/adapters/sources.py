@@ -5,7 +5,7 @@ import json
 
 from memory import L1, L2, L3
 
-SOURCE_TABLES = {'asset': 'assets', 'experience': 'experiences', 'occasion': 'occasions',
+SOURCE_TABLES = {'faq':'library_items', 'asset': 'assets', 'experience': 'experiences', 'occasion': 'occasions',
                  'transcript': 'transcript_segments', 'diagnosis': 'diagnoses',
                  'document': 'documents', 'research': 'agent_sources',
                  'discovery':'discoveries', 'personal': 'personal_memories', 'knowledge': 'recording_knowledge', 'message': 'chat_messages'}
@@ -26,7 +26,7 @@ def text_of(kind, row):
 
 
 def state_of(row):
-    if row.get('status') in {'archived', 'deleted', 'withdrawn'} or row.get('user_disagrees'):
+    if row.get('status') in {'archived', 'deleted', 'withdrawn','superseded'} or row.get('user_disagrees'):
         return 'archived'
     if row.get('conflict_status') == 'unresolved' or row.get('conflict') is True:
         return 'conflict'
@@ -55,9 +55,13 @@ def source(kind, row, *, reading_range='snippet', limit=2200):
               'reference_status': state_of(row), 'reading_range': reading_range,
               'text_truncated': len(text) > limit, 'record_version': row.get('version'),
               'evidence_refs': row.get('evidence_refs', [])}
+    if kind=='faq':
+        result['content_role']='expression_suggestion'
+        result['fact_evidence_status']='missing' if row.get('requires_document') and not any(r.get('source_id','').startswith('document:') for r in row.get('evidence_refs',[])) else 'source_bound'
+        if result['fact_evidence_status']=='missing':result['text']='表达建议，报价/政策/交期事实依据未补齐，不可据此作承诺：\n'+result['text']
     if row.get('session_id') or row.get('source_session_id'):
         result['session_id'] = row.get('session_id') or row.get('source_session_id')
-    for key in ('start_ms', 'end_ms', 'occasion_id', 'url', 'page', 'fetched_at', 'published_at', 'publication_date_basis', 'original_total_chars', 'storage_truncated', 'material_kind', 'confirmation_mode', 'producer', 'personal_identity_confirmed'):
+    for key in ('remind','start_ms', 'end_ms', 'occasion_id', 'url', 'page', 'fetched_at', 'published_at', 'publication_date_basis', 'original_total_chars', 'storage_truncated', 'material_kind', 'confirmation_mode', 'producer', 'personal_identity_confirmed'):
         if row.get(key) is not None:
             result[key] = row[key]
     if kind == 'research' and reading_range != 'search_snippet':

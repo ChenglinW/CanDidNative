@@ -172,6 +172,7 @@ class Recordings:
         Companion(self.store).publish_recording(owner,sid,job['revision'])
         self.business.submit(owner,'companion_discovery',sid,job['revision'])
         self.business.question_grouping.snapshot(owner)
+        if 'library_extract' in self.business.handlers:self.business.submit(owner,'library_extract',sid,job['revision'])
         return {'knowledge_ids':[k['id'] for k in saved],'session_id':sid}
 
     def discover(self,owner,job):

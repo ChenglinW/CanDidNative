@@ -19,6 +19,7 @@ struct CompanionPreparation: Decodable, Identifiable {
   var version: Int
   var reference_status: String?
   var workspace_id: String?
+  var created_at:String?
 }
 struct CompanionSnapshot: Decodable {
   var thread: ChatThread
@@ -94,7 +95,7 @@ extension Store {
     companionMemory = memories
     // Refresh metadata without resetting the user's selected context.
     try await reloadProjectSpaces()
-    if chatThread == nil {try await restoreWorkspaceSelection()}
+    if chatThread == nil && !newWorkspacePending {try await restoreWorkspaceSelection()}
     else if !chatControlBusy && !chatLoading && !chatBusy && chatRequest == nil, let id=chatThread?.id {
       try await refreshCompanionChat(id)
     }
@@ -233,250 +234,369 @@ struct CompanionQuickActions: View {
     }.buttonStyle(CompanionButtonStyle())
   }
 }
+/// The dashboard stays in place; each customer opens a separate, stateful conversation page.
 struct CompanionHome: View {
   @EnvironmentObject var store: Store
   let onSettings: () -> Void
-  @State private var open = false
-  @State private var issue: String?
+  @State private var chat = false
+  @State private var focusChat = false
   @State private var device = false
-  @State private var workspaceList = false
-  @State private var workspaceEditor = false
-  @State private var workspaceMaterials = false
+  @State private var issue: String?
+  @State private var sort = CustomerTrackerSort.activity
+  @State private var preparationIndex = 0
   @FocusState private var focused: Bool
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  private func revealChat(_ value: Bool) {
-    withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.9)) { open = value }
-    if !value { focused = false }
-  }
-  private var records: [RecordingRecord] { Array(store.companionRecordings.prefix(3)) }
-  private var nextPreparation:CompanionPreparation? {
-    let all=store.companion?.preparations ?? []
-    if store.currentProjectSpace?.is_companion == true || store.currentProjectSpace == nil {return store.companion?.next_preparation}
-    let scoped=all.filter{$0.workspace_id==store.currentProjectSpace?.id && $0.status=="ready" && $0.reference_status != "superseded"}
-    let now=Date()
-    let future=scoped.filter{(ProductDate.parse($0.scheduled_at ?? "") ?? .distantPast)>=now}.sorted{($0.scheduled_at ?? "", -$0.version)<($1.scheduled_at ?? "", -$1.version)}
-    return future.first ?? scoped.filter{$0.scheduled_at==nil}.last
-  }
-  private var empty: Bool { nextPreparation == nil && records.isEmpty }
+  private var expandedLayout:Bool {typeSize >= .xLarge}
+  private var packs: [CompanionPreparation] { CustomerWorkspacePresentation.preparations(store.companion?.preparations ?? []) }
+  private var customers: [ProjectSpace] { CustomerWorkspacePresentation.customers(store.activeProjectSpaces, sort:sort) }
   var body: some View {
-    VStack(spacing: 0) {
-      HStack(spacing: 10) {
-        Button {
-        } label: {
-          Mascot(size: 47)
-        }.simultaneousGesture(
-          TapGesture(count: 2).onEnded {
-            focused = false
-            store.voice.enter(store: store)
-          }
-        )
-        .accessibilityLabel("Candid 头像").accessibilityIdentifier("candid-avatar")
-        .accessibilityAction(named: Text("连续对话")) { store.voice.enter(store: store) }
-        .contextMenu {
-          Button("个人与设置", action: onSettings).accessibilityIdentifier("open-settings")
-          NavigationLink("全部准备包") { CompanionPreparationList() }
-        }
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Candid").companionFont(20, weight: .bold).lineLimit(1).minimumScaleFactor(0.7)
-          Text("和你一起，准备下一次").companionFont(11).foregroundStyle(RecordingFormat.secondary)
-        }
-        Spacer()
-        Button {
-          focused = false
-          store.voice.enter(store: store)
-        } label: {
-          Image(systemName: "waveform").font(.system(size: 17)).frame(width: 44, height: 44)
-        }.accessibilityLabel("连续对话")
-        Button {
-          focused = false
-          device = true
-        } label: {
-          Image(systemName: "mic").font(.system(size: 17)).frame(width: 40, height: 40).background(
-            Warm.white, in: Circle()
-          )
-          .overlay(Circle().stroke(CompanionStyle.line))
-        }.frame(minWidth: 44, minHeight: 44).accessibilityLabel("使用安克录音豆录音")
-      }.dynamicTypeSize(...DynamicTypeSize.xxxLarge).padding(.horizontal, 18).padding(.top, 8)
-        .padding(.bottom, 10)
+    VStack(spacing:0) {
+      header
       GeometryReader { geometry in
-        ZStack(alignment: .bottom) {
-          Group {
-            if typeSize.isAccessibilitySize || geometry.size.height < 350 {
-              ScrollView { backgroundContent }
-            } else {
-              backgroundContent
-            }
-          }.opacity(open ? 0 : 1).accessibilityHidden(open)
-          ChatView(onSettings: onSettings, embedded: true, showsComposer: false)
-            .padding(.top, 52)
-            .overlay(alignment: .top) {
-              HStack {
-                VStack(alignment:.leading,spacing:2) {
-                  Text("对话").companionFont(15,weight:.semibold)
-                  Text(store.currentProjectSpace?.name ?? "Candid").companionFont(11).foregroundStyle(RecordingFormat.secondary).lineLimit(1)
-                }
-                Spacer()
-                Button {revealChat(false)} label:{Label("收起",systemImage:"chevron.down").companionFont(13).frame(minHeight:44)}
-                  .accessibilityLabel("收起对话")
-              }.padding(.horizontal,18).frame(height:52).contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance:20).onEnded{if $0.translation.height>45 {revealChat(false)}})
-            }
-            .background(Warm.paper).opacity(open ? 1 : 0).allowsHitTesting(open)
-            .accessibilityHidden(!open)
-            .offset(y: open || reduceMotion ? 0 : geometry.size.height)
-
-        }
-      }.clipped()
-      dock
-    }.frame(maxWidth: 700).frame(maxWidth: .infinity).background(Warm.paper.ignoresSafeArea())
-      .toolbar(.hidden, for: .navigationBar)
-      .sheet(isPresented: $device) {
-        NavigationStack { CompanionDeviceGuide().toolbar { Button("返回") { device = false } } }
+        if expandedLayout || geometry.size.height < 340 {
+          ScrollView { dashboard }
+        } else { dashboard }
       }
-      .sheet(isPresented:$workspaceList) {WorkspaceList()}
-      .sheet(isPresented:$workspaceEditor) {if let space=store.currentProjectSpace {WorkspaceEditor(space:space)}}
-      .sheet(isPresented:$workspaceMaterials) {if let space=store.currentProjectSpace {WorkspaceMaterials(space:space)}}
-      .task(id: String(store.remote) + store.base) {
-        guard store.remote else { return }
+      CustomerConversationDock(focused:$focused,device:$device,send:send,onWorkspaceSelected:{openChat(focus:store.newWorkspacePending)})
+    }.frame(maxWidth:700).frame(maxWidth:.infinity).background(Warm.paper.ignoresSafeArea())
+      .toolbar(.hidden,for:.navigationBar)
+      .navigationDestination(isPresented:$chat) { CustomerConversationPage(onSettings:onSettings,focusComposer:focusChat) }
+      .sheet(isPresented:$device) {NavigationStack {CompanionDeviceGuide().toolbar {Button("返回") {device=false}}}}
+      .onChange(of:focused) {_,value in if value {openChat(focus:true)}}
+      .onChange(of:store.voice.holding) {_,value in if value {openChat(focus:false)}}
+      .onChange(of:store.voice.preview) {_,value in if !value.isEmpty && !store.voice.showContinuous {openChat(focus:false)}}
+      .task(id:String(store.remote)+store.base) {
+        guard store.remote else{return}
         while !Task.isCancelled {
-          do {
-            try await store.reloadCompanion()
-            issue = nil
-          } catch is CancellationError { break } catch { issue = "暂时无法刷新，请检查网络后重试。" }
-          do { try await Task.sleep(for: .seconds(5)) } catch { break }
+          do {try await store.reloadCompanion();issue=nil} catch is CancellationError {break}
+          catch {issue="暂时无法刷新，请检查网络后重试。"}
+          do {try await Task.sleep(for:.seconds(5))} catch {break}
         }
-      }
-      .onChange(of: focused) { _, value in if value { revealChat(true) } }
-      .onChange(of: store.voice.preview) { _, value in
-        if !value.isEmpty && !store.voice.showContinuous { revealChat(true) }
       }
   }
-  private var backgroundContent: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      RecordingStatusBar(speech: store.speech, device: store.soundcore)
-      if let issue {
-        HStack {
-          Text(issue).companionFont(12)
-          Button("重试") {
-            Task {
-              do {
-                try await store.reloadCompanion()
-                self.issue = nil
-              } catch {}
-            }
-          }
-        }
+  private var header:some View {
+    HStack(spacing:10) {
+      Button {} label:{Mascot(size:44)}
+        .simultaneousGesture(TapGesture(count:2).onEnded {store.voice.enter(store:store)})
+        .accessibilityLabel("Candid 头像").accessibilityIdentifier("candid-avatar")
+        .accessibilityAction(named:Text("连续对话")) {store.voice.enter(store:store)}
+        .contextMenu {Button("个人与设置",action:onSettings).accessibilityIdentifier("open-settings");NavigationLink("全部准备包") {CompanionPreparationList()}}
+      VStack(alignment:.leading,spacing:3) {
+        Text("Candid").companionFont(23,weight:.bold).lineLimit(1)
+        Text("和你一起，准备下一次").companionFont(11).foregroundStyle(RecordingFormat.secondary).fixedSize(horizontal:false,vertical:true)
       }
-      if empty {
-        Spacer(minLength: 25)
-        VStack(spacing: 18) {
-          Mascot(size: 80)
-          Text("下一场沟通，一起准备。").companionFont(22, weight: .bold)
-          Text("说说你要见谁，或用录音豆记录一场沟通。").companionFont(13).foregroundStyle(RecordingFormat.secondary)
-            .multilineTextAlignment(.center)
-        }.frame(maxWidth: .infinity)
-        Spacer(minLength: 30)
+      Spacer()
+      Button {device=true} label:{Image(systemName:"mic").font(.system(size:17)).frame(width:44,height:44).background(Warm.white,in:Circle()).overlay(Circle().stroke(CompanionStyle.line))}
+        .accessibilityLabel("使用安克录音豆录音")
+    }.dynamicTypeSize(...DynamicTypeSize.xxxLarge).padding(.horizontal,22).padding(.top,8).padding(.bottom,16)
+  }
+  private var dashboard:some View {
+    VStack(alignment:.leading,spacing:8) {
+      RecordingStatusBar(speech:store.speech,device:store.soundcore)
+      if let issue {HStack {Text(issue).companionFont(12);Button("重试"){Task {try? await store.reloadCompanion()}}}}
+      if packs.isEmpty && customers.isEmpty {
+        Spacer(minLength:20)
+        VStack(spacing:16) {
+          Mascot(size:80)
+          Text("下一场沟通，一起准备。").companionFont(22,weight:.bold)
+          Text("直接告诉我下一次要见谁，一起开始准备。").companionFont(13).foregroundStyle(RecordingFormat.secondary).multilineTextAlignment(.center)
+        }.frame(maxWidth:.infinity)
+        Spacer(minLength:25)
       } else {
-        if let pack = nextPreparation {
-          HStack {
-            Text("下一场")
-            Spacer()
-            NavigationLink("全部准备包") { CompanionPreparationList() }
-          }.companionFont(11).foregroundStyle(RecordingFormat.secondary).padding(.top, 10)
-          CompanionPreparationCard(pack: pack)
-        }
-        if !records.isEmpty {
-          HStack {
-            Text("最近项目")
-            Spacer()
-            Button("全部录音 →") { store.recordingNavigation.section = .recordings }.foregroundStyle(
-              Warm.purple)
-          }.companionFont(12).foregroundStyle(RecordingFormat.secondary).frame(minHeight: 26)
-            .padding(.top, 2)
-          ForEach(records) { r in
-            NavigationLink {
-              CompanionRecordingPage(id: r.id)
-            } label: {
-              CompanionRecordingRow(record: r)
-            }.buttonStyle(.plain)
-          }
-        }
-        Spacer(minLength: 0)
-      }
-    }.padding(.horizontal, 18).frame(
-      maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  }
-  private func send(_ text: String? = nil) {
-    let value = (text ?? store.chatDraft).trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !value.isEmpty else { return }
-    revealChat(true)
-    if store.remote { store.sendChat(value) } else { store.saveChatDraft(value) }
-    focused = false
-  }
-  private var dock: some View {
-    VStack(spacing: 10) {
-      HStack {
-        Button {revealChat(!open)} label:{Label(open ? "返回首页":"查看对话",systemImage:open ? "chevron.down":"chevron.up").companionFont(12).frame(minHeight:44)}
-          .accessibilityIdentifier("toggle-home-chat")
-        Spacer()
-        Menu {
-          Button("空间列表与归档") {workspaceList=true}
-          if store.currentProjectSpace?.is_companion != true {
-            Button("修改名称与方向") {workspaceEditor=true}
-            Button("可读取的资料") {workspaceMaterials=true}
-            Button("归档这个空间") {Task {await store.archiveProjectSpace()}}
-              .disabled(store.chatBusy || store.voice.active)
-          }
-        } label:{Label("工作区",systemImage:"square.stack").companionFont(12).frame(minHeight:44)}
-          .accessibilityLabel("工作区管理").disabled(store.voice.active || store.chatControlBusy || store.chatLoading)
-      }.padding(.horizontal,18)
-      if !store.activeProjectSpaces.isEmpty {
-        WorkspaceCarousel(spaces:store.activeProjectSpaces,selectedID:store.currentProjectSpace?.id,compact:true,
-          disabled:store.chatControlBusy || store.chatLoading || store.voice.active,
-          select:{id in focused=false;Task{await store.selectProjectSpace(id)}},
-          create:{focused=false;Task{await store.createProjectSpace();revealChat(true)}})
-      }
-      SpeechPlaybackBar(speech:store.speech)
-      CompanionQuickActions(
-        hasRecording: !records.isEmpty, prepare: { send("帮我准备下一场沟通。") },
-        review: {
-          if let last = records.first {
-            send("帮我复盘录音「" + RecordingFormat.title(last) + "」，结合这场原文看看下次可以怎么说。")
+        if !packs.isEmpty {
+          HStack {Text("会前准备");Spacer();Text("\(min(preparationIndex+1,packs.count)) / \(packs.count)").monospacedDigit()}
+            .companionFont(12).foregroundStyle(RecordingFormat.secondary).padding(.bottom,3)
+          if expandedLayout {
+            CompanionPreparationCard(pack:packs[min(preparationIndex,packs.count-1)])
+              .fixedSize(horizontal:false,vertical:true)
+              .simultaneousGesture(DragGesture(minimumDistance:30).onEnded {value in
+                if abs(value.translation.width)>abs(value.translation.height) {movePreparation(value.translation.width<0 ? 1:-1)}
+              }).accessibilityIdentifier("preparation-carousel-expanded")
           } else {
-            focused = false
-            device = true
+            TabView(selection:$preparationIndex) {
+              ForEach(Array(packs.enumerated()),id:\.element.id) {index,pack in
+                CompanionPreparationCard(pack:pack).tag(index)
+              }
+            }.tabViewStyle(.page(indexDisplayMode:.never)).frame(height:165)
+              .accessibilityIdentifier("preparation-carousel")
           }
-        })
-      VoiceComposer(
-        voice: store.voice, focused: $focused, compact: true, inputIdentifier: "home-chat-input",
-        send: { send() })
-      VoiceInputStatus(voice: store.voice)
-    }.padding(.horizontal, 18).padding(.top, 10).padding(.bottom, 12).background(Warm.paper)
-      .overlay(alignment: .top) { CompanionStyle.line.opacity(0.6).frame(height: 1) }
+          HStack(spacing:10) {
+            Button {movePreparation(-1)} label:{Image(systemName:"chevron.left").frame(width:44,height:44)}.accessibilityLabel("上一份准备包")
+            ForEach(0..<min(packs.count,7),id:\.self) {index in
+              Capsule().fill(index==preparationIndex ? Warm.purple:Warm.purple.opacity(0.18)).frame(width:index==preparationIndex ? 16:5,height:5).accessibilityHidden(true)
+            }
+            Button {movePreparation(1)} label:{Image(systemName:"chevron.right").frame(width:44,height:44)}.accessibilityLabel("下一份准备包")
+          }.frame(maxWidth:.infinity).frame(height:32)
+        }
+        if !customers.isEmpty {
+          HStack(spacing:7) {
+            Text("客户 Tracker").companionFont(13)
+            Text(sort.rawValue).companionFont(10).foregroundStyle(RecordingFormat.secondary)
+            Spacer()
+            Menu {Picker("排序方式",selection:$sort) {ForEach(CustomerTrackerSort.allCases,id:\.self) {Text($0.rawValue).tag($0)}}}
+              label:{Image(systemName:"line.3.horizontal.decrease").frame(width:44,height:44)}.accessibilityLabel("客户 Tracker 排序")
+          }.foregroundStyle(RecordingFormat.secondary)
+          if expandedLayout {trackerRows}
+          else {ScrollView {trackerRows}.scrollBounceBehavior(.basedOnSize)}
+        }
+        Spacer(minLength:0)
+      }
+    }.padding(.horizontal,22).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
+      .onChange(of:packs.map(\.id)) {_,_ in preparationIndex=min(preparationIndex,max(0,packs.count-1))}
   }
+  private func movePreparation(_ step:Int) {
+    guard !packs.isEmpty else{return}
+    withAnimation(reduceMotion ? nil:.easeOut(duration:0.22)) {preparationIndex=(preparationIndex+step+packs.count)%packs.count}
+  }
+  private var trackerRows:some View {
+    VStack(spacing:9) {
+      ForEach(customers.prefix(3)) {space in
+        Button {Task {await store.selectProjectSpace(space.id);if store.currentProjectSpace?.id==space.id {openChat(focus:false)}}}
+          label:{CustomerTrackerRow(space:space)}.buttonStyle(.plain).accessibilityIdentifier("customer-tracker-"+space.id)
+      }
+    }.padding(.bottom,6)
+  }
+  private func openChat(focus:Bool) {
+    guard !chat else{return}
+    if store.currentProjectSpace==nil || store.currentProjectSpace?.is_companion==true {store.beginNewCustomerConversation()}
+    focusChat=focus;focused=false;chat=true
+  }
+  private func send() {openChat(focus:false);store.sendChat(store.chatDraft)}
+}
+
+enum CustomerTrackerSort:String,CaseIterable {case activity="最近活跃",sessions="场次最多",name="客户名称"}
+enum CustomerWorkspacePresentation {
+  static func preparations(_ rows:[CompanionPreparation])->[CompanionPreparation] {
+    rows.filter {$0.status=="ready" && $0.reference_status != "superseded"}.sorted {a,b in
+      let ad=ProductDate.parse(a.scheduled_at ?? ""),bd=ProductDate.parse(b.scheduled_at ?? "")
+      if ad != bd {return (ad ?? .distantPast)>(bd ?? .distantPast)}
+      return (a.created_at ?? "",a.version,a.id)>(b.created_at ?? "",b.version,b.id)
+    }
+  }
+  static func customers(_ rows:[ProjectSpace],sort:CustomerTrackerSort)->[ProjectSpace] {
+    rows.filter {$0.is_scope_context != true && $0.is_companion != true && ($0.name != "新会话" || $0.message_count>0 || ($0.confirmed_recording_count ?? 0)>0)}.sorted {a,b in
+      switch sort {
+      case .name:if a.name != b.name {return a.name.localizedStandardCompare(b.name) == .orderedAscending}
+      case .sessions:if a.confirmed_recording_count != b.confirmed_recording_count {return (a.confirmed_recording_count ?? 0)>(b.confirmed_recording_count ?? 0)}
+      case .activity:break
+      }
+      return (a.last_active_at ?? a.created_at,a.id)>(b.last_active_at ?? b.created_at,b.id)
+    }
+  }
+  static func stage(_ space:ProjectSpace)->String {
+    let labels=["demand":"需求了解","proposal":"方案确认","negotiation":"商务谈判","won":"已达成合作","lost":"已结束","preparing":"开始准备","hr":"HR 沟通","business":"业务面试","final":"终面","offer":"Offer 沟通","closed":"已结束"]
+    return labels[space.stage ?? ""] ?? "开始准备"
+  }
+}
+struct CustomerTrackerRow:View {
+  let space:ProjectSpace
+  private var count:Int {space.confirmed_recording_count ?? 0}
+  var body:some View {
+    VStack(alignment:.leading,spacing:12) {
+      HStack(alignment:.top,spacing:8) {
+        Text(space.name+(space.opportunity?.isEmpty==false ? " · "+space.opportunity!:"")).companionFont(14,weight:.semibold).lineLimit(2).multilineTextAlignment(.leading)
+        Spacer(minLength:0)
+        Text(space.scenario=="interview" ? "面试":"销售").companionFont(10).foregroundStyle(Warm.purple).padding(.horizontal,8).padding(.vertical,4).background(Warm.lavender,in:Capsule())
+      }
+      HStack(spacing:8) {
+        HStack(spacing:4) {ForEach(0..<min(max(count,1),5),id:\.self) {index in Capsule().fill(index==min(max(count,1),5)-1 ? Warm.purple:Color(red:0.36,green:0.5,blue:0.39)).frame(width:18,height:4)}}.accessibilityHidden(true)
+        Text(count==0 ? "尚无录音 · 开始准备":"第 \(count) 场 · "+CustomerWorkspacePresentation.stage(space)).companionFont(11).foregroundStyle(RecordingFormat.secondary)
+      }
+    }.padding(14).frame(maxWidth:.infinity,alignment:.leading).background(Warm.white,in:RoundedRectangle(cornerRadius:20))
+  }
+}
+
+struct CustomerConversationPage:View {
+  @EnvironmentObject var store:Store
+  @Environment(\.dismiss) private var dismiss
+  let onSettings:()->Void
+  var focusComposer=false
+  @FocusState private var focused:Bool
+  @State private var device=false
+  @State private var editor=false
+  @State private var spaces=false
+  @State private var navigationIdentity=UUID()
+  private var space:ProjectSpace? {store.currentProjectSpace}
+  var body:some View {
+    VStack(spacing:0) {
+      HStack(spacing:8) {
+        Button {focused=false;dismiss()} label:{Image(systemName:"chevron.left").font(.title3).frame(width:44,height:44)}.accessibilityLabel("返回首页").accessibilityIdentifier("workspace-back")
+        VStack(alignment:.leading,spacing:4) {
+          Text(space?.is_companion==true ? "Candid":space?.name ?? "新会话").companionFont(24,weight:.bold).lineLimit(2)
+          Text(space == nil ? "准备下一次沟通":(space?.opportunity?.isEmpty==false ? space!.opportunity!:"客户沟通")+" · \(space?.confirmed_recording_count ?? 0) 场沟通").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+        }
+        Spacer(minLength:0)
+        Button {} label:{Mascot(size:34).frame(width:44,height:44)}.simultaneousGesture(TapGesture(count:2).onEnded {startVoice()})
+          .accessibilityLabel("Candid 头像").accessibilityIdentifier("workspace-candid-avatar").accessibilityAction(named:Text("连续对话")){startVoice()}
+        Menu {
+          Button("连续对话",systemImage:"waveform",action:startVoice)
+          if space != nil {Button("修改客户信息",systemImage:"pencil"){editor=true}}
+          Button("工作区与归档",systemImage:"archivebox"){spaces=true}
+          Button("个人与设置",systemImage:"gearshape",action:onSettings)
+        } label:{Image(systemName:"ellipsis").frame(width:44,height:44)}.accessibilityLabel("工作区更多操作")
+      }.padding(.horizontal,10).padding(.top,8).padding(.bottom,12)
+      ScrollView(.horizontal) {
+        HStack(spacing:8) {
+          if let space,space.is_companion != true {
+            NavigationLink {CustomerWorkspaceSessions(space:space)} label:{Label("沟通场次  \(space.confirmed_recording_count ?? 0)",systemImage:"clock")}.accessibilityIdentifier("workspace-sessions")
+            NavigationLink {CustomerWorkspaceInfo(space:space)} label:{Label("客户信息",systemImage:"folder")}.accessibilityIdentifier("workspace-info")
+          }
+          Button(action:startVoice) {Label("连续对话",systemImage:"waveform")}.accessibilityIdentifier("workspace-continuous-voice")
+        }.companionFont(12).buttonStyle(CustomerContextButton()).padding(.horizontal,22)
+      }.scrollIndicators(.hidden).padding(.bottom,10)
+      ChatView(onSettings:onSettings,embedded:true,showsComposer:false)
+      CustomerConversationDock(focused:$focused,device:$device,send:{store.sendChat(store.chatDraft)})
+    }.frame(maxWidth:700).frame(maxWidth:.infinity).background(Warm.paper.ignoresSafeArea())
+      .toolbar(.hidden,for:.navigationBar).toolbar(.hidden,for:.tabBar)
+      .onAppear {store.recordingNavigation.visibleDetails.insert(navigationIdentity)}
+      .onDisappear {store.recordingNavigation.visibleDetails.remove(navigationIdentity)}
+      .task {if focusComposer {focused=true}}
+      .onChange(of:store.newWorkspacePending) {_,value in if value {focused=true}}
+      .sheet(isPresented:$device) {NavigationStack {CompanionDeviceGuide().toolbar {Button("返回"){device=false}}}}
+      .sheet(isPresented:$editor) {if let space {WorkspaceEditor(space:space)}}
+      .sheet(isPresented:$spaces) {WorkspaceList()}
+  }
+  private func startVoice() {focused=false;store.voice.enter(store:store)}
+}
+struct CustomerContextButton:ButtonStyle {
+  func makeBody(configuration:Configuration)->some View {
+    configuration.label.padding(.horizontal,12).frame(minHeight:44).background(Warm.ink.opacity(configuration.isPressed ? 0.12:0.055),in:RoundedRectangle(cornerRadius:12))
+  }
+}
+struct CustomerConversationDock:View {
+  @EnvironmentObject var store:Store
+  var focused:FocusState<Bool>.Binding
+  @Binding var device:Bool
+  var send:()->Void
+  var onWorkspaceSelected:()->Void={}
+  @State private var chooser=false
+  @Environment(\.dynamicTypeSize) private var typeSize
+  private var latest:RecordingRecord? {
+    let all=store.companionRecordings.sorted {($0.started_at ?? "",$0.id)>($1.started_at ?? "",$1.id)}
+    if let space=store.currentProjectSpace,space.is_companion != true {return all.first {$0.customer_workspace_id==space.id && $0.customer_confirmed_at != nil}}
+    return all.first
+  }
+  var body:some View {
+    VStack(spacing:4) {
+      SpeechPlaybackBar(speech:store.speech)
+      VoiceInputStatus(voice:store.voice)
+      VoiceComposer(voice:store.voice,focused:focused,compact:true,inputIdentifier:"home-chat-input",send:send)
+      if typeSize.isAccessibilitySize {VStack(alignment:.leading,spacing:0){workspaceButton;recapButton}}
+      else {controls}
+    }.padding(.horizontal,18).padding(.top,10).padding(.bottom,8).background(Warm.paper)
+  }
+  private var controls:some View {HStack(spacing:12){workspaceButton;Spacer(minLength:0);recapButton}}
+  private var workspaceButton:some View {
+    Button {focused.wrappedValue=false;chooser=true} label:{
+      HStack(spacing:6){Image(systemName:"folder");Text(store.currentProjectSpace?.is_companion==true ? "新工作区":store.currentProjectSpace?.name ?? "新工作区").lineLimit(1);Image(systemName:"chevron.down").font(.system(size:9,weight:.semibold))}
+        .companionFont(12).foregroundStyle(RecordingFormat.secondary).frame(minHeight:44).contentShape(Rectangle())
+    }.buttonStyle(.plain).accessibilityLabel("切换工作区").accessibilityIdentifier("workspace-selector")
+      .disabled(store.voice.active || store.chatControlBusy || store.chatLoading)
+      .popover(isPresented:$chooser,attachmentAnchor:.rect(.bounds),arrowEdge:.bottom) {CustomerWorkspaceChooser(selected:{chooser=false;onWorkspaceSelected()}).frame(minWidth:280,idealWidth:310,maxWidth:340).presentationCompactAdaptation(.popover)}
+  }
+  private var recapLabel:some View {Label("复盘上一场",systemImage:"arrow.counterclockwise").companionFont(12,weight:.semibold).padding(.horizontal,12).frame(minHeight:44).foregroundStyle(Warm.purple).background(Warm.lavender.opacity(0.65),in:RoundedRectangle(cornerRadius:12))}
+  @ViewBuilder private var recapButton:some View {
+    Group {
+      if let latest {NavigationLink {CompanionRecordingPage(id:latest.id)} label:{recapLabel}}
+      else {Button {focused.wrappedValue=false;device=true} label:{recapLabel}}
+    }.buttonStyle(.plain).accessibilityIdentifier("review-last-recording").disabled(store.voice.active || store.chatControlBusy || store.chatLoading)
+  }
+}
+struct CustomerWorkspaceChooser:View {
+  @EnvironmentObject var store:Store
+  var selected:()->Void
+  var choose:((ProjectSpace)->Void)?=nil
+  @State private var query=""
+  @State private var matches:[ProjectSpace]=[]
+  @State private var cursor:String?
+  @State private var loading=false
+  @State private var error:String?
+  @FocusState private var searchFocused:Bool
+  var body:some View {
+    VStack(alignment:.leading,spacing:10) {
+      Text("切换工作区").companionFont(12,weight:.semibold).foregroundStyle(RecordingFormat.secondary)
+      TextField("搜索客户",text:$query).textFieldStyle(.roundedBorder).focused($searchFocused).frame(minHeight:44)
+        .onTapGesture {searchFocused=true}.accessibilityIdentifier("workspace-search")
+      ScrollView {
+        LazyVStack(spacing:0) {
+          ForEach(matches) {space in Button {if let choose {choose(space);selected()} else {Task {await store.selectProjectSpace(space.id);if store.currentProjectSpace?.id==space.id {selected()}}}} label:{
+            HStack {VStack(alignment:.leading,spacing:4){Text(space.name).companionFont(14,weight:.semibold);Text("\(space.confirmed_recording_count ?? 0) 场沟通").companionFont(11).foregroundStyle(RecordingFormat.secondary)};Spacer();if store.currentProjectSpace?.id==space.id {Image(systemName:"checkmark").foregroundStyle(Warm.purple)}}.frame(minHeight:52).contentShape(Rectangle())
+          }.buttonStyle(.plain).accessibilityIdentifier("choose-workspace-"+space.id)}
+          if matches.isEmpty && !loading {Text(error ?? "没有找到客户，可新建工作区。").companionFont(12).padding(.vertical,12)}
+          if loading {ProgressView().padding()}
+          if cursor != nil {Button("加载更多") {Task {await search(more:true)}}.frame(minHeight:44)}
+          if error != nil {Button("重试") {Task {await search()}}.frame(minHeight:44)}
+        }
+      }.frame(height:min(224,max(104,CGFloat(matches.count)*56+(cursor == nil ? 0:44))))
+      Divider()
+      if choose == nil {Button {store.beginNewCustomerConversation();selected()} label:{Label("新建客户工作区",systemImage:"plus").frame(minHeight:44)}.companionFont(13,weight:.semibold).accessibilityIdentifier("new-customer-workspace")}
+    }.padding(16).background(Warm.white).ignoresSafeArea(.keyboard,edges:.bottom)
+      .onAppear {searchFocused=true}
+      .task(id:query) {do {try await Task.sleep(for:.milliseconds(220));await search()} catch {}}
+  }
+  private func search(more:Bool=false) async {
+    let requested=query;loading=true;error=nil
+    defer {if requested==query {loading=false}}
+    guard store.remote else {matches=store.activeProjectSpaces.filter {$0.is_scope_context != true && (requested.isEmpty || $0.name.localizedCaseInsensitiveContains(requested))};return}
+    do {
+      let q=requested.addingPercentEncoding(withAllowedCharacters:.urlQueryAllowed.subtracting(CharacterSet(charactersIn:"&+?=#"))) ?? ""
+      let page:Page<ProjectSpace>=try await store.api.call("/v1/project-spaces?customers_only=true&limit=20&q="+q+(more ? "&cursor="+(cursor ?? ""):""))
+      try Task.checkCancellation();guard requested==query else{return}
+      matches=more ? matches+page.data:page.data;cursor=page.next_cursor
+      for space in page.data {if let i=store.projectSpaces.firstIndex(where:{$0.id==space.id}) {store.projectSpaces[i]=space} else {store.projectSpaces.append(space)}}
+    } catch is CancellationError {} catch {if requested==query {self.error="工作区暂时无法加载"}}
+  }
+}
+struct CustomerWorkspaceSessions:View {
+  @EnvironmentObject var store:Store
+  let space:ProjectSpace
+  private var records:[RecordingRecord] {store.companionRecordings.filter {$0.customer_workspace_id==space.id && $0.customer_confirmed_at != nil}.sorted {($0.started_at ?? "")>($1.started_at ?? "")}}
+  var body:some View {
+    ScrollView {VStack(alignment:.leading,spacing:16) {
+      Text(space.name+" · 已归档 \(records.count) 场").companionFont(13).foregroundStyle(RecordingFormat.secondary)
+      if records.isEmpty {ContentUnavailableView("还没有沟通记录",systemImage:"waveform",description:Text("录音同步后确认客户归属，会出现在这里。"))}
+      ForEach(records) {record in NavigationLink {CompanionRecordingPage(id:record.id)} label:{CompanionRecordingRow(record:record)}.buttonStyle(.plain)}
+    }.padding(22).frame(maxWidth:700).frame(maxWidth:.infinity)}.companionReport("沟通场次")
+  }
+}
+struct CustomerWorkspaceInfo:View {
+  @EnvironmentObject var store:Store
+  let space:ProjectSpace
+  var body:some View {
+    ScrollView {VStack(alignment:.leading,spacing:24) {
+      info("当前客户",space.name)
+      info("跟进状态",CustomerWorkspacePresentation.stage(space)+" · 已归档 \(space.confirmed_recording_count ?? 0) 场沟通")
+      info("沟通目标",space.goal.isEmpty ? "尚未确认，可以在对话中补充。":space.goal)
+      if let pack=CustomerWorkspacePresentation.preparations(store.companion?.preparations ?? []).first(where:{$0.workspace_id==space.id}) {info("已记录的顾虑",pack.concerns ?? "尚未确认，可以在对话中补充。")}
+      NavigationLink {WorkspaceMaterials(space:space)} label:{Label("可读取的资料",systemImage:"books.vertical").frame(minHeight:44)}
+      NavigationLink {CompanionPreparationList(workspaceID:space.id)} label:{Label("客户准备包",systemImage:"doc.text").frame(minHeight:44)}
+    }.padding(22).frame(maxWidth:700).frame(maxWidth:.infinity)}.companionReport("客户信息")
+  }
+  private func info(_ title:String,_ text:String)->some View {VStack(alignment:.leading,spacing:8){Text(title).companionFont(12).foregroundStyle(RecordingFormat.secondary);Text(text).companionFont(16).textSelection(.enabled)}}
 }
 
 struct CompanionPreparationCard: View {
   var pack: CompanionPreparation
+  var conversation=false
   var body: some View {
     NavigationLink {
       CompanionPreparationPage(id: pack.id)
     } label: {
       CompanionPanel(color: Warm.lavender) {
+        if conversation {Text((pack.scenario=="interview" ? "面试准备":"销售沟通")+" · 待开始").companionFont(11).foregroundStyle(Warm.purple)}
         Text(pack.client).companionFont(16, weight: .bold)
         Text(pack.meetingLabel).companionFont(11).foregroundStyle(RecordingFormat.secondary)
         HStack(alignment: .top, spacing: 6) {
           Circle().fill(Warm.purple).frame(width: 6, height: 6).padding(.top, 4)
           Text("准备包已生成 · " + pack.goal).companionFont(11).lineLimit(2)
         }
-        Text("查看会前准备包").padding(.horizontal, 12).frame(minHeight: 36).companionFont(
-          12, weight: .semibold
-        )
+        HStack {
+          Text("查看会前准备包")
+          if conversation {Spacer();Image(systemName:"arrow.up.right")}
+        }.padding(.horizontal,12).frame(minHeight:44).companionFont(12,weight:.semibold)
         .background {
-          RoundedRectangle(cornerRadius: 11).fill(Warm.orange).shadow(
-            color: Color.brown.opacity(0.4), radius: 0, y: 3
-          ).overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.brown.opacity(0.35)))
+          RoundedRectangle(cornerRadius: 11).fill(conversation ? Warm.white:Warm.orange)
         }
 
       }
@@ -562,14 +682,16 @@ struct CompanionPreparationPage: View {
 }
 struct CompanionPreparationList: View {
   @EnvironmentObject var store: Store
+  var workspaceID:String?=nil
+  private var rows:[CompanionPreparation] {(store.companion?.preparations ?? []).filter {workspaceID==nil || $0.workspace_id==workspaceID}}
   var body: some View {
     ScrollView {
       VStack(spacing: 16) {
-        if (store.companion?.preparations ?? []).isEmpty {
+        if rows.isEmpty {
           ContentUnavailableView(
             "还没有准备包", systemImage: "doc.text", description: Text("在 Candid 对话中说说下一次要见谁。"))
         }
-        ForEach(store.companion?.preparations ?? []) { p in
+        ForEach(rows) { p in
           VStack(alignment: .leading) {
             CompanionPreparationCard(pack: p)
             Text(
@@ -599,6 +721,53 @@ struct CompanionPreparationList: View {
   }
 }
 
+/// Tags describe a recording; this explicit primary association controls customer history.
+struct RecordingCustomerAssignment:View {
+  @EnvironmentObject var store:Store
+  let record:RecordingRecord
+  var onSaved:(RecordingRecord)->Void
+  @State private var selected:ProjectSpace?
+  @State private var choosing=false
+  @State private var saving=false
+  @State private var error:String?
+  private var confirmed:ProjectSpace? {store.projectSpaces.first {$0.id==record.customer_workspace_id}}
+  private var suggestion:ProjectSpace? {
+    let tags=record.tags ?? []
+    return store.activeProjectSpaces.first {space in space.is_scope_context != true && tags.contains {$0.active && ($0.workspace_id==space.id || $0.label==space.name)}}
+  }
+  var body:some View {
+    VStack(alignment:.leading,spacing:8) {
+      if record.customer_confirmed_at != nil {
+        Label("主要客户 · "+(confirmed?.name ?? "已确认客户"),systemImage:"folder.badge.checkmark").companionFont(12).foregroundStyle(Warm.purple)
+      } else {
+        Text("确认这场录音的客户").companionFont(14,weight:.semibold)
+        Text("确认后计入该客户的沟通场次，复盘会回到对应对话。标签仍可有多个，也可以稍后再确认。").companionFont(12).foregroundStyle(RecordingFormat.secondary).fixedSize(horizontal:false,vertical:true)
+        HStack(spacing:8) {
+          Button {choosing=true} label:{Label((selected ?? suggestion)?.name ?? "选择客户",systemImage:"folder").lineLimit(2).frame(minHeight:44)}
+            .accessibilityIdentifier("recording-customer-choose")
+            .popover(isPresented:$choosing,attachmentAnchor:.rect(.bounds),arrowEdge:.bottom) {
+              CustomerWorkspaceChooser(selected:{choosing=false},choose:{selected=$0}).frame(width:310).presentationCompactAdaptation(.popover)
+            }
+          Spacer(minLength:0)
+          Button(saving ? "正在保存…":"确认归属") {Task {await confirm()}}
+            .companionFont(12,weight:.semibold).frame(minHeight:44).padding(.horizontal,12).background(Warm.lavender,in:RoundedRectangle(cornerRadius:12))
+            .disabled((selected ?? suggestion)==nil || saving || !store.remote).accessibilityIdentifier("recording-customer-confirm")
+        }
+        if selected==nil && suggestion != nil {Text("根据录音标签建议，尚未确认").companionFont(11).foregroundStyle(RecordingFormat.secondary)}
+        if let error {Text(error).companionFont(12).foregroundStyle(.red)}
+      }
+    }.padding(14).frame(maxWidth:.infinity,alignment:.leading).background(Warm.white,in:RoundedRectangle(cornerRadius:16))
+  }
+  private func confirm() async {
+    guard let space=selected ?? suggestion,!saving else{return}
+    saving=true;error=nil;defer {saving=false}
+    do {
+      let updated:RecordingRecord=try await store.api.call("/v1/recordings/"+record.id+"/customer",method:"PUT",body:["workspace_id":space.id,"expected_revision":record.customer_assignment_revision ?? 0])
+      onSaved(updated);try await store.reloadCompanion()
+    } catch {self.error="归属暂未保存，请重试。"+error.localizedDescription}
+  }
+}
+
 struct CompanionRecordingRow: View {
   let record: RecordingRecord
   var body: some View {
@@ -614,6 +783,7 @@ struct CompanionRecordingRow: View {
             + RecordingFormat.clock((record.duration_ms ?? 0) / 1000) + " · "
             + (record.pipeline_status == "done" ? "已复盘" : RecordingFormat.status(record))
         ).companionFont(10).foregroundStyle(RecordingFormat.secondary)
+        if record.customer_confirmed_at==nil {Text("待确认主要客户").companionFont(11).foregroundStyle(Warm.purple)}
       }
       Spacer(minLength: 0)
       Image(systemName: "chevron.right").font(.system(size: 11)).foregroundStyle(
@@ -631,7 +801,7 @@ struct CompanionDeviceGuide: View {
       VStack(spacing: 24) {
         Mascot(size: 110)
         Text("用安克录音豆，\n记录下一场沟通。").font(.title.bold()).multilineTextAlignment(.center)
-        Text("录音同步后，会自动整理复盘，\n再把结果带回 Candid 对话。").multilineTextAlignment(.center).foregroundStyle(
+        Text("录音同步后会自动整理复盘，\n确认客户后，结果会回到对应工作区。").multilineTextAlignment(.center).foregroundStyle(
           RecordingFormat.secondary)
         WarmCard {
           Label("安克录音豆", systemImage: "mic").font(.headline)
@@ -831,7 +1001,7 @@ struct CompanionRecordingPage: View {
           VStack(spacing:18) {Text(issue);Button("重试") {Task {await load()}}}
             .frame(maxWidth:.infinity,maxHeight:.infinity)
         } else {ProgressView().frame(maxWidth:.infinity,maxHeight:.infinity)}
-      }.companionReport("沟通复盘")
+      }.ignoresSafeArea(.keyboard,edges:.bottom).companionReport("沟通复盘")
         .task {
           if focusMS != nil {tab = "原文"}
           while !Task.isCancelled {
@@ -867,6 +1037,7 @@ struct CompanionRecordingPage: View {
         .companionFont(12).foregroundStyle(RecordingFormat.secondary).fixedSize(horizontal:false,vertical:true)
       Text(RecordingFormat.title(r)).companionFont(19,weight:.bold).fixedSize(horizontal:false,vertical:true)
       CompanionAudioPlayer(record:r)
+      RecordingCustomerAssignment(record:r,onSaved:{updated in record=updated})
     }
   }
   @ViewBuilder private func transcript(_ r: RecordingRecord) -> some View {
@@ -1024,7 +1195,7 @@ struct CompanionExpressionRow: View {
   }
 }
 
-struct CompanionMemory: View {
+struct LegacyCompanionMemory: View {
   @EnvironmentObject var store: Store
   @Environment(\.dynamicTypeSize) private var typeSize
   @State private var tab = "我"
@@ -1638,12 +1809,27 @@ struct CompanionEvidencePage: View {
         ["thread": thread, "preparations": [pack], "next_preparation": pack])
       chatThread = companion?.thread
       projectSpaces = decode([ProjectSpace].self,[["id":"preview-context","name":"Candid","goal":"通用助手","default_thread_id":"preview-chat","version":1,"context_version":1,"status":"active","created_at":"2026-10-16","task_status":"idle","message_count":0,"last_message":"","queued_count":0,"is_scope_context":true,"is_companion":true]])
+      // Synthetic, isolated UI acceptance corpus; never loaded for a real account.
+      let customerNames=["华味餐饮","晴川零售","南岸门店"]
+      let customerSpaces:[[String:Any]]=customerNames.enumerated().map {index,name in
+        ["id":"preview-customer-\(index)","name":name,"goal":"确认试点范围与实施安排","default_thread_id":"preview-customer-thread-\(index)","version":1,"context_version":1,"status":"active","created_at":"2026-10-16T0\(3-index):00:00Z","last_active_at":"2026-10-16T0\(3-index):00:00Z","task_status":"idle","message_count":1,"last_message":"继续推进沟通","queued_count":0,"scenario":"sales","stage":["negotiation","proposal","demand"][index],"opportunity":["门店试点","系统替换","合作评估"][index],"confirmed_recording_count":1]
+      }
+      projectSpaces += decode([ProjectSpace].self,customerSpaces)
+      var previewPacks=[pack.merging(["workspace_id":"preview-customer-0","created_at":"2026-10-16T01:00:00Z"]) {_,new in new}]
+      for index in 1...2 {
+        var item=pack;item["id"]="preview-preparation-\(index)";item["client"]=customerNames[index];item["workspace_id"]="preview-customer-\(index)";item["scheduled_at"]=index==1 ? "2026-10-16T10:00:00+08:00":NSNull();item["created_at"]="2026-10-16T00:00:00Z";previewPacks.append(item)
+      }
+      companion=decode(CompanionSnapshot.self,["thread":thread,"preparations":previewPacks,"next_preparation":previewPacks[0]])
       if ProcessInfo.processInfo.arguments.contains("-candid-clear-task-hints") {clearChatRecovery()}
       if ProcessInfo.processInfo.arguments.contains("-candid-stopped-chat") {
         chatMessages=decode([ChatMessage].self,[["id":"preview-answer","role":"assistant","content":"先确认客户当前的目标，再讨论方案。","sources":[],"tool_steps":[],"created_at":"","incomplete":true,"task_id":"preview-stopped"]])
         chatTasks=decode([AgentTask].self,[["id":"preview-stopped","thread_id":"preview-chat","turn_id":"preview-turn","status":"cancelled","attempt":1,"tool_steps":[],"input":["content":"帮我准备沟通"]]])
       }
 
+      if ProcessInfo.processInfo.arguments.contains("-candid-stopped-chat") {
+        chatThread?.workspace_id="preview-customer-0"
+        projectSpaces[1].default_thread_id="preview-chat"
+      }
       var longSegments:[[String:Any]]=[]
       for index in 0..<60 {
         var segment:[String:Any]=[:]
@@ -1661,7 +1847,9 @@ struct CompanionEvidencePage: View {
         ].map {
           [
             "id": $0.0, "title": $0.1, "pipeline_status": "done",
-            "started_at": "2026-10-16T06:00:00Z", "duration_ms": 1_920_000,
+            "customer_workspace_id":"preview-customer-"+String(["preview-a","preview-b","preview-c"].firstIndex(of:$0.0)!),
+            "customer_confirmed_at":"2026-10-16T06:00:00Z","customer_assignment_revision":1,
+            "started_at": "2026-10-16T0"+String(6-["preview-a","preview-b","preview-c"].firstIndex(of:$0.0)!)+":00:00Z", "duration_ms": 1_920_000,
             "transcript_revision": 1,
             "segments": ProcessInfo.processInfo.arguments.contains("-candid-long-transcript") ? longSegments : [
               [
@@ -1677,6 +1865,7 @@ struct CompanionEvidencePage: View {
             ],
           ] as [String: Any]
         })
+      if ProcessInfo.processInfo.arguments.contains("-candid-unassigned-recording") {companionRecordings[0].customer_workspace_id=nil;companionRecordings[0].customer_confirmed_at=nil;companionRecordings[0].customer_assignment_revision=0}
       let ref: [String: Any] = [
         "source_id": "transcript:preview-line", "session_id": "preview-a", "start_ms": 1000,
         "end_ms": 4000,

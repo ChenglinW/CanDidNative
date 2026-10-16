@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-16T03:37:16+08:00",
+  "generatedAt": "2026-10-16T18:29:13+08:00",
   "title": "Design System: CanDid Native",
   "extensions": {
     "platform": {
@@ -11,11 +11,13 @@
         "ios/CanDid/RecordingUI.swift",
         "ios/CanDid/VoiceViews.swift",
         "ios/CanDid/ChatView.swift",
-        "ios/CanDid/Onboarding.swift"
+        "ios/CanDid/Onboarding.swift",
+        "ios/CanDid/VoiceSession.swift",
+        "ios/CanDid/MemoryLibrary.swift"
       ],
       "nativeUnits": "All geometry in DESIGN.md is native logical points; component HTML/CSS previews use the same numeric CSS px values as an illustrative translation, not physical CSS pt.",
       "previewBoundary": "Static component previews preserve extracted color and geometry. They do not reproduce Dynamic Type, SF Symbols, Apple semantic colors, native navigation, hit testing or SwiftUI lifecycle behavior. No web hover/focus states are invented.",
-      "colorBoundary": "Frontmatter percentage rgb values retain source SwiftUI channel precision. System semantic colors remain platform-owned. No synthetic tonal ramp or unimplemented breakpoint was generated.",
+      "colorBoundary": "Existing color metadata is retained. SwiftUI source and Apple semantic colors remain authoritative; this scoped workspace merge does not restore missing frontmatter tokens or synthesize tonal ramps.",
       "runtimeBoundary": "Current validation uses iOS 27 / iPadOS 27; App and recorder explicitly prefer light. Deployment settings remain separate from validation coverage."
     },
     "colorMeta": {
@@ -95,9 +97,9 @@
         "purpose": "VoiceConversationView 的 152pt 圆背景随音量变化；accessibilityReduceMotion 时显式 animation 为 nil。"
       },
       {
-        "name": "chat-expand",
-        "value": "withAnimation(reduceMotion ? nil : .easeOut(duration:0.3)); offset(y: open || reduceMotion ? 0 : geometry.size.height)",
-        "purpose": "同一驻留 Chat 从内容区底部上推；Reduce Motion 取消显式动画和大幅位移。"
+        "name": "preparation-page-change",
+        "value": "withAnimation(reduceMotion ? nil : .easeOut(duration:0.22))",
+        "purpose": "User-triggered preparation paging only; no automatic rotation. Customer conversation uses platform-owned NavigationStack push/back."
       }
     ],
     "componentStates": {
@@ -115,7 +117,7 @@
       "voice-composer": {
         "border": "Warm.ink.opacity(0.15)",
         "holdingBorder": "Warm.purple",
-        "disabledWhen": "(remote && currentProjectSpace.status != active) || chatLoading",
+        "disabledWhen": "(remote && !newWorkspacePending && currentProjectSpace.status != active) || chatLoading",
         "nativeTextLineLimit": "1...5",
         "gestureBoundary": {
           "inputArea": "When not focused, transparent overlay handles tap to focus and VoiceHoldGesture. When focused, native text selection remains available.",
@@ -123,7 +125,8 @@
           "cancelThreshold": "translation.height < -60",
           "sendButton": "Outside the input hold overlay; no VoiceHoldGesture on the entire HStack.",
           "microphoneButton": "Separate tap to begin / tap again to send, with its own hold gesture."
-        }
+        },
+        "compactVariant": "Dashboard and customer dock use compact:true, 14pt scaled text, no separate microphone button; long press input remains available. Send glyph is 34×34pt with 11pt radius inside a 44×44pt hit area."
       },
       "warm-card": {
         "border": "Warm.ink.opacity(0.08)",
@@ -142,7 +145,7 @@
         "outerHorizontalPadding": "16pt"
       },
       "navigation": {
-        "nativeTypes": "TabView, NavigationStack, native segmented Picker, fullScreenCover",
+        "nativeTypes": "TabView, NavigationStack, anchored popover, fullScreenCover; CompanionTabs solid in-page segments",
         "destinations": [
           "Candid",
           "记忆库",
@@ -151,13 +154,15 @@
         "globalScheme": "light",
         "recorderPresentationScheme": "light",
         "nativeTabPlacement": "iPhone bottom / iPad top in reviewed simulator captures; platform-owned",
-        "chatPresentation": "One resident Chat layer within Candid; no exposed project or thread selector"
+        "chatPresentation": "Native NavigationStack push to an independent CustomerConversationPage with root tab bar hidden; back restores dashboard. Workspace selection remains in the composer dock.",
+        "readonlyRecordingKeyboard": "Recording detail ignores bottom keyboard safe-area changes from modal chooser so shared metadata remains stable."
       },
       "preparation-card": {
         "padding": "16pt",
         "contentGap": "10pt",
         "dateForeground": "Warm.purple",
-        "reportAction": "minHeight:44; horizontalPadding:14; cornerRadius:12"
+        "reportAction": "minHeight:44; horizontalPadding:12; cornerRadius:11",
+        "paging": "165pt TabView below Dynamic Type xLarge; natural card height in outer dashboard scroll at xLarge and above; no inner vertical card scroll or automatic paging."
       },
       "recording-row": {
         "padding": "12pt",
@@ -169,6 +174,33 @@
         "unselectedBackground": "Warm.white",
         "shape": "Capsule",
         "minHeight": "44pt"
+      },
+      "workspace-dock": {
+        "position": "Below composer; left folder/name/chevron selector, right recap; flat controls, not equal-width quick actions.",
+        "recap": "12pt semibold; minHeight:44; horizontalPadding:12; cornerRadius:12; Warm.lavender.opacity(0.65) background and Warm.purple foreground.",
+        "accessibility": "Stack controls vertically at accessibility Dynamic Type sizes.",
+        "assignment": "Global recordings retain multiple tags. Explicit primary-customer confirmation controls counts and customer-thread recap; no matching recording opens device guide.",
+        "chooser": "Anchored native popover; result list height min(224,max(104,matchCount*56 + pagination44)); popover ignores bottom keyboard safe area. Recording assignment chooser anchors to the choose-customer button and presents above it."
+      },
+      "home-header": {
+        "typeCap": "...DynamicTypeSize.xxxLarge",
+        "microphone": "Fixed 17pt symbol inside 44×44pt circular button."
+      },
+      "memory-library": {
+        "tabs": [
+          "我",
+          "FAQ",
+          "背景资料"
+        ],
+        "layout": "CompanionPageHeader 23pt title and 44pt upload hit area; solid CompanionTabs outside ScrollView, including empty library; 18pt body padding and 700pt maximum width. Root TabView unchanged. Main reading-column VStack explicitly fills available width with leading alignment.",
+        "me": "Near-white metrics card, lavender discovery card, profile and story/material rows. Purple trend line/points; per-session text remains available. Metrics detail filters sales/interview. Concentrated confirmation/profile entries and per-session metric records expose full-row contentShape hit regions.",
+        "faq": "Native rounded search; warm-orange improve panel shows first two by default; topic/question menu; full-row NavigationLink. Lavender current-saying panel; versions, source playback, document linking, reminder toggle and separate Mock records. Document references show readable titles and push LibraryLinkedDocument; superseded/removed references explain current availability.",
+        "states": "expression_state improve/reusable, evidence_state ready/missing/changed/expired and effect_state untried/positive/questioned are independent. Row label prioritizes expired, changed, improve, positive, then untried; missing evidence is explained in detail. Editing does not validate evidence or effectiveness.",
+        "metricsBoundary": "One eligible recording gives single-session data, three show trends, six enable non-overlapping first-three/latest-three comparison. Weighted self-segment duration; transcript-estimated pace/fillers and claimed-speaker coverage, no precise acoustic pauses or radar score.",
+        "practiceBoundary": "Text or existing speech-to-text input; independent practice records and retries. Model feedback or saved suggestion does not count as real-world use. Successful saving uses a separate purple notice; errors retain red feedback.",
+        "documents": "Version/status rows; detail includes change summary, retry pending sync, original file, replacement, per-page source/review warning, history restore and removal. Apple Vision locally recognizes supported PDF/images; original files still upload and remain retained.",
+        "scopeBoundary": "Legacy FAQ inherits asset scope; replacement synchronization inherits old document scope. Private customer facts stay scoped; separately shared general-method material does not publish its private provenance.",
+        "emptyLoadingError": "Persistent tabs/upload, initial progress, reread on load failure, source-gap/empty/search states and import errors. No production seed from reference HTML. Failed/interrupted document-sync jobs offer 继续整理 from 我."
       }
     },
     "assetProvenance": [
@@ -186,8 +218,17 @@
       {
         "source": "ios/CanDid/CanDidApp.swift PrimaryButton",
         "detail": "Legacy hard offset brown shadow remains in source. Not a V2 elevation token; no UI repair performed by this documentation pass."
+      },
+      {
+        "source": "DESIGN.md and .impeccable/design.json",
+        "detail": "Pre-existing format drift: DESIGN frontmatter has no primitive token map while sidecar retains color/typography metadata and component refersTo keys; several incumbent section headings are noncanonical and sidecar dos/donts/rules lack matching prose sections. Recorded only; no unrelated token/schema rewrite in this workspace update."
       }
-    ]
+    ],
+    "documentationUpdate": {
+      "date": "2026-10-16",
+      "scope": "Authorized scoped merge of memory library 我/FAQ/背景资料 from docs/memory-library/BRIEF.md and current SwiftUI/backend source. Warm, root navigation and unrelated tokens/history retained.",
+      "evidenceBoundary": "This documenter performed static source/document and JSON consistency checks only. No app run, build, tests, screenshots, provider or hardware validation performed; docs/memory-library/DESIGN_UPDATE.md records boundaries. Earlier workspace evidence remains in docs/workspace-ui/DESIGN_UPDATE.md."
+    }
   },
   "components": [
     {
@@ -218,9 +259,9 @@
       "name": "Preparation card",
       "kind": "card",
       "refersTo": "preparation-card",
-      "description": "淡紫准备卡，purple 日期、16pt padding，橙色报告动作最小 44pt；示例内容。",
+      "description": "淡紫准备卡；常规分页与 xLarge 起自然高度布局共用。报告动作最小 44pt；仅静态示例，非滚动或 Dynamic Type 验证。",
       "html": "<div class=\"ds-preparation\"><strong>示例 · 下一场沟通</strong><small>日期待确认</small><span>准备包已生成 · 确认本次目标</span><button class=\"ds-preparation-report\">查看会前准备包</button></div>",
-      "css": ".ds-preparation{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:22px;background:rgb(93.3% 90.6% 98%);color:rgb(20.4% 20.8% 18%);font-family:ui-rounded,system-ui,sans-serif}.ds-preparation>small{color:rgb(44.7% 31.4% 63.1%)}.ds-preparation-report{align-self:flex-start;min-height:44px;padding:0 14px;border:0;border-radius:12px;background:rgb(100% 75.3% 47.1%);color:inherit;font-family:inherit;font-weight:600}"
+      "css": ".ds-preparation{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:18px;background:rgb(93.3% 90.6% 98%);color:rgb(20.4% 20.8% 18%);font-family:ui-rounded,system-ui,sans-serif}.ds-preparation>small{color:rgb(44.7% 31.4% 63.1%)}.ds-preparation-report{align-self:flex-start;min-height:44px;padding:0 12px;border:0;border-radius:11px;background:rgb(100% 75.3% 47.1%);color:inherit;font-family:inherit;font-weight:600}"
     },
     {
       "name": "Recording row",
@@ -234,9 +275,9 @@
       "name": "Voice composer",
       "kind": "input",
       "refersTo": "voice-composer",
-      "description": "麦克风、1–5 行原生输入和发送动作；预览只展示几何，SF Symbols 由原生界面提供。",
-      "html": "<div class=\"ds-composer\"><button class=\"ds-composer-mic\" aria-label=\"开始语音输入\">语音</button><input class=\"ds-composer-text\" aria-label=\"给 Candid 的消息\" placeholder=\"长按说话，或点这里输入\"><button class=\"ds-composer-send\" aria-label=\"发送消息\" disabled><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 19V5m-6 6 6-6 6 6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button></div>",
-      "css": ".ds-composer{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid rgb(20.4% 20.8% 18% / .15);border-radius:18px;background:rgb(100% 99.6% 98.4%);color:rgb(20.4% 20.8% 18%);font-family:ui-rounded,system-ui,sans-serif}.ds-composer-mic{width:44px;height:44px;flex-shrink:0;border:0;background:transparent;color:inherit}.ds-composer-text{flex:1;min-width:0;padding:9px 0;border:0;background:transparent;color:inherit;font-family:inherit}.ds-composer-send{width:44px;height:44px;flex-shrink:0;border:0;border-radius:12px;background:rgb(44.7% 31.4% 63.1%);color:white;font-weight:600}.ds-composer-send:disabled{opacity:.45}"
+      "description": "首页／客户页 compact composer：1–5 行原生输入与发送，隐藏单独麦克风；长按输入说话。静态预览不验证原生手势或字号。",
+      "html": "<div class=\"ds-composer\"><input class=\"ds-composer-text\" aria-label=\"给 Candid 的消息\" placeholder=\"有什么想一起想想的？\"><button class=\"ds-composer-send\" aria-label=\"发送消息\" disabled><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 19V5m-6 6 6-6 6 6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button></div>",
+      "css": ".ds-composer{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid rgb(20.4% 20.8% 18% / .15);border-radius:18px;background:rgb(100% 99.6% 98.4%);color:rgb(20.4% 20.8% 18%);font-family:ui-rounded,system-ui,sans-serif}.ds-composer-text{flex:1;min-width:0;padding:9px 0;border:0;background:transparent;color:inherit;font-family:inherit}.ds-composer-send{width:44px;height:44px;flex-shrink:0;border:0;border-radius:11px;background:linear-gradient(rgb(44.7% 31.4% 63.1%),rgb(44.7% 31.4% 63.1%)) center/34px 34px no-repeat;color:white;font-weight:600}.ds-composer-send:disabled{opacity:.45}"
     },
     {
       "name": "Recording status",
@@ -272,11 +313,11 @@
   ],
   "narrative": {
     "northStar": "Warm 原生沟通界面",
-    "overview": "本文件提取已批准 V2 的原生实现，沿用已有 Warm 配色、系统圆角字体和紫色双气泡 Mascot。少量信息、清楚的正文层级、浅色圆角容器与原生控件构成持续的沟通界面；页面策略以 `PRODUCT.md` 与 `docs/v2-validation/SURFACE.md` 为准。\n\n应用主体、会议录音全屏页与连续语音页均使用 Warm 浅色世界。深度主要通过色面、留白与轻描边表达，导航、安全区、sheet、系统材料和 SF Symbols 由平台提供。动效解释同一内容层的展开与状态变化，并尊重 Reduce Motion。",
+    "overview": "本文件记录已批准的 Warm 原生实现，沿用已有 Warm 配色、系统圆角字体和紫色双气泡 Mascot。少量信息、清楚的正文层级、浅色圆角容器与原生控件构成持续的沟通界面；页面策略以 `PRODUCT.md`、`docs/workspace-ui/BRIEF.md` 与 `docs/memory-library/BRIEF.md` 为准。\n\n应用主体、会议录音全屏页与连续语音页均使用 Warm 浅色世界。深度主要通过色面、留白与轻描边表达，导航、安全区、sheet、系统材料和 SF Symbols 由平台提供。独立客户对话使用原生 push/back；准备包切换与语音状态变化尊重 Reduce Motion。",
     "keyCharacteristics": [
       "米白页面、近白内容、淡紫准备色面、紫色交互与暖橙主要动作。",
       "系统圆角语义文字、原生三目的地和可访问的安全区布局。",
-      "同一对话层、清晰的原文时间戳与可追溯依据。"
+      "独立客户对话、清晰的原文时间戳与可追溯依据。"
     ],
     "rules": [
       {

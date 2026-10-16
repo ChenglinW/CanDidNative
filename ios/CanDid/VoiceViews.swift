@@ -159,7 +159,7 @@ struct VoiceComposer:View {
             .overlay(RoundedRectangle(cornerRadius:18).stroke(voice.holding ? Warm.purple:Warm.ink.opacity(0.15)))
             .contentShape(RoundedRectangle(cornerRadius:18))
             .onTapGesture {if !voice.holding && !voice.justEndedGesture {focused.wrappedValue=true}}
-            .disabled((store.remote && store.currentProjectSpace?.status != "active") || store.chatLoading)
+            .disabled((store.remote && !store.newWorkspacePending && store.currentProjectSpace?.status != "active") || store.chatLoading)
     }
 }
 
