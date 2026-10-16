@@ -1,0 +1,26 @@
+{
+  "release": "/opt/candid/releases/20261016-enrichment-41893ae",
+  "previous": "/opt/candid/releases/20261016-marks-ee2ba32",
+  "backup": "/var/backups/candid-enrichment-41893ae",
+  "health_and_auth": {
+    "loopback": "passed",
+    "https": "passed"
+  },
+  "integrity": "ok",
+  "before_counts": {
+    "sessions": 23,
+    "transcript_segments": 813,
+    "recording_knowledge": 17,
+    "chat_messages": 47,
+    "project_spaces": 12,
+    "device_credentials": 48
+  },
+  "after_counts": {
+    "sessions": 23,
+    "transcript_segments": 813,
+    "recording_knowledge": 17,
+    "chat_messages": 47,
+    "project_spaces": 12,
+    "device_credentials": 48
+  }
+}

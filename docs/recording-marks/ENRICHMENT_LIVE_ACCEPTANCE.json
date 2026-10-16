@@ -1,0 +1,118 @@
+{
+  "status": "passed",
+  "model": "hackathon/v_model/deepseek-v4-pro",
+  "pipeline": "transient annotated transcript -> original review and FAQ prompts",
+  "raw_unchanged": true,
+  "no_annotation_in_model_outputs": true,
+  "no_personal_memory_write": true,
+  "faq_count": 5,
+  "calls": [
+    {
+      "kind": "review",
+      "seconds": 41.65,
+      "result": {
+        "title": "交付日期可行性确认",
+        "summary": "客户提出预算上限20万元、首批300台，并询问下月15号能否交付；销售表示需先核对接口范围和实施排期，暂不能承诺交付日期；客户同意核实后再告知。",
+        "strengths": [
+          "销售在信息不足时未贸然承诺交付日期，而是说明需先核对接口范围与实施排期。"
+        ],
+        "improvements": [
+          "销售未说明预计核实完成时间或后续反馈方式，回复的后续安排不够明确。"
+        ],
+        "open_questions": [
+          "接口范围和实施排期核对后是否支持在下月15号交付？",
+          "预算上限20万元和首批300台的要求是否都能满足？"
+        ],
+        "next_steps": [
+          "销售核实接口范围和实施排期后告知客户。"
+        ],
+        "expressions": [
+          {
+            "title": "客户询问能否在下月十五号交付",
+            "text": "可先说明需要核对接口范围与实施排期，确认后再回复具体交付日期。",
+            "quote": "下个月十五号能交付吗？",
+            "segment_id": "7cbbeabb-5f65-4477-8ca4-02b8b3fc2508",
+            "kind": "客户常问"
+          },
+          {
+            "title": "不轻易承诺交付日期",
+            "text": "先核对接口范围和实施排期，不承诺具体日期，避免后续无法兑现。",
+            "quote": "我需要先核对接口范围和实施排期，现在不能承诺具体交付日期。",
+            "segment_id": "379912e3-416f-4179-b3ee-6c5d01715c6c",
+            "kind": "值得复用"
+          }
+        ],
+        "tags": [
+          {
+            "label": "交付日期",
+            "kind": "topic",
+            "workspace_id": null
+          },
+          {
+            "label": "预算",
+            "kind": "topic",
+            "workspace_id": null
+          },
+          {
+            "label": "首批数量",
+            "kind": "topic",
+            "workspace_id": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "faq",
+      "seconds": 80.31,
+      "result": {
+        "items": [
+          {
+            "question": "客户询问下月十五号能否交付，销售无法立即确认时，应如何回应？",
+            "answer": "“我先确认一下：首批300台、预算上限20万、期望下月15号交付。我需要先核对接口范围和实施排期，再向您反馈可确认的交付时间或替代方案。”",
+            "topic": "交付与服务",
+            "segment_ids": [
+              "379912e3-416f-4179-b3ee-6c5d01715c6c"
+            ],
+            "state": "improve",
+            "used_text": "我需要先核对接口范围和实施排期，现在不能承诺具体交付日期。",
+            "outcome": "positive",
+            "reason": "销售说明需核对且未当场承诺，客户后续回应“好的，核实以后再告诉我”，说明该回应避免了空头承诺；但未确认反馈时限。",
+            "document_id": "",
+            "document_quote": "",
+            "general_method": true
+          },
+          {
+            "question": "客户明确给出预算、数量和期望交付时间后，销售是否需要复述确认关键信息？",
+            "answer": "“我先复述一下：您首批要300台，预算上限20万，期望下月15号交付，对吗？我先核对接口范围和实施排期，再给您反馈。”",
+            "topic": "需求与场景",
+            "segment_ids": [
+              "7cbbeabb-5f65-4477-8ca4-02b8b3fc2508"
+            ],
+            "state": "improve",
+            "used_text": "我们预算上限是二十万元，首批要300台，下个月十五号能交付吗？",
+            "outcome": "unknown",
+            "reason": "客户给出了影响交付评估的关键数字，但销售后续只提核对，未复述确认这些数字，存在理解偏差风险。",
+            "document_id": "",
+            "document_quote": "",
+            "general_method": true
+          },
+          {
+            "question": "客户说“核实以后再告诉我”时，销售应如何确认下一步？",
+            "answer": "“好的，我核对完接口范围和实施排期后，会尽快同步您可确认的交付时间，您看通过电话还是微信方便？”",
+            "topic": "交付与服务",
+            "segment_ids": [
+              "55089193-fa6d-45a3-ab49-3b53a6f9e993"
+            ],
+            "state": "improve",
+            "used_text": "好的，核实以后再告诉我。",
+            "outcome": "positive",
+            "reason": "客户已明确要求核实后告知，销售应在此时确认反馈时间和方式，避免客户被动等待；原文未体现销售收尾。",
+            "document_id": "",
+            "document_quote": "",
+            "general_method": true
+          }
+        ]
+      }
+    }
+  ]
+}
