@@ -167,6 +167,68 @@ final class CanDidUITests: XCTestCase {
         XCTAssertFalse(app.buttons["记忆库"].exists)
         capture(app,"v2-transcript")
     }
+    func testAppearanceSettingsApplyPersistAndPreserveNavigation() {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-candid-ui-testing", "-candid-v2-populated"]
+        app.launchEnvironment = ["CANDID_ONBOARDING_TEST_ID": UUID().uuidString]
+        app.launch()
+        XCTAssertTrue(app.buttons["candid-avatar"].waitForExistence(timeout: 15))
+        capture(app, "appearance-default-full-width")
+        let input = app.textFields["home-chat-input"]
+        input.tap(); input.typeText("Keep appearance draft")
+        app.buttons["收起对话"].tap()
+        openAppearanceSettings(app)
+        XCTAssertTrue(app.segmentedControls["appearance-navigation"].buttons["全宽底栏"].isSelected)
+        XCTAssertTrue(app.segmentedControls["appearance-selection"].buttons["液态玻璃"].isSelected)
+        app.buttons["悬浮胶囊"].tap()
+        app.buttons["轻盈玻璃"].tap()
+        capture(app, "appearance-settings-glass")
+        app.buttons["完成"].tap()
+        XCTAssertTrue(app.buttons["Candid"].waitForExistence(timeout: 10))
+        capture(app, "appearance-floating-home")
+        app.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["表达积累"].waitForExistence(timeout: 10))
+        app.buttons["表达积累"].tap()
+        XCTAssertTrue(app.buttons["表达积累"].isSelected)
+        capture(app, "appearance-floating-memory")
+        app.buttons["录音"].firstMatch.tap()
+        XCTAssertTrue(app.buttons.containing(.staticText, identifier: "华味餐饮 · 产品方案沟通").firstMatch.waitForExistence(timeout: 10))
+        let recording = app.buttons.containing(.staticText, identifier: "华味餐饮 · 产品方案沟通").allElementsBoundByIndex.first { $0.isHittable }
+        XCTAssertNotNil(recording); recording?.tap()
+        XCTAssertTrue(app.buttons["原文"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["记忆库"].exists)
+        app.buttons["原文"].tap()
+        XCTAssertTrue(app.buttons["play-sentence-preview-line"].waitForExistence(timeout: 10))
+        capture(app, "appearance-transcript-sentence-playback")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["Candid"].firstMatch.tap()
+        input.tap()
+        XCTAssertEqual(input.value as? String, "Keep appearance draft")
+        app.buttons["收起对话"].tap()
+        app.terminate(); app.launch()
+        openAppearanceSettings(app)
+        XCTAssertTrue(app.buttons["悬浮胶囊"].isSelected)
+        XCTAssertTrue(app.buttons["轻盈玻璃"].isSelected)
+        app.buttons["全宽底栏"].tap(); app.buttons["经典色块"].tap(); app.buttons["原版立体"].tap()
+        capture(app, "appearance-settings-classic")
+        app.buttons["完成"].tap()
+        capture(app, "appearance-classic-home")
+        app.terminate(); app.launch()
+        openAppearanceSettings(app)
+        XCTAssertTrue(app.buttons["全宽底栏"].isSelected)
+        XCTAssertTrue(app.buttons["经典色块"].isSelected)
+        XCTAssertTrue(app.buttons["原版立体"].isSelected)
+        app.buttons["完成"].tap()
+    }
+    private func openAppearanceSettings(_ app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["candid-avatar"].waitForExistence(timeout: 15))
+        app.buttons["candid-avatar"].press(forDuration: 1.2)
+        XCTAssertTrue(app.buttons["open-settings"].waitForExistence(timeout: 5))
+        app.buttons["open-settings"].tap()
+        XCTAssertTrue(app.segmentedControls["appearance-navigation"].waitForExistence(timeout: 10))
+    }
     func testFidelityAdaptiveHomeAndReport() {
         continueAfterFailure=false
         let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()

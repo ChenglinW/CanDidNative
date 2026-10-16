@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-16",
+  "base_commit": "a1855a36116cd60cc9e1501dd9bc782359b88a1e",
+  "source_sha256": {
+    "ios/CanDid/CompanionUI.swift": "aeccde45aa19b10506a0992dbf9c495563e5267bb4f59bca859a9b590db349fc",
+    "ios/CanDid/CanDidApp.swift": "3a48021216ef0aadc13666bfe1711e64fd4c41d5ed13f50482efb03b7b3624f4",
+    "ios/CanDidUITests/CanDidUITests.swift": "8a2386ac2b4bfc09962b5b8abfe5e86e8c25497f04d691deee88a7e1a3cd9e83"
+  },
+  "synthetic_ui_fixtures": true,
+  "unit_tests_passed": 22,
+  "native_ui_devices": [
+    "iPhone 17",
+    "iPhone 15 Pro (dark system appearance + increased contrast)",
+    "iPad Pro 13-inch (M5)"
+  ],
+  "runtime": "iOS 27.0",
+  "release_iphoneos_build": "passed, unsigned",
+  "physical_install": false,
+  "old_os_runtime_tested": false,
+  "screenshots": {
+    "settings.png": "489f264ca017edf991b14d4d6a1564c07bc8c1cfb032f1f8ce12516ed5991884",
+    "ipad-floating-home.png": "3482a301ceb5517bce7f01b75a44cbed81912fda875687922eacf382f9d1a60c",
+    "floating-home.png": "d372434911d10cb3c1a4695b50fc6fec88b0abb26637f8db611e0236c76e3835",
+    "sentence-playback.png": "fd963a74158af11641d029a394b05f7f68c2aab7620a788f335cb57446192150",
+    "full-width-home.png": "b88df8c0f6eedd68e929fadcdb09525b81b11675c67990ade4c41824a9fc20ca",
+    "high-contrast-home.png": "c850784db0f8644c742e8b919a8f30662f914b6917ef68d5d2e9ec3fc0b333d1"
+  }
+}
