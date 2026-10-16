@@ -162,7 +162,7 @@ class Recordings:
                         'workspace_id':tag.get('workspace_id') if tag.get('workspace_id') in valid_spaces else None,
                         'transcript_revision':job['revision'],'producer':'anker/'+self.business.gateway.model,'rubric_version':'recording-tag@1'},L2,source='ai')
                 from companion import Companion
-                Companion(self.store).save_expressions(owner,sid,job['revision'],result,group,number)
+                Companion(self.store).save_expressions(owner,sid,job['revision'],{**result,'expressions':[x for x in result.get('expressions',[]) if not isinstance(x,dict) or x.get('kind')!='客户常问']},group,number)
                 saved.append(knowledge)
         with self.store.transaction(owner):
             self.business.guard(owner,job)
@@ -171,7 +171,6 @@ class Recordings:
         from companion import Companion
         Companion(self.store).publish_recording(owner,sid,job['revision'])
         self.business.submit(owner,'companion_discovery',sid,job['revision'])
-        self.business.question_grouping.snapshot(owner)
         if 'library_extract' in self.business.handlers:self.business.submit(owner,'library_extract',sid,job['revision'])
         return {'knowledge_ids':[k['id'] for k in saved],'session_id':sid}
 

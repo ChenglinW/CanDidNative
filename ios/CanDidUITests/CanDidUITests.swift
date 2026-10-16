@@ -8,6 +8,20 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.buttons["记忆库"].waitForExistence(timeout:25));app.buttons["记忆库"].firstMatch.tap()
         XCTAssertTrue(app.buttons["FAQ"].waitForExistence(timeout:20));return app
     }
+    func testLibrarySemanticGroupsKeepIndependentFAQDetails() {
+        continueAfterFailure=false
+        let app=libraryApp();app.buttons["FAQ"].tap()
+        let menu=app.buttons["按主题"];XCTAssertTrue(menu.waitForExistence(timeout:10));menu.tap();app.buttons["按问题"].tap()
+        let group=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","libraryQuestionGroup-")).firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout:20));capture(app,"unified-faq-groups");group.tap()
+        XCTAssertTrue(app.staticTexts["相似问法放在一起，每次回答与资料依据分别保留。"].waitForExistence(timeout:10))
+        capture(app,"unified-faq-group-detail")
+        let answer=app.buttons.containing(.staticText,identifier:"价格怎么解释？").firstMatch
+        XCTAssertTrue(answer.waitForExistence(timeout:10));answer.tap()
+        XCTAssertTrue(app.staticTexts["现在的说法"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["关联背景资料"].exists)
+        capture(app,"unified-faq-member-detail")
+    }
     func testMemoryLibraryActualHTTPFAQMockAndVersion() {
         continueAfterFailure=false
         let app=libraryApp();XCTAssertTrue(app.staticTexts["你的沟通，慢慢看得见变化。"].waitForExistence(timeout:15));capture(app,"memory-me")

@@ -158,3 +158,55 @@ def test_library_backfill_leaves_capacity_for_new_recording(lib,monkeypatch):
  l.business.tick()
  assert captured==['recording_priority','library_extract']
  assert len(l.business.running)==2
+
+def test_legacy_upgrade_preserves_expiry_edits_and_single_canonical_write(lib):
+ l,c,_=lib
+ id=asset(l,user_edited=True,faq_topic='交付与售后',faq_expires_on='2026-10-01',faq_history=[{'text':'旧人工答案','version':1}],tags=['客户常问'])
+ # Simulate an already imported v1 item awaiting the metadata upgrade.
+ l.store.update('library_items',A,id,{'legacy_schema':1,'user_edited':True,'text':'新版手改','version':4})
+ l.migrate(A);row=l.item(A,id)
+ assert row['text']=='新版手改'
+ assert any(v['text']=='旧人工答案' for v in row['history'])
+ # Old UI edits the canonical item and never edits the old asset.
+ r=c.patch('/v1/companion/faq/'+id,headers=H,json={'expected_version':4,'text':'同一份新答案'})
+ assert r.status_code==200,r.text
+ assert l.item(A,id)['text']=='同一份新答案'
+ assert l.store.get('assets',A,id)['body']['text']=='先确认需求'
+ r=c.patch('/v1/companion/expressions/'+id,headers=H,json={'expected_version':5,'text':'表达入口也改同一份'})
+ assert r.status_code==200,r.text
+ assert l.item(A,id)['text']=='表达入口也改同一份'
+ old=c.get('/v1/companion/memory',headers=H).json()
+ assert next(r for r in old['expressions'] if r['id']==id)['body']['text']=='表达入口也改同一份'
+ before=len(l.item(A,id)['history']);l.migrate(A);assert len(l.item(A,id)['history'])==before
+
+def test_grouping_reads_canonical_faq_and_separates_scenarios(lib):
+ from types import SimpleNamespace
+ l,c,_=lib
+ _,doc=document(l,'产品.txt','方案范围')
+ refs=[{'source_id':'document:'+doc['id'],'source_version':version(doc)}]
+ ids=[]
+ for scene,title in [('sales','你的优势是什么？'),('sales','有什么优势？'),('interview','你的优势是什么？')]:
+  ids.append(l.store.put('library_items',A,{'title':title,'text':'独立的回答','topic':'需求与场景','scenario':scene,'item_type':'faq','version':1,'status':'active','expression_state':'reusable','evidence_refs':refs,'producer':'test','rubric_version':'test'},L2,source='ai')['id'])
+ grouping=l.business.question_grouping;calls=[]
+ grouping.encoder_factory=lambda:SimpleNamespace(encode=lambda texts:(calls.extend(texts) or [[1,0] for t in texts]))
+ pending=grouping.snapshot(A);l.business.run(A,l.store.get('business_jobs',A,pending['job_id']))
+ ready=c.get('/v1/library',headers=H).json()['question_grouping']
+ assert ready['status']=='ready'
+ assert sorted(len(g['item_ids']) for g in ready['groups'])==[1,2]
+ assert all(len({l.store.get('library_items',A,id)['scenario'] for id in g['item_ids']})==1 for g in ready['groups'])
+ assert set(sum([g['item_ids'] for g in ready['groups']],[]))==set(ids)
+ # Editing an answer must not overwrite peers or charge another embedding.
+ row=l.item(A,ids[0]);l.edit(A,ids[0],Edit(expected_version=row['version'],text='只改我的这一条'))
+ assert l.item(A,ids[1])['text']=='独立的回答'
+ assert grouping.snapshot(A)['status']=='ready' and len(calls)==2
+
+def test_reextract_same_legacy_question_reuses_item_and_preserves_my_answer(lib,monkeypatch):
+ l,_,_=lib
+ s=l.store.create_session(A,{'client_request_id':ident(),'kind':'live','scenario':'sales','consent':'yes','consent_ack_text_version':'v1'})
+ line=l.store.put('transcript_segments',A,{'session_id':s['id'],'speaker':'other','text':'交付要多久？','start_ms':0,'end_ms':5000,'transcript_revision':1},L1)
+ id=asset(l,title='交付要多久？',quote=line['text'],tags=['客户常问'],source_session_id=s['id'],user_edited=True,evidence_refs=[{'source_id':'transcript:'+line['id'],'source_version':version(line)}])
+ monkeypatch.setattr(l.business,'structured',lambda *a,**k:{'items':[{'question':'交付要多久？','answer':'新AI建议','segment_ids':[line['id']],'topic':'交付与服务'}]})
+ result=run(l,'library_extract',s['id'])
+ assert result['status']=='completed'
+ assert len([r for r in l.store.rows('library_items',A) if r.get('item_type')=='faq'])==1
+ assert l.item(A,id)['text']=='先确认需求'

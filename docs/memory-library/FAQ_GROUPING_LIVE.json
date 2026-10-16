@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "model": "qwen3.7-text-embedding",
+  "seconds": 2.35,
+  "groups": [
+    {
+      "scenario": "sales",
+      "question": "这款产品的价格是多少？",
+      "members": 2
+    },
+    {
+      "scenario": "sales",
+      "question": "下单后多久能交付？",
+      "members": 1
+    },
+    {
+      "scenario": "interview",
+      "question": "这款产品多少钱？",
+      "members": 1
+    }
+  ],
+  "isolated_temporary_data": true
+}

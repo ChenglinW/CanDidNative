@@ -21,6 +21,50 @@ def union_ms(rows):
     for a,b in spans:total+=max(0,b-max(a,end));end=max(end,b)
     return total
 
+def migrate_legacy(store,owner):
+    """One-time import, then a metadata upgrade; never overwrite a new-library edit."""
+    spaces=WorkspaceStore(store)
+    with store.transaction(owner):
+        for asset in store.rows('assets',owner):
+            if asset.get('status')=='withdrawn' or not (asset.get('companion_expression') or asset.get('kind')=='qa_answer'):continue
+            existing=next(iter(store.rows('library_items',owner,legacy_id=asset['id'])),None)
+            if existing and existing.get('legacy_schema')==2:continue
+            scenario=asset.get('scenario','sales')
+            mapping={'车型与配置':'产品与方案','价格与保值':'价格与政策','金融与分期':'价格与政策','置换':'价格与政策','交付与售后':'交付与服务','用车场景':'需求与场景'}
+            topic=mapping.get(asset.get('faq_topic'),asset.get('faq_topic'))
+            if topic not in TOPICS.get(scenario,TOPICS['sales']):topic=TOPICS.get(scenario,TOPICS['sales'])[0]
+            expiry=asset.get('faq_expires_on')
+            metadata={'legacy_schema':2,'original_question':asset.get('quote',''),'legacy_period':asset.get('faq_period','')}
+            if '客户常问' in asset.get('tags',[]):metadata['item_type']='faq'
+            if not existing:
+                existing=store.put('library_items',owner,{'id':asset['id'],'legacy_id':asset['id'],'title':asset.get('title','沟通素材'),
+                    'text':asset.get('body',{}).get('text',''),'topic':topic,'scenario':scenario,
+                    'item_type':'faq' if ('客户常问' in asset.get('tags',[]) or (not asset.get('tags') and '问' in asset.get('title','')) or asset.get('kind')=='qa_answer') else 'material',
+                    'source_session_id':asset.get('source_session_id'),'workspace_id':asset.get('workspace_id'),
+                    'evidence_refs':asset.get('evidence_refs',[]),'expression_state':'reusable' if asset.get('status')=='confirmed' or asset.get('user_edited') or '值得复用' in asset.get('tags',[]) else 'improve',
+                    'version':asset.get('version',1),'user_edited':bool(asset.get('user_edited')),'status':'active','remind':True,
+                    'valid_until':expiry+'T23:59:59+08:00' if expiry else None,
+                    **metadata,'producer':'library/migration','rubric_version':'library@2'},L2,source='ai')
+                old=spaces.scope(owner,'asset:'+asset['id'])
+                if old:spaces.set_scope(owner,'faq:'+asset['id'],old['mode'],old['workspace_ids'],0)
+            else:
+                patch=dict(metadata)
+                if not existing.get('user_edited'):
+                    patch.update(topic=topic)
+                    if expiry:patch['valid_until']=expiry+'T23:59:59+08:00'
+                    if asset.get('user_edited'):
+                        store.put('library_versions',owner,{'item_id':existing['id'],'answer_version':existing['version'],'text':existing['text'],'reason':'升级前说法'},L1)
+                        patch.update(text=asset.get('body',{}).get('text',''),user_edited=True,version=existing['version']+1)
+                elif asset.get('user_edited') and asset.get('body',{}).get('text')!=existing['text']:
+                    store.put('library_versions',owner,{'item_id':existing['id'],'answer_version':asset.get('version',1),'text':asset['body']['text'],'reason':'旧版人工说法，保留供核对'},L1)
+                store.update('library_items',owner,existing['id'],patch)
+            history=[{'answer_version':r.get('version',1),'text':r.get('body',{}).get('text','')} for r in store.rows('asset_revisions',owner,asset_id=asset['id'])]
+            history += [{'answer_version':r.get('version',1),'text':r.get('text',''),'period':r.get('period','')} for r in asset.get('faq_history',[])]
+            known={(r.get('answer_version'),r.get('text')) for r in store.rows('library_versions',owner,item_id=existing['id'])}
+            for revision in history:
+                if (revision['answer_version'],revision['text']) not in known:
+                    store.put('library_versions',owner,{'item_id':existing['id'],**revision,'reason':'历史表达版本'},L1);known.add((revision['answer_version'],revision['text']))
+
 class Library:
     def __init__(self,store,business,onboarding):
         self.store,self.business,self.onboarding=store,business,onboarding
@@ -30,23 +74,7 @@ class Library:
         business.handlers['library_mock']=self.mock
 
     def migrate(self,owner):
-        with self.store.transaction(owner):
-            known={r.get('legacy_id') for r in self.store.rows('library_items',owner)}
-            for asset in self.store.rows('assets',owner):
-                if asset['id'] in known or asset.get('status')=='withdrawn':continue
-                if not asset.get('companion_expression') and asset.get('kind')!='qa_answer':continue
-                refs=asset.get('evidence_refs',[])
-                self.store.put('library_items',owner,{'id':asset['id'],'legacy_id':asset['id'],'title':asset.get('title','沟通素材'),
-                    'text':asset.get('body',{}).get('text',''),'topic':TOPICS.get(asset.get('scenario'),TOPICS['sales'])[0],
-                    'scenario':asset.get('scenario','sales'),'item_type':'faq' if ('问' in asset.get('title','') or asset.get('kind')=='qa_answer') else 'material',
-                    'source_session_id':asset.get('source_session_id'),'workspace_id':asset.get('workspace_id'),
-                    'evidence_refs':refs,'expression_state':'reusable' if asset.get('status')=='confirmed' or asset.get('user_edited') or '值得复用' in asset.get('tags',[]) else 'improve',
-                    'version':asset.get('version',1),'user_edited':bool(asset.get('user_edited')),'status':'active','remind':True,
-                    'producer':'library/migration','rubric_version':'library@1'},L2,source='ai')
-                for revision in self.store.rows('asset_revisions',owner,asset_id=asset['id']):
-                    self.store.put('library_versions',owner,{'item_id':asset['id'],'answer_version':revision.get('version',1),'text':revision.get('body',{}).get('text',''),'reason':'历史表达版本'},L1)
-                old=self.spaces.scope(owner,'asset:'+asset['id'])
-                if old:self.spaces.set_scope(owner,'faq:'+asset['id'],old['mode'],old['workspace_ids'],0)
+        migrate_legacy(self.store,owner)
 
     def refs_state(self,owner,row):
         if state_of(row)=='stale':return 'expired'
@@ -85,6 +113,7 @@ class Library:
             if j['status']=='failed' and j.get('error')=='新资料仍在解析，完成后可继续同步' and self.store.rows('documents',owner,onboarding_original_id=j['revision']):self.business.retry(owner,j['id'])
         return {'items':[self.item(owner,r['id']) for r in self.store.rows('library_items',owner) if r.get('status')!='withdrawn'],
             'documents':self.documents(owner),'metrics':self.metrics(owner),'topics':TOPICS,
+            'question_grouping':self.business.question_grouping.snapshot(owner),
             'updates':[{'id':j['id'],'status':j['status'],'message':j.get('result',{}).get('message',j.get('error') or j.get('progress',''))} for j in self.store.rows('business_jobs',owner) if j['kind'] in {'library_sync','library_extract'}][:10]}
 
     def edit(self,owner,id,body):
@@ -130,13 +159,16 @@ class Library:
                 if cited:refs.append({'source_id':'document:'+cited['id'],'source_version':version(cited),'quote':data['document_quote']})
                 faq_key=hashlib.sha256((scenario+'|'+str(workspace or s['id'])+'|'+re.sub(r'[^\w\u4e00-\u9fff]','',str(data['question']).casefold())).encode()).hexdigest()
                 existing=next(iter(self.store.rows('library_items',owner,faq_key=faq_key)),None)
+                if not existing:
+                    evidence_ids={r['source_id'] for r in refs}
+                    existing=next((r for r in self.store.rows('library_items',owner,source_session_id=s['id']) if r.get('legacy_id') and r.get('item_type')=='faq' and r.get('original_question') and re.sub(r'[^\w\u4e00-\u9fff]','',r.get('title','').casefold())==re.sub(r'[^\w\u4e00-\u9fff]','',str(data['question']).casefold()) and any(x.get('source_id') in evidence_ids for x in r.get('evidence_refs',[]))),None)
                 row=existing or self.store.put('library_items',owner,{'faq_key':faq_key,'extraction_key':key,'title':str(data['question'])[:200],'text':str(data['answer'])[:6000],
-                    'scenario':scenario,'topic':data.get('topic') if data.get('topic') in topics else topics[0],'item_type':'faq','version':1,
+                    'original_question':str(data['question'])[:200],'scenario':scenario,'topic':data.get('topic') if data.get('topic') in topics else topics[0],'item_type':'faq','version':1,
                     'source_session_id':s['id'],'requires_document':data.get('topic') in {'价格与政策','交付与服务'},'evidence_refs':refs,'expression_state':'reusable' if data.get('state')=='reusable' else 'improve',
                     'remind':True,'status':'active','producer':'agent/library','rubric_version':'library@1'},L2,source='ai')
                 if existing and existing.get('source_session_id')==s['id'] and not existing.get('user_edited'):
                     self.store.put('library_versions',owner,{'item_id':row['id'],'answer_version':row['version'],'text':row['text'],'reason':'原文修订前版本'},L1)
-                    row=self.store.update('library_items',owner,row['id'],{'text':str(data['answer'])[:6000],'evidence_refs':refs,'version':row['version']+1})
+                    row=self.store.update('library_items',owner,row['id'],{'text':str(data['answer'])[:6000],'evidence_refs':refs,'original_question':str(data['question'])[:200],'faq_key':faq_key,'version':row['version']+1})
                 # Outcome records describe a source utterance, never prove an AI rewrite worked.
                 self.store.put('library_uses',owner,{'item_id':row['id'],'answer_version':0,'session_id':s['id'],'evidence_type':'recalled' if s.get('kind')=='oral_debrief' else 'recording','text':data.get('used_text',''),
                     'outcome':data.get('outcome','unknown'),'reason':data.get('reason',''),'evidence_refs':refs},L1)
@@ -291,6 +323,7 @@ class Library:
             'note':'按本人有效句段时长加权；语速为转写估计，口头禅可能被 ASR 省略。部分认领仅统计已认领部分；精确停顿与评分雷达暂未提供。'}
 
 class Edit(BaseModel):
+    legacy_period:str|None=Field(default=None,max_length=120)
     expected_version:int=Field(ge=1)
     text:str|None=Field(default=None,min_length=1,max_length=12000)
     topic:str|None=None

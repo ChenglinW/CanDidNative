@@ -16,7 +16,7 @@ from question_candidates import Qwen37Embedding, MODEL, _unit
 
 THRESHOLD = 0.6646
 TOP_K = 15
-POLICY = 'qwen3.7-average-top15-0.6646@1'
+POLICY = 'library-qwen3.7-average-top15-0.6646@2'
 
 
 def average_groups(vectors):
@@ -57,23 +57,22 @@ class QuestionGrouping:
         self.store, self.business, self.encoder_factory = store, business, encoder_factory
 
     def questions(self, owner):
-        from companion import Companion
-        domain = Companion(self.store)
-        rows = []
-        for row in self.store.rows('assets', owner):
-            if not row.get('companion_expression') or row.get('status') == 'withdrawn':
-                continue
-            if '客户常问' not in row.get('tags', []) or not row.get('quote', '').strip():
-                continue
-            refs = row.get('evidence_refs', [])
-            if not refs or not domain.current(owner, refs):
-                continue
-            session = self.store.get('sessions', owner, row['source_session_id'])
-            if session.get('fixture') or session.get('kind') == 'practice' or session.get('consent') != 'yes':
-                continue
-            rows.append({'id': row['id'], 'text': row['quote'].strip(), 'title': row['title'],
-                         'session_id': session['id'], 'evidence_refs': refs})
-        return sorted(rows, key=lambda row: row['id'])
+        from memory_library import migrate_legacy
+        from adapters.sqlite_memory import SQLiteMemoryAdapter
+        migrate_legacy(self.store,owner)
+        adapter=SQLiteMemoryAdapter(self.store)
+        rows=[]
+        for row in self.store.rows('library_items',owner):
+            if row.get('status')!='active' or row.get('item_type')!='faq':continue
+            refs=row.get('evidence_refs',[])
+            if not refs or any(r['status']!='current' for r in adapter.references_status(owner,refs)):continue
+            sid=row.get('source_session_id')
+            if sid:
+                session=self.store.get('sessions',owner,sid)
+                if session.get('fixture') or session.get('kind')=='practice' or session.get('consent')!='yes':continue
+            rows.append({'id':row['id'],'text':row.get('original_question') or row['title'],'title':row['title'],
+                'scenario':row.get('scenario','sales'),'session_id':sid,'evidence_refs':refs})
+        return sorted(rows,key=lambda row:row['id'])
 
     def fingerprint(self, rows):
         return hashlib.sha256(json.dumps([POLICY, rows], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -114,8 +113,8 @@ class QuestionGrouping:
             if not items:
                 continue
             groups.append({'id': min(ids), 'title': items[0]['title'], 'question': items[0]['text'],
-                           'expression_ids': ids, 'occurrences': len(items),
-                           'recording_count': len({r['session_id'] for r in items})})
+                           'expression_ids': ids, 'item_ids':ids, 'scenario':items[0]['scenario'], 'occurrences': len(items),
+                           'recording_count': len({r['session_id'] for r in items if r['session_id']})})
         groups.sort(key=lambda group: (-group['occurrences'], group['id']))
         return {'groups': groups, 'status': 'ready' if saved or not rows else (job['status'] if job else 'pending'),
                 'job_id': job['id'] if job else None, 'error': job.get('error') if job else None,
@@ -159,7 +158,10 @@ class QuestionGrouping:
                             "AND json_extract(data,'$.model')=? AND json_extract(data,'$.text_hash')=?",
                             (owner, MODEL, key(text))).fetchone()
                         cached[key(text)] = json.loads(prior['data']) if prior else self.store.put('question_embeddings', owner, data, L2, source='ai')
-        groups = average_groups([cached[key(row['text'])]['vector'] for row in rows])
+        groups=[]
+        for scenario in sorted({r['scenario'] for r in rows}):
+            indexes=[i for i,r in enumerate(rows) if r['scenario']==scenario]
+            groups.extend([[indexes[i] for i in group] for group in average_groups([cached[key(rows[i]['text'])]['vector'] for i in indexes])])
         with self.store.transaction(owner):
             self.business.guard(owner, job)
             if self.fingerprint(self.questions(owner)) != job['revision']:

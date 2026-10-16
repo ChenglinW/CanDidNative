@@ -16,7 +16,7 @@ struct LibraryItem:Decodable,Identifiable {
   var id:String;var title:String;var text:String;var topic:String;var scenario:String;var item_type:String
   var version:Int;var expression_state:String;var evidence_state:String;var effect_state:String
   var evidence_refs:[LibraryReference];var uses:[LibraryUse];var history:[LibraryVersion];var practices:[LibraryPractice]
-  var topics:[String];var remind:Bool?;var valid_until:String?;var suggested_text:String?;var synced_at:String?;var user_edited:Bool?
+  var original_question:String?;var topics:[String];var remind:Bool?;var valid_until:String?;var suggested_text:String?;var synced_at:String?;var user_edited:Bool?
   var label:String {if evidence_state == "expired" {return "已过期"};if evidence_state == "changed" {return "依据有变化"};if expression_state == "improve" {return "待改进"};if effect_state == "positive" {return "有正向记录"};return "尚未实战"}
 }
 struct LibraryDocument:Decodable,Identifiable {
@@ -27,7 +27,9 @@ struct LibrarySessionMetric:Decodable,Identifiable {var id:String;var title:Stri
 struct LibraryAggregate:Decodable {var count:Int;var self_ms:Double;var pace:Double?;var share:Double?;var filler_rate:Double?;var from:String?;var to:String?}
 struct LibraryMetrics:Decodable {var sessions:[LibrarySessionMetric];var recent:LibraryAggregate;var baseline:LibraryAggregate?;var note:String}
 struct LibraryUpdate:Decodable,Identifiable {var id:String;var status:String;var message:String}
-struct LibrarySnapshot:Decodable {var items:[LibraryItem];var documents:[LibraryDocument];var metrics:LibraryMetrics;var updates:[LibraryUpdate]}
+struct LibraryQuestionGroup:Decodable,Identifiable {var id:String;var title:String;var question:String;var item_ids:[String];var scenario:String;var occurrences:Int;var recording_count:Int}
+struct LibraryGrouping:Decodable {var groups:[LibraryQuestionGroup];var status:String;var job_id:String?;var error:String?}
+struct LibrarySnapshot:Decodable {var question_grouping:LibraryGrouping?;var items:[LibraryItem];var documents:[LibraryDocument];var metrics:LibraryMetrics;var updates:[LibraryUpdate]}
 
 struct CompanionMemory:View {
   @EnvironmentObject var store:Store
@@ -44,7 +46,7 @@ struct CompanionMemory:View {
           if let error {Text(error).companionFont(13).foregroundStyle(.red);Button("重新读取") {Task {await load()}}}
           if let s=snapshot {
             if tab == "我" {me(s)}
-            else if tab == "FAQ" {LibraryFAQList(items:s.items)}
+            else if tab == "FAQ" {LibraryFAQList(items:s.items,grouping:s.question_grouping)}
             else {LibraryDocuments(documents:s.documents,items:s.items,onChange:{Task {await load()}})}
           } else if error == nil {ProgressView("正在读取你的积累")}
           if let issue=store.personalImportError {Text(issue).companionFont(13).foregroundStyle(.red)}
@@ -135,12 +137,32 @@ struct LibraryItemRow:View {
   var body:some View {VStack(alignment:.leading,spacing:7) {HStack(alignment:.top) {Text(item.title).companionFont(15,weight:.semibold);Spacer();Image(systemName:"chevron.right").font(.caption)};Text(item.topic+" · "+item.label).companionFont(12).foregroundStyle(RecordingFormat.secondary);Divider()}.padding(.vertical,6).frame(maxWidth:.infinity,minHeight:60).contentShape(Rectangle())}
 }
 struct LibraryFAQList:View {
+  @EnvironmentObject var store:Store
   let items:[LibraryItem]
+  var grouping:LibraryGrouping?=nil
   @State private var query=""
   @State private var expanded=false
   @State private var byTopic=true
   @State private var selectedTopic="全部"
-  var rows:[LibraryItem] {items.filter {$0.item_type == "faq" && (query.isEmpty || ($0.title+$0.text+$0.topic).localizedCaseInsensitiveContains(query))}}
+  @State private var groupingError:String?
+  private var groups:[LibraryQuestionGroup] {
+    let saved=grouping?.groups ?? []
+    let used=Set(saved.flatMap(\.item_ids))
+    return saved + items.filter {$0.item_type == "faq" && !used.contains($0.id)}.map {LibraryQuestionGroup(id:$0.id,title:$0.title,question:$0.title,item_ids:[$0.id],scenario:$0.scenario,occurrences:1,recording_count:$0.evidence_refs.contains {$0.session_id != nil} ? 1:0)}
+  }
+  private func members(_ group:LibraryQuestionGroup)->[LibraryItem] {items.filter {group.item_ids.contains($0.id)}}
+  private func groupLink(_ group:LibraryQuestionGroup)->some View {
+    NavigationLink {LibraryQuestionGroupPage(group:group,items:members(group))} label: {
+      VStack(alignment:.leading,spacing:7) {
+        HStack(alignment:.top) {Text(group.title).companionFont(15,weight:.semibold);Spacer();Image(systemName:"chevron.right").font(.caption)}
+        Text("\(group.scenario == "interview" ? "面试":"销售") · \(group.occurrences) 条问法 · \(group.recording_count) 场沟通").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+        let count=members(group).filter {$0.expression_state == "improve"}.count
+        if count>0 {Text("\(count) 条说法待改进").companionFont(12).foregroundStyle(Warm.purple)}
+        Divider()
+      }.frame(maxWidth:.infinity,minHeight:60,alignment:.leading).padding(.vertical,6).contentShape(Rectangle())
+    }.buttonStyle(.plain).accessibilityIdentifier("libraryQuestionGroup-"+group.id)
+  }
+  var rows:[LibraryItem] {items.filter {$0.item_type == "faq" && (query.isEmpty || ($0.title+$0.text+$0.topic+($0.original_question ?? "")).localizedCaseInsensitiveContains(query))}}
   var body:some View {
     VStack(alignment:.leading,spacing:18) {
       Text("常被问到的，留下更好的回答。").companionFont(17,weight:.semibold)
@@ -152,16 +174,42 @@ struct LibraryFAQList:View {
         if bad.count>2 {Button(expanded ? "收起":"展开全部 \(bad.count) 个") {expanded.toggle()}.frame(minHeight:44)}
       }}
       HStack {Text("值得复用的回答").companionFont(17,weight:.semibold);Spacer();Menu(byTopic ? "按主题":"按问题") {Button("按主题") {byTopic=true};Button("按问题") {byTopic=false}}}
+      if let grouping, grouping.status != "ready" {
+        Text(["queued","running"].contains(grouping.status) ? "正在整理相似问题，已有说法仍可查看。":"相似问题暂未整理完成，已有说法仍可查看。").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+        if ["failed","interrupted","cancelled"].contains(grouping.status),let id=grouping.job_id {Button("继续整理相似问题") {Task {do {_ = try await store.api.raw("/v1/business-jobs/"+id+"/retry",method:"POST");groupingError=nil} catch {groupingError=error.localizedDescription}}}}
+      }
+      if let groupingError {Text(groupingError).companionFont(12).foregroundStyle(.red)}
       let good=rows.filter {$0.expression_state != "improve"}
+      let visibleGroups=groups.filter {g in members(g).contains {r in query.isEmpty || (r.title+r.text+r.topic+(r.original_question ?? "")).localizedCaseInsensitiveContains(query)}}
       if byTopic && query.isEmpty {
         ForEach(Array(Set(good.map(\.topic))).sorted(),id:\.self) {topic in
-          NavigationLink {ScrollView {VStack(alignment:.leading,spacing:16) {ForEach(good.filter {$0.topic==topic}) {link($0)}}.padding(18)}.companionReport(topic)} label: {HStack {Image(systemName:"text.bubble").foregroundStyle(Warm.purple);Text(topic);Spacer();Text("\(good.filter {$0.topic==topic}.count)");Image(systemName:"chevron.right")}.frame(maxWidth:.infinity,minHeight:52).contentShape(Rectangle())}.buttonStyle(.plain)
+          NavigationLink {ScrollView {VStack(alignment:.leading,spacing:16) {ForEach(visibleGroups.filter {g in members(g).contains {$0.topic==topic}}) {groupLink($0)}}.padding(18)}.companionReport(topic)} label: {HStack {Image(systemName:"text.bubble").foregroundStyle(Warm.purple);Text(topic);Spacer();Text("\(good.filter {$0.topic==topic}.count)");Image(systemName:"chevron.right")}.frame(maxWidth:.infinity,minHeight:52).contentShape(Rectangle())}.buttonStyle(.plain)
         }
-      } else {ForEach(good) {link($0)}}
+      } else if !query.isEmpty {ForEach(good) {link($0)}} else {ForEach(visibleGroups) {groupLink($0)}}
       if rows.isEmpty {Text(query.isEmpty ? "录音与复盘中的问题会自动整理到这里。故事和个人表达保留在“我”页。":"没有找到，换个关键词试试。").companionFont(14).foregroundStyle(RecordingFormat.secondary)}
     }
   }
   private func link(_ row:LibraryItem)->some View {NavigationLink {LibraryFAQDetail(item:row)} label:{LibraryItemRow(item:row)}.buttonStyle(.plain)}
+}
+struct LibraryQuestionGroupPage:View {
+  @EnvironmentObject var store:Store
+  let group:LibraryQuestionGroup
+  let items:[LibraryItem]
+  var body:some View {ScrollView {
+    VStack(alignment:.leading,spacing:18) {
+      Text(group.title).companionFont(22,weight:.semibold)
+      Text("相似问法放在一起，每次回答与资料依据分别保留。").companionFont(13).foregroundStyle(RecordingFormat.secondary)
+      ForEach(items) {item in
+        VStack(alignment:.leading,spacing:8) {
+          let sid=item.evidence_refs.compactMap(\.session_id).first
+          let recording=store.companionRecordings.first {$0.id==sid}
+          Text(recording?.title ?? "沟通记录").companionFont(12).foregroundStyle(Warm.purple)
+          NavigationLink {LibraryFAQDetail(item:item)} label: {LibraryItemRow(item:item)}.buttonStyle(.plain)
+          Text(item.text).companionFont(14).lineLimit(4)
+        }
+      }
+    }.frame(maxWidth:.infinity,alignment:.leading).padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)
+  }.companionReport("相似问题")}
 }
 struct LibraryFAQDetail:View {
   @EnvironmentObject var store:Store
