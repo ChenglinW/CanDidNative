@@ -33,11 +33,11 @@ def router(module):
         with module.store.transaction(uid):
             lib=module.library_service();lib.migrate(uid)
             result = domain().memory(uid)
-            canonical={r.get('legacy_id'):r for r in module.store.rows('library_items',uid) if r.get('legacy_id')}
-            for row in result['expressions']:
-                current=canonical.get(row['id'])
-                if current:row.update(body={'text':current['text']},version=current['version'],user_edited=current.get('user_edited'),evidence_refs=current.get('evidence_refs',[]),reference_status='current' if lib.refs_state(uid,current)=='ready' else 'superseded')
-            result['question_grouping'] = module.business.question_grouping.snapshot(uid)
+            library = module.library_service()
+            library.migrate(uid)
+            result['expressions'] = [library.compat_expression(uid,row['id']) for row in module.store.rows('library_items',uid)
+                                     if row.get('status') == 'active']
+            result['question_grouping'] = library.grouping.snapshot(uid)
             return result
     @r.post('/live-ask')
     def live_ask(body:LiveAsk,uid=auth):
@@ -70,26 +70,8 @@ def router(module):
     def complete(id:UUID,body:Edit,uid=auth): return domain().finish(uid,str(id),body.expected_version)
     @r.patch('/faq/{id}')
     def faq(id:UUID,body:FAQEdit,uid=auth):
-        from memory_library import Edit as LibraryEdit
-        lib=module.library_service();lib.migrate(uid)
-        patch={'expected_version':body.expected_version}
-        if body.text is not None:patch['text']=body.text
-        if body.expires_on is not None:
-            from datetime import date
-            if body.expires_on:
-                try:date.fromisoformat(body.expires_on)
-                except ValueError:
-                    from memory import Fault
-                    raise Fault('INVALID_DATE','截止日期格式应为 YYYY-MM-DD',422)
-            patch['valid_until']=body.expires_on+'T23:59:59+08:00' if body.expires_on else ''
-        if body.topic is not None:
-            mapping={'车型与配置':'产品与方案','价格与保值':'价格与政策','金融与分期':'价格与政策','置换':'价格与政策','交付与售后':'交付与服务','用车场景':'需求与场景','其他':'需求与场景'}
-            patch['topic']=mapping.get(body.topic,body.topic)
-        if body.period is not None:patch['legacy_period']=body.period
-        legacy=module.store.get('assets',uid,str(id))
-        row=lib.edit(uid,str(id),LibraryEdit(**patch))
-        return {**legacy,**row,'body':{'text':row['text']},'faq_history':[{'text':v['text'],'version':v['answer_version']} for v in row['history']],'reference_status':'current' if row['evidence_state']=='ready' else 'superseded'}
+        return module.library_service().compat_edit(uid,str(id),body.model_dump(exclude_unset=True))
     @r.patch('/expressions/{id}')
     def expression(id:UUID,body:ExpressionEdit,uid=auth):
-        return faq(id,FAQEdit(expected_version=body.expected_version,text=body.text),uid)
+        return module.library_service().compat_edit(uid,str(id),body.model_dump())
     return r

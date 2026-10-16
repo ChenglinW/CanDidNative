@@ -1,5 +1,7 @@
 # CanDid 产品约定索引
 
+> 2026-10-16 本地合并更新：按用户确认的 M1=B、M2=C、M3=B、M4=B、M5=B、M6=B、M7=C、M8=C，记忆库恢复 d8a85ca 的卡片与三分类结构，销售积累／面试积累分别进入并保存分类选择；以 library_items 为主，接入统一问题分组、完整历史素材导入、五维入口的可测指标、独立 Mock、原件/OCR/资料版本及依据和历史。效果与提醒暂不合入当前页面。以下较早记忆库描述与本段不一致时，以本段及 [合并交付](docs/MEMORY_MERGE_DELIVERY.md) 为准。仅为本地实现，云端与实体设备部署尚未完成。
+
 2026-10-16。当前产品以用户批准的 V2 为准：[方向约定](docs/v2-validation/SURFACE.md)、[精确参考](docs/references/CanDid_v2_iPhone17_20261016.html)及[实施与验收约定](docs/prompts/UI_V2_IMPLEMENTATION_AND_ACCEPTANCE.md)。旧场景改造记录保留为历史证据。首页与独立客户页的最新约定为[工作区方向](docs/workspace-ui/BRIEF.md)及[独立工作区参考](docs/references/CanDid_独立工作区页面_20261016.html)，主导航仍为三个入口。记忆库最新页面扩展以[记忆库约定](docs/memory-library/BRIEF.md)及[文档对齐记录](docs/memory-library/DESIGN_UPDATE.md)为准。
 
 ## 产品与用户任务

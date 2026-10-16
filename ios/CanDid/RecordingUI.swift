@@ -109,6 +109,7 @@ struct RecordingShell: View {
         TabView(selection:$navigation.section) {
             destination(.chat) { CompanionHome(onSettings:{speech.pauseSpeechPlayback();onSettings()}) }
                 .tabItem { Label("Candid",systemImage:"bubble.left") }.tag(CandidSection.chat)
+            // Approved M1–M8 merge: original memory layout with the canonical library.
             destination(.memory) { CompanionMemory() }
                 .tabItem { Label("记忆库",systemImage:"book") }.tag(CandidSection.memory)
             destination(.recordings) { CompanionRecordings() }

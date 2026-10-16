@@ -176,9 +176,12 @@ class SQLiteMemoryAdapter:
                 raise Fault('BAD_REQUEST', '场次不属于该场合', 422)
         terms, ranked, excluded = self._terms(query), [], []
         sessions = {r['id']: r for r in self.rows('sessions', owner)}
+        canonical = {(r.get('legacy_table','assets'),r.get('legacy_id')) for r in self.rows('library_items',owner) if r.get('legacy_id')}
         kinds = ['faq', 'asset', 'experience', 'occasion', 'personal', 'discovery'] + ([] if confirmed_only else ['transcript'])
         for kind in kinds:
             for row in self.rows(SOURCE_TABLES[kind], owner):
+                if (SOURCE_TABLES[kind],row['id']) in canonical:
+                    continue
                 if not self.workspaces.allowed(owner,kind,row,workspace_id):
                     continue
                 sid = row.get('session_id') or row.get('source_session_id')

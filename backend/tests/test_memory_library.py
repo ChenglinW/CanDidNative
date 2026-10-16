@@ -193,7 +193,7 @@ def test_grouping_reads_canonical_faq_and_separates_scenarios(lib):
  ids=[]
  for scene,title in [('sales','你的优势是什么？'),('sales','有什么优势？'),('interview','你的优势是什么？')]:
   ids.append(l.store.put('library_items',A,{'title':title,'text':'独立的回答','topic':'需求与场景','scenario':scene,'item_type':'faq','version':1,'status':'active','expression_state':'reusable','evidence_refs':refs,'producer':'test','rubric_version':'test'},L2,source='ai')['id'])
- grouping=l.business.question_grouping;calls=[]
+ grouping=l.grouping;calls=[]
  grouping.encoder_factory=lambda:SimpleNamespace(encode=lambda texts:(calls.extend(texts) or [[1,0] for t in texts]))
  pending=grouping.snapshot(A);l.business.run(A,l.store.get('business_jobs',A,pending['job_id']))
  ready=c.get('/v1/library',headers=H).json()['question_grouping']
