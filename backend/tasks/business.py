@@ -94,11 +94,12 @@ class BusinessJobs:
                 kind_filter = "json_extract(data,'$.kind')='tts'" if lane=='speech' else "json_extract(data,'$.kind')!='tts'"
                 rows = self.store.db.execute(
                     "SELECT owner_id,data FROM business_jobs WHERE json_extract(data,'$.status')='queued' AND "+kind_filter+
-                    exclusion+" ORDER BY CASE WHEN json_extract(data,'$.kind') IN ('library_extract','library_sync','question_grouping','recording_marks') THEN 1 ELSE 0 END,created_at,id LIMIT ?", [*reserved_ids, available]).fetchall()
+                    exclusion+" ORDER BY CASE WHEN json_extract(data,'$.kind') IN ('library_extract','library_sync','question_grouping','library_grouping','recording_marks') THEN 1 ELSE 0 END,created_at,id LIMIT ?", [*reserved_ids, available]).fetchall()
                 for record in rows:
                     job=json.loads(record['data']); owner=record['owner_id']
                     # Backfill must leave a background slot for a new recording or interactive Mock.
-                    if job['kind'] in {'library_extract','library_sync'} and any(self.store.get('business_jobs',k[0],k[1])['kind'] in {'library_extract','library_sync'} for k,v in self.running.items() if v=='background'):continue
+                    backfill={'library_extract','library_sync','question_grouping','library_grouping','recording_marks'}
+                    if job['kind'] in backfill and any(self.store.get('business_jobs',k[0],k[1])['kind'] in backfill for k,v in self.running.items() if v=='background'):continue
                     key=(owner,job['id'],job['attempt'])
                     self.running[key]=lane
                     try:self.pools[lane].submit(self.run,owner,job)

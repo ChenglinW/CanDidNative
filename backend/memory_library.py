@@ -12,7 +12,7 @@ from transcript_enrichment import enhance_transcript
 from adapters.sqlite_memory import SQLiteMemoryAdapter
 from tasks.workspaces import WorkspaceStore
 
-TOPICS={'sales':['产品与方案','价格与政策','需求与场景','异议与比较','交付与服务','故事与案例'],
+TOPICS={'sales':['产品与方案','价格与政策','需求与场景','异议与比较','交付与服务','故事与案例','车型与配置','价格与保值','金融与分期','置换','交付与售后','用车场景','其他'],
         'interview':['自我介绍','经历与故事','专业问题','动机与规划','岗位与公司','其他']}
 
 def words(text):return len(re.findall(r'[\u3400-\u9fff]|[A-Za-z]+(?:\'[A-Za-z]+)?|\d+',text))
@@ -22,50 +22,6 @@ def union_ms(rows):
     for a,b in spans:total+=max(0,b-max(a,end));end=max(end,b)
     return total
 
-def migrate_legacy(store,owner):
-    """One-time import, then a metadata upgrade; never overwrite a new-library edit."""
-    spaces=WorkspaceStore(store)
-    with store.transaction(owner):
-        for asset in store.rows('assets',owner):
-            if asset.get('status')=='withdrawn' or not (asset.get('companion_expression') or asset.get('kind')=='qa_answer'):continue
-            existing=next(iter(store.rows('library_items',owner,legacy_id=asset['id'])),None)
-            if existing and existing.get('legacy_schema')==2:continue
-            scenario=asset.get('scenario','sales')
-            mapping={'车型与配置':'产品与方案','价格与保值':'价格与政策','金融与分期':'价格与政策','置换':'价格与政策','交付与售后':'交付与服务','用车场景':'需求与场景'}
-            topic=mapping.get(asset.get('faq_topic'),asset.get('faq_topic'))
-            if topic not in TOPICS.get(scenario,TOPICS['sales']):topic=TOPICS.get(scenario,TOPICS['sales'])[0]
-            expiry=asset.get('faq_expires_on')
-            metadata={'legacy_schema':2,'original_question':asset.get('quote',''),'legacy_period':asset.get('faq_period','')}
-            if '客户常问' in asset.get('tags',[]):metadata['item_type']='faq'
-            if not existing:
-                existing=store.put('library_items',owner,{'id':asset['id'],'legacy_id':asset['id'],'title':asset.get('title','沟通素材'),
-                    'text':asset.get('body',{}).get('text',''),'topic':topic,'scenario':scenario,
-                    'item_type':'faq' if ('客户常问' in asset.get('tags',[]) or (not asset.get('tags') and '问' in asset.get('title','')) or asset.get('kind')=='qa_answer') else 'material',
-                    'source_session_id':asset.get('source_session_id'),'workspace_id':asset.get('workspace_id'),
-                    'evidence_refs':asset.get('evidence_refs',[]),'expression_state':'reusable' if asset.get('status')=='confirmed' or asset.get('user_edited') or '值得复用' in asset.get('tags',[]) else 'improve',
-                    'version':asset.get('version',1),'user_edited':bool(asset.get('user_edited')),'status':'active','remind':True,
-                    'valid_until':expiry+'T23:59:59+08:00' if expiry else None,
-                    **metadata,'producer':'library/migration','rubric_version':'library@2'},L2,source='ai')
-                old=spaces.scope(owner,'asset:'+asset['id'])
-                if old:spaces.set_scope(owner,'faq:'+asset['id'],old['mode'],old['workspace_ids'],0)
-            else:
-                patch=dict(metadata)
-                if not existing.get('user_edited'):
-                    patch.update(topic=topic)
-                    if expiry:patch['valid_until']=expiry+'T23:59:59+08:00'
-                    if asset.get('user_edited'):
-                        store.put('library_versions',owner,{'item_id':existing['id'],'answer_version':existing['version'],'text':existing['text'],'reason':'升级前说法'},L1)
-                        patch.update(text=asset.get('body',{}).get('text',''),user_edited=True,version=existing['version']+1)
-                elif asset.get('user_edited') and asset.get('body',{}).get('text')!=existing['text']:
-                    store.put('library_versions',owner,{'item_id':existing['id'],'answer_version':asset.get('version',1),'text':asset['body']['text'],'reason':'旧版人工说法，保留供核对'},L1)
-                store.update('library_items',owner,existing['id'],patch)
-            history=[{'answer_version':r.get('version',1),'text':r.get('body',{}).get('text','')} for r in store.rows('asset_revisions',owner,asset_id=asset['id'])]
-            history += [{'answer_version':r.get('version',1),'text':r.get('text',''),'period':r.get('period','')} for r in asset.get('faq_history',[])]
-            known={(r.get('answer_version'),r.get('text')) for r in store.rows('library_versions',owner,item_id=existing['id'])}
-            for revision in history:
-                if (revision['answer_version'],revision['text']) not in known:
-                    store.put('library_versions',owner,{'item_id':existing['id'],**revision,'reason':'历史表达版本'},L1);known.add((revision['answer_version'],revision['text']))
-
 class Library:
     def __init__(self,store,business,onboarding):
         self.store,self.business,self.onboarding=store,business,onboarding
@@ -73,9 +29,15 @@ class Library:
         business.handlers['library_extract']=self.extract
         business.handlers['library_sync']=self.sync
         business.handlers['library_mock']=self.mock
+        if not hasattr(business, 'library_grouping'):
+            from library_grouping import LibraryGrouping
+            business.library_grouping = LibraryGrouping(store, business)
+        self.grouping = business.library_grouping
+        business.handlers['library_grouping'] = self.grouping.run
 
     def migrate(self,owner):
-        migrate_legacy(self.store,owner)
+        from library_migration import migrate
+        migrate(self,owner,TOPICS)
 
     def refs_state(self,owner,row):
         if state_of(row)=='stale':return 'expired'
@@ -93,7 +55,7 @@ class Library:
         practice=self.store.rows('library_practices',owner,item_id=id)
         display_refs=[]
         for ref in row.get('evidence_refs',[]):
-            display=dict(ref)
+            display={'source_id':'legacy:unresolved',**ref}
             if ref.get('source_id','').startswith('document:'):
                 try:
                     doc=self.store.get('documents',owner,ref['source_id'].split(':',1)[1]);display.update(title=doc.get('title','背景资料'),original_id=doc.get('onboarding_original_id'))
@@ -103,6 +65,36 @@ class Library:
             'effect_state':'positive' if any(u.get('outcome')=='positive' for u in uses) else 'questioned' if any(u.get('outcome')=='questioned' for u in uses) else 'untried',
             'practices':practice,'history':self.store.rows('library_versions',owner,item_id=id),
             'topics':TOPICS.get(row.get('scenario'),TOPICS['sales'])}
+
+    def compat_expression(self, owner, id):
+        """Older clients edit the same canonical item instead of a second copy."""
+        row = self.item(owner, id)
+        deadline = row.get('valid_until') or ''
+        if deadline and len(deadline) > 10:
+            from datetime import timedelta
+            deadline = (datetime.fromisoformat(deadline.replace('Z','+00:00')) - timedelta(seconds=1)).date().isoformat()
+        return {**row, 'body': {'text': row['text']}, 'tags': row.get('tags', []),
+                'reference_status': 'current' if row['evidence_state'] == 'ready' else 'superseded',
+                'faq_topic': row['topic'], 'faq_period': row.get('period', ''),
+                'faq_expires_on': deadline,
+                'faq_history': [{'text': r['text'], 'version': r['answer_version'],
+                                 'period': r.get('period'), 'edited_at': r.get('created_at')} for r in row['history']]}
+
+    def compat_edit(self, owner, id, fields):
+        self.migrate(owner)
+        mapped = {k: fields[k] for k in ('expected_version', 'text', 'topic') if k in fields}
+        if 'period' in fields and fields['period'] is not None:
+            mapped['period'] = fields['period']
+        if fields.get('expires_on') is not None:
+            from datetime import date
+            try:
+                if fields['expires_on']:
+                    date.fromisoformat(fields['expires_on'])
+            except ValueError:
+                raise Fault('INVALID_DATE', '截止日期格式应为 YYYY-MM-DD', 422)
+            mapped['valid_until'] = fields['expires_on']
+        self.edit(owner, id, Edit(**mapped))
+        return self.compat_expression(owner, id)
 
     def snapshot(self,owner):
         self.migrate(owner)
@@ -114,21 +106,48 @@ class Library:
             if j['status']=='failed' and j.get('error')=='新资料仍在解析，完成后可继续同步' and self.store.rows('documents',owner,onboarding_original_id=j['revision']):self.business.retry(owner,j['id'])
         return {'items':[self.item(owner,r['id']) for r in self.store.rows('library_items',owner) if r.get('status')!='withdrawn'],
             'documents':self.documents(owner),'metrics':self.metrics(owner),'topics':TOPICS,
-            'question_grouping':self.business.question_grouping.snapshot(owner),
+            'question_grouping':self.grouping.snapshot(owner),
             'updates':[{'id':j['id'],'status':j['status'],'message':j.get('result',{}).get('message',j.get('error') or j.get('progress',''))} for j in self.store.rows('business_jobs',owner) if j['kind'] in {'library_sync','library_extract'}][:10]}
 
     def edit(self,owner,id,body):
+        self.migrate(owner)
         with self.store.transaction(owner):
             row=self.store.get('library_items',owner,id)
             if row['version']!=body.expected_version:raise Fault('VERSION_CONFLICT','说法已更新，你的输入仍可保留后重试',409)
-            self.store.put('library_versions',owner,{'item_id':id,'answer_version':row['version'],'text':row['text'],'valid_until':row.get('valid_until'),'reason':'编辑前版本'},L1)
+            conflict = row.get('migration_conflict')
+            if body.resolve_legacy and conflict and body.expected_legacy_revision != conflict.get('legacy_revision'):
+                raise Fault('VERSION_CONFLICT','旧版内容又有变化，请重新核对后选择',409)
+            self.store.put('library_versions',owner,{'item_id':id,'answer_version':row['version'],'text':row['text'],'valid_until':row.get('valid_until'),'period':row.get('period'),'reason':'编辑前版本'},L1)
             patch={k:v for k,v in body.model_dump().items() if k!='expected_version' and v is not None}
+            patch.pop('expected_legacy_revision',None)
+            if 'legacy_period' in patch:
+                if 'period' in patch and patch['period'] != patch['legacy_period']:
+                    raise Fault('PERIOD_CONFLICT','适用期间有两种不同内容，请核对后提交',422)
+                patch['period'] = patch['legacy_period']
+            if 'period' in patch:
+                patch['legacy_period'] = patch['period']
+            if 'valid_until' in patch and patch['valid_until']:
+                try:
+                    from library_migration import expiry
+                    patch['valid_until'] = expiry(self.store, owner, patch['valid_until'])
+                    parsed = datetime.fromisoformat(patch['valid_until'].replace('Z','+00:00'))
+                    if parsed.tzinfo is None:
+                        raise ValueError('timezone required')
+                except ValueError:
+                    raise Fault('INVALID_DATE','请填写有效的适用日期',422)
+            if 'status' in patch and patch['status'] not in {'active','archived'}:
+                raise Fault('INVALID_STATUS','请选择归档或恢复',422)
             if 'text' in patch:
+                patch['text'] = patch['text'].strip()
+                if not patch['text']:
+                    raise Fault('INVALID_TEXT','先写下你会怎么说',422)
                 patch.update(user_edited=True,expression_state='reusable')
                 if patch['text']==row.get('suggested_text') and row.get('suggested_document_id'):
                     doc=self.store.get('documents',owner,row['suggested_document_id'])
                     patch.update(evidence_refs=[r for r in row.get('evidence_refs',[]) if not r.get('source_id','').startswith('document:')]+[{'source_id':'document:'+doc['id'],'source_version':version(doc)}],suggested_text=None,suggested_document_id=None)
             if 'topic' in patch and patch['topic'] not in TOPICS.get(row.get('scenario'),TOPICS['sales']):raise Fault('TOPIC_INVALID','请选择当前场景的主题',422)
+            if patch.pop('resolve_legacy', False):
+                patch['migration_conflict'] = None
             patch.update(version=row['version']+1)
             self.store.update('library_items',owner,id,patch,actor=owner)
             return self.item(owner,id)
@@ -163,7 +182,7 @@ class Library:
                 existing=next(iter(self.store.rows('library_items',owner,faq_key=faq_key)),None)
                 if not existing:
                     evidence_ids={r['source_id'] for r in refs}
-                    existing=next((r for r in self.store.rows('library_items',owner,source_session_id=s['id']) if r.get('legacy_id') and r.get('item_type')=='faq' and r.get('original_question') and re.sub(r'[^\w\u4e00-\u9fff]','',r.get('title','').casefold())==re.sub(r'[^\w\u4e00-\u9fff]','',str(data['question']).casefold()) and any(x.get('source_id') in evidence_ids for x in r.get('evidence_refs',[]))),None)
+                    existing=next((r for r in self.store.rows('library_items',owner,source_session_id=s['id']) if r.get('legacy_id') and r.get('item_type')=='faq' and r.get('scenario')==scenario and any(re.sub(r'[^\w\u4e00-\u9fff]','',q.casefold())==re.sub(r'[^\w\u4e00-\u9fff]','',str(data['question']).casefold()) for q in (r.get('original_question') or '',r.get('title') or '')) and any(x.get('source_id') in evidence_ids for x in r.get('evidence_refs',[]))),None)
                 row=existing or self.store.put('library_items',owner,{'faq_key':faq_key,'extraction_key':key,'title':str(data['question'])[:200],'text':str(data['answer'])[:6000],
                     'original_question':str(data['question'])[:200],'scenario':scenario,'topic':data.get('topic') if data.get('topic') in topics else topics[0],'item_type':'faq','version':1,
                     'source_session_id':s['id'],'requires_document':data.get('topic') in {'价格与政策','交付与服务'},'evidence_refs':refs,'expression_state':'reusable' if data.get('state')=='reusable' else 'improve',
@@ -331,6 +350,10 @@ class Edit(BaseModel):
     topic:str|None=None
     valid_until:str|None=None
     remind:bool|None=None
+    period:str|None=Field(default=None,max_length=120)
+    status:str|None=None
+    resolve_legacy:bool|None=None
+    expected_legacy_revision:str|None=None
 class Practice(BaseModel):
     client_request_id:UUID
     practice_id:UUID|None=None

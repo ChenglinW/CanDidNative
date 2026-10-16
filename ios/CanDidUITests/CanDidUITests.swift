@@ -35,22 +35,45 @@ final class CanDidUITests: XCTestCase {
         continueAfterFailure=false
         let app=libraryApp();app.buttons["FAQ"].tap()
         let menu=app.buttons["按主题"];XCTAssertTrue(menu.waitForExistence(timeout:10));menu.tap();app.buttons["按问题"].tap()
-        let group=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","libraryQuestionGroup-")).firstMatch
+        let group=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","memory-question-")).firstMatch
         XCTAssertTrue(group.waitForExistence(timeout:20));capture(app,"unified-faq-groups");group.tap()
         XCTAssertTrue(app.staticTexts["相似问法放在一起，每次回答与资料依据分别保留。"].waitForExistence(timeout:10))
         capture(app,"unified-faq-group-detail")
-        let answer=app.buttons.containing(.staticText,identifier:"价格怎么解释？").firstMatch
+        let answer=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","library-group-item-")).firstMatch
         XCTAssertTrue(answer.waitForExistence(timeout:10));answer.tap()
         XCTAssertTrue(app.staticTexts["现在的说法"].waitForExistence(timeout:10))
         XCTAssertTrue(app.buttons["关联背景资料"].exists)
         capture(app,"unified-faq-member-detail")
     }
+    func testMergedMemoryKeepsOriginalLayoutAndSeparatesInterview() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchArguments=["-candid-ui-testing","-candid-v2-populated"];app.launchEnvironment=[:];app.launch()
+        app.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["memory-sales"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["表达积累"].exists)
+        app.buttons["memory-expression-overview"].tap()
+        for axis in ["语速","停顿","口头禅","起伏","说话占比"] {XCTAssertTrue(app.buttons[axis].exists)}
+        app.buttons["停顿"].tap();XCTAssertTrue(app.staticTexts["暂无可靠测量"].exists)
+        capture(app,"merged-five-axis")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["FAQ"].tap();XCTAssertTrue(app.textFields["memory-question-search"].exists)
+        app.buttons["memory-interview"].tap()
+        XCTAssertTrue(app.buttons["我"].isSelected)
+        app.buttons["FAQ"].tap()
+        XCTAssertTrue(app.staticTexts["面试问过什么，留下自己的回答。"].exists)
+        XCTAssertFalse(app.buttons["memory-question-preview-expression"].exists)
+        capture(app,"merged-interview-empty")
+        app.buttons["memory-sales"].tap()
+        XCTAssertTrue(app.buttons["FAQ"].isSelected)
+        XCTAssertTrue(app.staticTexts["客户常问什么，你怎么答最好。"].exists)
+    }
+
     func testMemoryLibraryActualHTTPFAQMockAndVersion() {
         continueAfterFailure=false
-        let app=libraryApp();XCTAssertTrue(app.staticTexts["你的沟通，慢慢看得见变化。"].waitForExistence(timeout:15));capture(app,"memory-me")
-        app.buttons["FAQ"].tap();capture(app,"memory-faq");let search=app.textFields["libraryFAQSearch"];search.tap();search.typeText("价格")
+        let app=libraryApp();XCTAssertTrue(app.buttons["memory-expression-overview"].waitForExistence(timeout:15));capture(app,"memory-me")
+        app.buttons["FAQ"].tap();capture(app,"memory-faq");let search=app.textFields["memory-question-search"];search.tap();search.typeText("价格")
         let row=app.buttons.containing(.staticText,identifier:"价格怎么解释？").firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout:10));row.tap()
+        XCTAssertTrue(row.waitForExistence(timeout:10));row.tap();app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","library-group-item-")).firstMatch.tap()
         XCTAssertTrue(app.staticTexts["现在的说法"].waitForExistence(timeout:10));capture(app,"memory-faq-detail")
         let evidence=app.buttons["门店交付说明.txt"]
         if !evidence.isHittable {app.swipeUp()};XCTAssertTrue(evidence.exists);evidence.tap()
@@ -65,9 +88,9 @@ final class CanDidUITests: XCTestCase {
     }
     func testMemoryLibraryDocumentsAndMetrics() {
         continueAfterFailure=false
-        let app=libraryApp();let metrics=app.buttons.containing(.staticText,identifier:"表达与趋势").firstMatch
-        XCTAssertTrue(metrics.waitForExistence(timeout:15));metrics.tap();XCTAssertTrue(app.staticTexts["最早三场 · 起点"].waitForExistence(timeout:10));capture(app,"memory-metrics")
-        app.navigationBars.buttons.firstMatch.tap();app.buttons["背景资料"].tap()
+        let app=libraryApp();let metrics=app.buttons["memory-expression-overview"]
+        XCTAssertTrue(metrics.waitForExistence(timeout:15));metrics.tap();app.buttons["查看逐场记录与趋势"].tap();XCTAssertTrue(app.staticTexts["最早三场 · 起点"].waitForExistence(timeout:10));capture(app,"memory-metrics")
+        app.navigationBars.buttons.firstMatch.tap();app.navigationBars.buttons.firstMatch.tap();app.buttons["背景资料"].tap()
         let doc=app.buttons.containing(.staticText,identifier:"门店交付说明.txt").firstMatch
         XCTAssertTrue(doc.waitForExistence(timeout:15));capture(app,"memory-documents");doc.tap()
         XCTAssertTrue(app.buttons["上传新版本"].waitForExistence(timeout:10));XCTAssertTrue(app.staticTexts["当前交付三周。价格以门店书面报价为准。"].exists);capture(app,"memory-document-detail")
@@ -75,7 +98,7 @@ final class CanDidUITests: XCTestCase {
     func testMemoryLibraryLargeText() {
         continueAfterFailure=false
         let app=libraryApp(large:true);capture(app,"memory-large-me");app.buttons["FAQ"].tap()
-        XCTAssertTrue(app.buttons["背景资料"].isHittable);XCTAssertTrue(app.textFields["libraryFAQSearch"].exists);capture(app,"memory-large-faq")
+        XCTAssertTrue(app.buttons["背景资料"].isHittable);XCTAssertTrue(app.textFields["memory-question-search"].exists);capture(app,"memory-large-faq")
     }
     func testCustomerDashboardAndIndependentWorkspaceKeepRecapAndTranscriptPlayback() {
         continueAfterFailure=false
@@ -558,13 +581,14 @@ final class CanDidUITests: XCTestCase {
         app.textFields["memory-question-search"].tap()
         app.textFields["memory-question-search"].typeText("价格")
         app.buttons["memory-question-preview-expression"].tap()
-        XCTAssertTrue(app.buttons["查看与修改这次应对"].firstMatch.waitForExistence(timeout:10))
-        XCTAssertEqual(app.buttons.matching(identifier:"查看与修改这次应对").count,2)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","library-group-item-")).firstMatch.waitForExistence(timeout:10))
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","library-group-item-")).count,2)
         capture(app,"memory-question-occurrences")
-        app.buttons["查看与修改这次应对"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["改成我的说法"].waitForExistence(timeout:10))
-        app.buttons["改成我的说法"].tap()
-        XCTAssertTrue(app.textViews["我的表达"].waitForExistence(timeout:10))
+        app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","library-group-item-")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["更新"].waitForExistence(timeout:10))
+        app.buttons["更新"].tap()
+        XCTAssertTrue(app.textViews["FAQ 说法"].waitForExistence(timeout:10))
+        app.buttons["取消"].tap()
         app.navigationBars.buttons.firstMatch.tap()
         app.navigationBars.buttons.firstMatch.tap()
         tabs.buttons["我"].tap()
@@ -590,13 +614,21 @@ final class CanDidUITests: XCTestCase {
         app.buttons["清除搜索"].tap()
         search.tap(); search.typeText("价格")
         app.buttons["memory-question-preview-expression"].tap()
+        app.buttons["library-group-item-preview-expression"].tap()
         XCTAssertTrue(app.buttons["更新"].waitForExistence(timeout:10))
         capture(app,"faq-detail")
         app.buttons["更新"].tap()
         XCTAssertTrue(app.textViews["FAQ 说法"].waitForExistence(timeout:5))
         XCTAssertTrue(app.textFields["适用时间（可选，如双十一活动）"].exists)
-        app.switches["设置截止日期"].tap()
-        XCTAssertTrue(app.datePickers.firstMatch.exists)
+        let deadlineToggle=app.switches["设置适用期限"]
+        print("Deadline toggle before:",deadlineToggle.value ?? "nil",deadlineToggle.frame)
+        deadlineToggle.coordinate(withNormalizedOffset:CGVector(dx:0.92,dy:0.5)).tap()
+        print("Deadline toggle after:",deadlineToggle.value ?? "nil")
+        XCTAssertEqual(deadlineToggle.value as? String,"1")
+        let expiry=app.descendants(matching:.any).matching(identifier:"faq-expiry-picker").firstMatch
+        if !expiry.exists {app.swipeUp()}
+        capture(app,"faq-expiry-control")
+        XCTAssertTrue(expiry.waitForExistence(timeout:5))
         capture(app,"faq-edit")
         app.buttons["取消"].tap()
         XCTAssertTrue(app.buttons["更新"].waitForExistence(timeout:5))

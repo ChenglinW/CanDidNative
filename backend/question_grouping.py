@@ -16,7 +16,7 @@ from question_candidates import Qwen37Embedding, MODEL, _unit
 
 THRESHOLD = 0.6646
 TOP_K = 15
-POLICY = 'library-qwen3.7-average-top15-0.6646@2'
+POLICY = 'qwen3.7-average-top15-0.6646@1'
 
 
 def average_groups(vectors):
@@ -53,29 +53,38 @@ def average_groups(vectors):
 
 
 class QuestionGrouping:
+    embedding_table = 'question_embeddings'
+    grouping_table = 'question_groupings'
+    job_kind = 'question_grouping'
+    policy = POLICY
+
+    def group_indices(self, rows, vectors):
+        return average_groups(vectors)
+
     def __init__(self, store, business=None, encoder_factory=Qwen37Embedding):
         self.store, self.business, self.encoder_factory = store, business, encoder_factory
 
     def questions(self, owner):
-        from memory_library import migrate_legacy
-        from adapters.sqlite_memory import SQLiteMemoryAdapter
-        migrate_legacy(self.store,owner)
-        adapter=SQLiteMemoryAdapter(self.store)
-        rows=[]
-        for row in self.store.rows('library_items',owner):
-            if row.get('status')!='active' or row.get('item_type')!='faq':continue
-            refs=row.get('evidence_refs',[])
-            if not refs or any(r['status']!='current' for r in adapter.references_status(owner,refs)):continue
-            sid=row.get('source_session_id')
-            if sid:
-                session=self.store.get('sessions',owner,sid)
-                if session.get('fixture') or session.get('kind')=='practice' or session.get('consent')!='yes':continue
-            rows.append({'id':row['id'],'text':row.get('original_question') or row['title'],'title':row['title'],
-                'scenario':row.get('scenario','sales'),'session_id':sid,'evidence_refs':refs})
-        return sorted(rows,key=lambda row:row['id'])
+        from companion import Companion
+        domain = Companion(self.store)
+        rows = []
+        for row in self.store.rows('assets', owner):
+            if not row.get('companion_expression') or row.get('status') == 'withdrawn':
+                continue
+            if '客户常问' not in row.get('tags', []) or not row.get('quote', '').strip():
+                continue
+            refs = row.get('evidence_refs', [])
+            if not refs or not domain.current(owner, refs):
+                continue
+            session = self.store.get('sessions', owner, row['source_session_id'])
+            if session.get('fixture') or session.get('kind') == 'practice' or session.get('consent') != 'yes':
+                continue
+            rows.append({'id': row['id'], 'text': row['quote'].strip(), 'title': row['title'],
+                         'session_id': session['id'], 'evidence_refs': refs})
+        return sorted(rows, key=lambda row: row['id'])
 
     def fingerprint(self, rows):
-        return hashlib.sha256(json.dumps([POLICY, rows], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        return hashlib.sha256(json.dumps([self.policy, rows], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
     def snapshot(self, owner):
         with self.store.transaction(owner):
@@ -87,18 +96,18 @@ class QuestionGrouping:
         active = {hashlib.sha256(row['text'].encode()).hexdigest() for row in rows}
         # Polling the memory screen must not deserialize the vector cache.
         metadata = self.store.db.execute("SELECT id,json_extract(data,'$.text_hash') AS text_hash,"
-            "json_extract(data,'$.model') AS model FROM question_embeddings WHERE owner_id=?", (owner,)).fetchall()
+            f"json_extract(data,'$.model') AS model FROM {self.embedding_table} WHERE owner_id=?", (owner,)).fetchall()
         for cached in metadata:
             if cached['text_hash'] not in active or cached['model'] != MODEL:
-                self.store.remove('question_embeddings', owner, cached['id'])
+                self.store.remove(self.embedding_table, owner, cached['id'])
         if not rows:
-            for cached in self.store.rows('question_groupings', owner):
-                self.store.remove('question_groupings', owner, cached['id'])
+            for cached in self.store.rows(self.grouping_table, owner):
+                self.store.remove(self.grouping_table, owner, cached['id'])
         revision = self.fingerprint(rows)
-        saved = self.store.rows('question_groupings', owner, revision=revision)
+        saved = self.store.rows(self.grouping_table, owner, revision=revision)
         job = None
         if rows and not saved and self.business:
-            job = self.business.submit(owner, 'question_grouping', 'memory', revision)
+            job = self.business.submit(owner, self.job_kind, 'memory', revision)
             if job['status'] == 'completed':
                 # The same inputs can become current again after a source restore.
                 job = self.store.update('business_jobs', owner, job['id'], {
@@ -113,12 +122,12 @@ class QuestionGrouping:
             if not items:
                 continue
             groups.append({'id': min(ids), 'title': items[0]['title'], 'question': items[0]['text'],
-                           'expression_ids': ids, 'item_ids':ids, 'scenario':items[0]['scenario'], 'occurrences': len(items),
-                           'recording_count': len({r['session_id'] for r in items if r['session_id']})})
+                           'expression_ids': ids, 'occurrences': len(items),
+                           'recording_count': len({r['session_id'] for r in items})})
         groups.sort(key=lambda group: (-group['occurrences'], group['id']))
         return {'groups': groups, 'status': 'ready' if saved or not rows else (job['status'] if job else 'pending'),
                 'job_id': job['id'] if job else None, 'error': job.get('error') if job else None,
-                'model': MODEL, 'policy': POLICY}
+                'model': MODEL, 'policy': self.policy}
 
     def run(self, owner, job):
         with self.store.transaction(owner):
@@ -126,7 +135,7 @@ class QuestionGrouping:
             rows = self.questions(owner)
             if self.fingerprint(rows) != job['revision']:
                 return {'superseded': True}
-            cached = {r['text_hash']: r for r in self.store.rows('question_embeddings', owner, model=MODEL)}
+            cached = {r['text_hash']: r for r in self.store.rows(self.embedding_table, owner, model=MODEL)}
         texts = list(dict.fromkeys(r['text'] for r in rows))
         dimension = next((len(r['vector']) for r in cached.values()), None)
         key = lambda text: hashlib.sha256(text.encode()).hexdigest()
@@ -152,27 +161,24 @@ class QuestionGrouping:
                         return {'superseded': True}
                     for text, vector in zip(batch, vectors):
                         data = {'model': MODEL, 'text_hash': key(text), 'vector': vector,
-                                'producer': MODEL, 'rubric_version': POLICY}
+                                'producer': MODEL, 'rubric_version': self.policy}
                         # Multiple revisions may run concurrently; reuse the committed cache.
-                        prior = self.store.db.execute("SELECT data FROM question_embeddings WHERE owner_id=? "
+                        prior = self.store.db.execute(f"SELECT data FROM {self.embedding_table} WHERE owner_id=? "
                             "AND json_extract(data,'$.model')=? AND json_extract(data,'$.text_hash')=?",
                             (owner, MODEL, key(text))).fetchone()
-                        cached[key(text)] = json.loads(prior['data']) if prior else self.store.put('question_embeddings', owner, data, L2, source='ai')
-        groups=[]
-        for scenario in sorted({r['scenario'] for r in rows}):
-            indexes=[i for i,r in enumerate(rows) if r['scenario']==scenario]
-            groups.extend([[indexes[i] for i in group] for group in average_groups([cached[key(rows[i]['text'])]['vector'] for i in indexes])])
+                        cached[key(text)] = json.loads(prior['data']) if prior else self.store.put(self.embedding_table, owner, data, L2, source='ai')
+        groups = self.group_indices(rows, [cached[key(row['text'])]['vector'] for row in rows])
         with self.store.transaction(owner):
             self.business.guard(owner, job)
             if self.fingerprint(self.questions(owner)) != job['revision']:
                 return {'superseded': True}
-            for prior in self.store.rows('question_groupings', owner):
-                self.store.remove('question_groupings', owner, prior['id'])
-            self.store.put('question_groupings', owner, {'revision': job['revision'],
+            for prior in self.store.rows(self.grouping_table, owner):
+                self.store.remove(self.grouping_table, owner, prior['id'])
+            self.store.put(self.grouping_table, owner, {'revision': job['revision'],
                 'groups': [[rows[i]['id'] for i in group] for group in groups],
-                'producer': MODEL, 'rubric_version': POLICY}, L2, source='ai')
+                'producer': MODEL, 'rubric_version': self.policy}, L2, source='ai')
             active = {key(text) for text in texts}
-            for prior in self.store.rows('question_embeddings', owner):
+            for prior in self.store.rows(self.embedding_table, owner):
                 if prior['text_hash'] not in active or prior['model'] != MODEL:
-                    self.store.remove('question_embeddings', owner, prior['id'])
+                    self.store.remove(self.embedding_table, owner, prior['id'])
         return {'question_count': len(rows), 'group_count': len(groups), 'new_embeddings': len(missing)}
