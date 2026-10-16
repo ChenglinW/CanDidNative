@@ -8,6 +8,29 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.buttons["记忆库"].waitForExistence(timeout:25));app.buttons["记忆库"].firstMatch.tap()
         XCTAssertTrue(app.buttons["FAQ"].waitForExistence(timeout:20));return app
     }
+    func testMarkedRecordingContextPlaybackAndAgent() {
+        continueAfterFailure=false
+        let app=libraryApp();app.buttons["录音"].firstMatch.tap()
+        let recording=app.buttons.containing(.staticText,identifier:"逐句回听验收录音").firstMatch
+        XCTAssertTrue(recording.waitForExistence(timeout:15));if !recording.isHittable {app.swipeUp()};recording.tap()
+        XCTAssertTrue(app.staticTexts["你标记的重点"].waitForExistence(timeout:15));capture(app,"marks-review")
+        let card=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","recording-highlight-")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout:15));card.tap()
+        XCTAssertTrue(app.buttons["回听这一段"].waitForExistence(timeout:15));capture(app,"marks-detail")
+        app.buttons["回听这一段"].tap();XCTAssertTrue(app.buttons["暂停回听"].waitForExistence(timeout:10));app.buttons["暂停回听"].tap()
+        app.swipeUp();let input=app.textFields["mark-question"];if !input.isHittable {app.swipeUp()};XCTAssertTrue(input.waitForExistence(timeout:10));input.tap();input.typeText("How should I clarify the scope?")
+        app.buttons["问 Candid"].tap()
+        XCTAssertTrue(app.staticTexts["mark-answer"].waitForExistence(timeout:40));app.swipeUp();let result=app.staticTexts["mark-answer"];if !result.isHittable {app.swipeUp()};result.tap();capture(app,"marks-agent-answer")
+    }
+    func testMarkedRecordingLargeText() {
+        continueAfterFailure=false
+        let app=libraryApp(large:true);app.buttons["录音"].firstMatch.tap()
+        let recording=app.buttons.containing(.staticText,identifier:"逐句回听验收录音").firstMatch
+        XCTAssertTrue(recording.waitForExistence(timeout:15));if !recording.isHittable {app.swipeUp()};recording.tap()
+        let card=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","recording-highlight-")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout:15));if !card.isHittable {app.swipeUp()};card.tap()
+        XCTAssertTrue(app.buttons["回听这一段"].waitForExistence(timeout:15));capture(app,"marks-large-detail")
+    }
     func testLibrarySemanticGroupsKeepIndependentFAQDetails() {
         continueAfterFailure=false
         let app=libraryApp();app.buttons["FAQ"].tap()

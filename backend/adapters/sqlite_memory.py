@@ -98,7 +98,7 @@ class SQLiteMemoryAdapter:
             row = {**row,'personal_identity_confirmed':False}
         if kind in {'document','research'} and not row.get('text'):
             raise Fault('SOURCE_UNREADABLE', '资料正文尚未取得或解析', 409)
-        if kind in {'personal','knowledge','discovery','asset','faq'}:
+        if kind in {'personal','knowledge','discovery','asset','faq'} or (kind=='document' and row.get('material_kind')=='recording_mark_snapshot'):
             for reference in row.get('evidence_refs',[]):
                 parent_kind,_,parent_id=reference.get('source_id','').partition(':')
                 parent_table=SOURCE_TABLES.get(parent_kind)
@@ -266,7 +266,7 @@ class SQLiteMemoryAdapter:
             if oid:
                 self.get_occasion(owner, oid, workspace_id)
             rows = [r for r in self.rows('sessions', owner, occasion_id=oid) if not r.get('fixture') and self.workspaces.allowed(owner,'session',r,workspace_id)][:6]
-            return {'items': [{k: r.get(k) for k in ['occasion_id','scenario','kind','started_at','pipeline_status']} | {'session_id':r['id']} for r in rows]}
+            return {'items': [{k: r.get(k) for k in ['title','occasion_id','scenario','kind','started_at','pipeline_status']} | {'session_id':r['id'],'mark_count':len([m for m in self.rows('marks',owner,session_id=r['id']) if m['id'] not in r.get('hidden_mark_ids',[])])} for r in rows]}
         if name == 'read_session':
             sid = args['session_id']
             session = self.get('sessions', owner, sid)
@@ -274,8 +274,12 @@ class SQLiteMemoryAdapter:
             if session.get('fixture'):
                 return {'status':'empty','items':[],'note':'示例场次不作为真实记忆'}
             revision=session.get('transcript_revision',1)
-            segments = sorted([r for r in self.rows('transcript_segments', owner, session_id=sid) if r.get('transcript_revision',1)==revision and (r.get('speaker')=='self' or (session.get('consent')=='yes' and session.get('llm_consent_at')))], key=lambda r:r['start_ms'])[:20]
+            segments = sorted([r for r in self.rows('transcript_segments', owner, session_id=sid) if r.get('transcript_revision',1)==revision and (r.get('speaker')=='self' or (session.get('consent')=='yes' and session.get('llm_consent_at')))], key=lambda r:r['start_ms'])
+            marks=[m for m in self.rows('marks',owner,session_id=sid) if m['id'] not in session.get('hidden_mark_ids',[])]
+            if marks:
+                segments=sorted(sorted(segments,key=lambda r:min(abs(r['start_ms']-m['t_ms']) for m in marks))[:20],key=lambda r:r['start_ms'])
+            else:segments=segments[:20]
             diagnoses = [r for r in self.rows('diagnoses', owner, session_id=sid) if state_of(r)=='current'][:4]
             refs = [{'source_id':'transcript:'+r['id']} for r in segments] + [{'source_id':'diagnosis:'+r['id']} for r in diagnoses]
-            return {**self.read_evidence(owner, refs, sources=sources, workspace_id=workspace_id), 'session_id':sid}
+            return {**self.read_evidence(owner, refs, sources=sources, workspace_id=workspace_id), 'session_id':sid,'marks':[{'t_ms':m['t_ms'],**({'title':session.get('mark_titles',{}).get(m['id'])} if session.get('mark_titles',{}).get(m['id']) else {})} for m in marks],'mark_note':'标记只表示用户关注，优先读取附近原文，不代表事实确认或本人身份'}
         raise Fault('TOOL_UNAVAILABLE', '该工具尚未开放', 422)

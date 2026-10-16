@@ -41,6 +41,7 @@ struct RecordingRecord: Decodable, Identifiable {
     var id: String; var started_at: String?; var pipeline_status: String; var recording_source: String?
     var tags: [RecordingTag]?; var segments: [RecordingSentence]?; var knowledge: [RecordingKnowledge]?
     var jobs: [BusinessJob]?; var transcript_revision: Int?
+    var highlights:RecordingHighlights?
     var marks:[RecordingMark]?
     var duration_ms: Int?; var title: String?; var kind: String?; var fixture: Bool?; var device_file_id: Int?
     var customer_workspace_id:String?;var customer_confirmed_at:String?;var customer_assignment_revision:Int?
@@ -53,6 +54,7 @@ enum LiveCaptionState { case idle, connecting, ready, reconnecting, unavailable,
 struct DeviceCaptureReference: Codable {
     var sessionID: String; var fileID: Int32; var deviceID: String; var backendIdentity: String
 }
+struct PendingMarkerUpload:Codable,Identifiable {var id:String;var backendIdentity:String;var times:[Int]}
 struct PendingRecording: Codable, Identifiable {
     var id: String; var path: String; var milliseconds: Int; var backendIdentity: String
 }
@@ -74,6 +76,8 @@ enum SpeechPlaybackState:String {case idle,preparing,playing,paused,failed}
     private var playbackGeneration=UUID()
     private var backgroundObserver:NSObjectProtocol?
     @Published var pending: [PendingRecording] = []
+    @Published private(set) var pendingMarkers:[PendingMarkerUpload]=[]
+    private var markerUploadPath:URL {pendingPath.deletingLastPathComponent().appendingPathComponent("PendingMarkerUploads.json")}
     @Published var liveSentences: [LiveRecordingSentence] = []
     @Published var liveRevision = 0
     @Published var captionState: LiveCaptionState = .idle
@@ -131,6 +135,7 @@ enum SpeechPlaybackState:String {case idle,preparing,playing,paused,failed}
         FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("PendingRecordings.json")
     }
     init() {
+        pendingMarkers=(try? Data(contentsOf:markerUploadPath)).flatMap {try? JSONDecoder().decode([PendingMarkerUpload].self,from:$0)} ?? []
         pending = (try? Data(contentsOf: pendingPath)).flatMap { try? JSONDecoder().decode([PendingRecording].self,from:$0) } ?? []
         if let data = UserDefaults.standard.data(forKey: "candid-device-capture") {
             trackedDevice = try? JSONDecoder().decode(DeviceCaptureReference.self, from: data)
@@ -748,9 +753,29 @@ extension SpeechController {
         liveRevision+=1
     }
     #endif
+    private func persistMarkers() {
+        try? FileManager.default.createDirectory(at:markerUploadPath.deletingLastPathComponent(),withIntermediateDirectories:true)
+        if let data=try? JSONEncoder().encode(pendingMarkers) {try? data.write(to:markerUploadPath,options:[.atomic,.completeFileProtectionUntilFirstUserAuthentication])}
+    }
+    func flushMarkers(api:API) async {
+        for item in pendingMarkers.filter({$0.backendIdentity==identity(api)}) {do {try await saveMarkers(item.times,sessionID:item.id,api:api)} catch {notice="标记已保存在本机，连接恢复后继续同步。"}}
+    }
     func saveMarkers(_ times:[Int],sessionID:String,api:API) async throws {
         guard !times.isEmpty else{return}
-        _=try await api.raw("/v1/sessions/"+sessionID+"/marks",method:"POST",body:["marks":times.map{["t_ms":$0,"user_label":"unlabeled"] as [String:Any]}])
+        let key=identity(api)
+        let prior=pendingMarkers.first {$0.id==sessionID && $0.backendIdentity==key}
+        let combined=Array(Set((prior?.times ?? [])+times.filter {$0>=0})).sorted()
+        pendingMarkers.removeAll {$0.id==sessionID && $0.backendIdentity==key}
+        pendingMarkers.append(PendingMarkerUpload(id:sessionID,backendIdentity:key,times:combined));persistMarkers()
+        for offset in stride(from:0,to:combined.count,by:1000) {
+            let batch=Array(combined[offset..<min(offset+1000,combined.count)])
+            _=try await api.raw("/v1/sessions/"+sessionID+"/marks",method:"POST",body:["marks":batch.map{["t_ms":$0,"user_label":"unlabeled"] as [String:Any]}])
+        }
+        if let i=pendingMarkers.firstIndex(where:{$0.id==sessionID && $0.backendIdentity==key}) {
+            pendingMarkers[i].times.removeAll {combined.contains($0)}
+            if pendingMarkers[i].times.isEmpty {pendingMarkers.remove(at:i)}
+            persistMarkers()
+        }
     }
     func markCurrent(store:Store,device:Soundcore) async {
         guard let sid=meetingID,meetingMatches(store.api) else{return}

@@ -132,8 +132,9 @@ struct RecordingShell: View {
         .onChange(of:device.currentFileID) { _,_ in coordinateDevice() }
         .onChange(of:device.fileMarkers) {_,values in
             guard store.remote,let connected=device.connected else{return}
+            let api=store.api
             for (fileID,times) in values {
-                if let sid=DeviceRecordingMap.get(api:store.api,fileID:fileID,deviceID:connected.recordingID) {Task {try? await speech.saveMarkers(times,sessionID:sid,api:store.api)}}
+                if let sid=DeviceRecordingMap.get(api:api,fileID:fileID,deviceID:connected.recordingID) {Task {try? await speech.saveMarkers(times,sessionID:sid,api:api)}}
             }
         }
         .onChange(of:device.realtimeReady) { _,_ in coordinateDevice() }
@@ -147,6 +148,12 @@ struct RecordingShell: View {
         .onReceive(NotificationCenter.default.publisher(for:UIResponder.keyboardWillHideNotification)){_ in keyboardVisible=false}
         .task { coordinateDevice() }
         .task { await store.observeDeviceActions() }
+        .task(id:DeviceRecordingMap.identity(store.api)) {
+            while !Task.isCancelled {
+                if store.remote {await speech.flushMarkers(api:store.api)}
+                do {try await Task.sleep(for:.seconds(6))} catch {break}
+            }
+        }
     }
     private func destination<Content:View>(_ section:CandidSection,@ViewBuilder content:()->Content)->some View {
         NavigationStack {
@@ -353,9 +360,14 @@ struct LiveRecordingView: View {
                     ScrollView {
                         LazyVStack(alignment:.leading,spacing:22) {
                             if (sameConnection || captionPreview) && !speech.liveSentences.isEmpty {
+                                if let file=device.currentFileID,!(device.markedFragments[file] ?? []).isEmpty {Label("已收到标记，录后自动整理重点",systemImage:"bookmark.fill").font(.caption).foregroundStyle(Warm.purple).accessibilityIdentifier("live-mark-received")}
                                 ForEach(speech.liveSentences) { line in
                                     VStack(alignment:.leading,spacing:7) {
-                                        Text(RecordingFormat.clock(line.startMS/1000)).font(.caption2).monospacedDigit().foregroundStyle(RecordingFormat.secondary)
+                                        HStack {
+                                            Text(RecordingFormat.clock(line.startMS/1000)).font(.caption2).monospacedDigit().foregroundStyle(RecordingFormat.secondary)
+                                            let end=speech.liveSentences.first {$0.startMS>line.startMS}?.startMS ?? Int.max
+                                            if let file=device.currentFileID,(device.liveMarkTimes[file] ?? []).contains(where:{$0>=line.startMS && $0<end}) {Image(systemName:"bookmark.fill").font(.caption).foregroundStyle(Warm.purple).accessibilityLabel("这段已标记，录后校准")}
+                                        }
                                         Text(line.text+(line.stable ? "":" ▏")).font(.body).lineSpacing(6).foregroundStyle(line.stable ? Warm.ink:Warm.purple)
                                             .textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)
                                     }.id(line.id)

@@ -51,7 +51,7 @@ final class SoundcoreCallbacks: NSObject, SoundcoreBusinessCallback, OnAuthResul
     func onReceiveAudioFragment(macAddress: String, uuid: String, fileID: Int32, audioData: KotlinByteArray, isAppendPreAudio: Bool, sequenceNumber: Int32, isMark: Bool) {
         let bytes=(0..<audioData.size).map { UInt8(bitPattern:audioData.get(index:$0)) }
         event?(.liveAudio(macAddress,uuid,fileID,Data(bytes),sequenceNumber))
-        if isMark {event?(.markedFragment(macAddress,uuid,fileID,sequenceNumber))}
+        if isMark {event?(.markedFragment(macAddress,uuid,fileID,sequenceNumber,isAppendPreAudio))}
     }
     func onReceiveOfflineFile(macAddress: String, uuid: String, offlineFileData: OfflineFileData, isAllAudioFiles: Bool) { event?(.files(macAddress, uuid, offlineFileData.fileInfoList)) }
     func onReceiveOfflineFileError(macAddress: String, uuid: String, errorCode: Int32) { event?(.fileError(macAddress, uuid, errorCode)) }
@@ -61,7 +61,7 @@ final class SoundcoreCallbacks: NSObject, SoundcoreBusinessCallback, OnAuthResul
     func onSendUnbindingDeviceCMDSuccess(macAddress: String, uuid: String) {  }
     func onSyncTimeResult(macAddress: String, uuid: String, result: Bool) { event?(.synced(macAddress, uuid, result)) }
     func onTransferFileError(macAddress: String, uuid: String, fileID: Int32, errorType: FileTransferError) { event?(.transferError(macAddress, uuid, fileID)) }
-    func onTransferFileProgress(macAddress: String, uuid: String, fileID: Int32, total: Int32, current: Int32, sequenceNumber: Int32, isMark: Bool) { event?(.progress(macAddress, uuid, fileID, total, current)) }
+    func onTransferFileProgress(macAddress: String, uuid: String, fileID: Int32, total: Int32, current: Int32, sequenceNumber: Int32, isMark: Bool) { event?(.progress(macAddress, uuid, fileID, total, current));if isMark {event?(.markedFragment(macAddress,uuid,fileID,sequenceNumber,true))} }
     func onTransferFileStatusChanged(macAddress:String,uuid:String,fileID:Int32,status:Int32,markTimeStampList:NSMutableArray) {event?(.markers(macAddress,uuid,fileID,markTimeStampList.compactMap{($0 as? NSNumber)?.intValue}))}
     func onTransferFileSupplementProgress(macAddress: String, uuid: String, fileID: Int32, total: Int32, current: Int32) {  }
     func onTransferFileTransmitting(macAddress: String, uuid: String, fileID: Int32) {  }

@@ -36,8 +36,8 @@ DEFINITIONS = (
     ('search_memory', '查找相关记忆', '查询相关条目的摘要片段，默认仅已确认 L3；可按场合、场次过滤。详细原文通过 read_evidence 读取。', SearchArgs),
     ('read_evidence', '读取资料依据', '用 source_id 与可选 source_version 读取实际资料原文及位置；版本失效时不返回旧内容。', ReadEvidenceArgs),
     ('list_occasions', '查看最近场合', '列出最近的真实沟通场合及其目标，用于定位上次沟通。', EmptyArgs),
-    ('list_sessions', '查看最近录音', '列出最近真实录音或复述场次，获得 session_id 后可读取本人原文；不包含示例。', SessionsArgs),
-    ('read_session', '读取录音原文', '读取指定场次的本人原文与 AI 复盘；原文和推断分别标记。', ReadSessionArgs),
+    ('list_sessions', '查看最近录音', '列出最近真实录音或复述场次及标记数量，获得 session_id 后可读取原文和关注位置；不包含示例。', SessionsArgs),
+    ('read_session', '读取录音原文', '读取指定场次获授权的原文及用户标记点；有标记时优先返回附近原文，标记只表示关注，不代表确认或本人身份。', ReadSessionArgs),
 )
 
 

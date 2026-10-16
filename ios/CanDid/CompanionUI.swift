@@ -1046,6 +1046,9 @@ struct CompanionRecordingPage: View {
       Spacer()
       Button("修订原文") { edit = true }
     }.companionFont(12).frame(minHeight: 44)
+    if let marks=r.marks,!marks.isEmpty {
+      ScrollView(.horizontal) {HStack {ForEach(marks) {mark in Button {Task {await store.perform {try await store.playRecording(id,startMS:mark.t_ms)}}} label:{Label(RecordingFormat.clock(mark.t_ms/1000),systemImage:"bookmark.fill").frame(minHeight:44)}}}}.companionFont(12)
+    }
     ForEach(r.segments ?? []) { line in sentence(line) }
   }
   private func sentence(_ line: RecordingSentence) -> some View {
@@ -1066,6 +1069,7 @@ struct CompanionRecordingPage: View {
       .background(Warm.white, in: RoundedRectangle(cornerRadius: 14)).id(line.id)
   }
   @ViewBuilder private func review(_ r: RecordingRecord) -> some View {
+    if let value=r.highlights {RecordingHighlightsSection(recordID:id,value:value,onChange:{Task {await load()}})}
     if (r.knowledge ?? []).isEmpty {
       ContentUnavailableView(
         "正在整理这场沟通", systemImage: "sparkles",

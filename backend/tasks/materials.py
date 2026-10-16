@@ -45,7 +45,7 @@ class Materials:
         ranked=[]
         for kind in ('document','research','knowledge','transcript','faq','asset','personal','discovery'):
             for row in self.store.rows(SOURCE_TABLES[kind],owner):
-                if row.get('material_kind')=='live_caption_snapshot':continue
+                if row.get('material_kind') in {'live_caption_snapshot','recording_mark_snapshot'}:continue
                 if not self.workspaces.allowed(owner,kind,row,workspace_id) or row.get('status') in {'archived','withdrawn','superseded'}:continue
                 from adapters.sqlite_memory import SQLiteMemoryAdapter
                 try:

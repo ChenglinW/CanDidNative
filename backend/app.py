@@ -497,7 +497,8 @@ def marks(id:str,body:MarksIn,uid=Depends(owner)):
         for m in body.marks:
             if s['duration_ms'] and m.t_ms>s['duration_ms']:raise Fault('BAD_REQUEST','标记超出场次范围')
             if not memory_service.rows('marks',uid,session_id=id,t_ms=m.t_ms):memory_service.put('marks',uid,{**data(m),'session_id':id},source='device')
-    return {'data':memory_service.rows('marks',uid,session_id=id)}
+    recordings.marks.queue(uid,id)
+    return {'data':[m for m in memory_service.rows('marks',uid,session_id=id) if m['id'] not in store.get('sessions',uid,id).get('hidden_mark_ids',[])]}
 @app.post('/v1/sessions/{id}/transcript')
 def transcript(id:str,body:TranscriptIn,uid=Depends(owner)):
     s=memory_service.get('sessions',uid,id)
@@ -822,10 +823,49 @@ def recording_library(tag:str|None=None,uid=Depends(owner)):
 @app.get('/v1/recordings/{id}')
 def recording_detail(id:str,uid=Depends(owner)):
     row=store.get('sessions',uid,id)
-    return {**row,'segments':recordings.segments(uid,id),'marks':store.rows('marks',uid,session_id=id),
+    return {**row,'segments':recordings.segments(uid,id),'marks':[m for m in store.rows('marks',uid,session_id=id) if m['id'] not in row.get('hidden_mark_ids',[])],
+        'highlights':recordings.marks.snapshot(uid,id),
         'tags':[t for t in store.rows('recording_tags',uid,session_id=id) if t.get('active')],
         'knowledge':[r for r in store.rows('recording_knowledge',uid,session_id=id) if str(r.get('revision'))==str(row.get('transcript_revision',1))],
         'jobs':store.rows('business_jobs',uid,object_id=id)}
+
+class MarkTitleIn(Input):title:str=Field(min_length=1,max_length=80)
+class MarkAskIn(Input):
+    question:str=Field(min_length=1,max_length=4000)
+    client_request_id:UUID
+
+@app.patch('/v1/recordings/{id}/marks/{mark_id}')
+def edit_recording_mark(id:str,mark_id:str,body:MarkTitleIn,uid=Depends(owner)):
+    return recordings.marks.edit(uid,id,mark_id,title=body.title)
+
+@app.delete('/v1/recordings/{id}/marks/{mark_id}')
+def remove_recording_mark(id:str,mark_id:str,uid=Depends(owner)):
+    return recordings.marks.edit(uid,id,mark_id,remove=True)
+
+@app.delete('/v1/recordings/{id}/highlights/{highlight_id}')
+def dismiss_recording_highlight(id:str,highlight_id:str,uid=Depends(owner)):
+    with store.transaction(uid):
+        session,groups=recordings.marks.build(uid,id)
+        group=next((g for g in groups if g['id']==highlight_id),None)
+        if group:store.update('sessions',uid,id,{'hidden_mark_ids':sorted(set(session.get('hidden_mark_ids',[])+group['mark_ids']))})
+    return recordings.marks.snapshot(uid,id)
+
+@app.post('/v1/recordings/{id}/highlights/{highlight_id}/ask')
+def ask_recording_mark(id:str,highlight_id:str,body:MarkAskIn,uid=Depends(owner)):
+    from companion import Companion
+    session,groups=recordings.marks.build(uid,id)
+    group=next((g for g in groups if g['id']==highlight_id),None)
+    if session.get('consent')!='yes' or not session.get('llm_consent_at'):raise Fault('RECORDING_CONSENT_REQUIRED','请先完成本场录音转写授权',403)
+    if not group or not group['segments']:raise Fault('TRANSCRIPT_MISSING','这段原文尚未准备好',409)
+    # Explicitly selected source, current transcript references, existing Agent tools and task recovery.
+    text='用户标记的录音原文；标记只表示关注，不能推断其意图或未认领的本人身份。\n'+'\n'.join(f"[{r['start_ms']}ms] {r.get('speaker_name') or r.get('speaker')}: {r['text']}" for r in group['segments'])
+    if len(text)>9500:raise Fault('MARK_CONTEXT_TOO_LONG','片段较长，请从原文选择较小范围继续',422)
+    with store.transaction(uid):
+        prior=store.rows('documents',uid,mark_request_id=str(body.client_request_id))
+        doc=prior[0] if prior else store.put('documents',uid,{'title':group['title'],'text':text,'session_id':id,'material_kind':'recording_mark_snapshot',
+            'mark_request_id':str(body.client_request_id),'evidence_refs':group['evidence_refs'],'status':'active','acquired':True},L1)
+        if doc['text']!=text or doc.get('session_id')!=id:raise Fault('REQUEST_CONFLICT','片段已更新，请重新提问',409)
+    return agent.submit(uid,Companion(store).thread(uid)['id'],body.question,str(body.client_request_id),live_source_id='document:'+doc['id'])
 
 @app.post('/v1/recordings/{id}/process')
 def process_recording(id:str,uid=Depends(owner)):

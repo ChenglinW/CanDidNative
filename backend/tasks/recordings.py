@@ -13,6 +13,8 @@ from adapters.sources import version
 class Recordings:
     def __init__(self,store,business,speech):
         self.store,self.business,self.speech=store,business,speech
+        from recording_marks import MarkHighlights
+        self.marks=MarkHighlights(self)
         business.handlers.update(transcribe=self.transcribe,recording_knowledge=self.knowledge,tts=self.tts,companion_discovery=self.discover)
 
     def queue(self,owner,sid):
@@ -128,9 +130,9 @@ class Recordings:
             self.business.guard(owner,job)
             prior=next((k for k in self.store.rows('recording_knowledge',owner,session_id=sid) if k.get('revision')==job['revision'] and k.get('part')==number),None)
             if prior:saved.append(prior);continue
-            result=self.business.structured('整理全场沟通，不猜谁是用户。保留粤语原文引用，复盘可用普通话。输出 {"title":"简短沟通主题","summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"next_steps":[],"expressions":[{"title":"关键问题","text":"可尝试的表达","quote":"逐字原文","segment_id":"提供的片段id","kind":"客户常问/值得复用/需要改善"}],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。kind为客户常问时，title必须概括一个客户实际提出的问题，quote必须逐字引用该问题，不能引用回答或把陈述猜成问题；同一处问题只提取一次。next_steps只提取原文中明确讨论的后续行动，不凭空安排任务，各数组条目为字符串。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
+            result=self.business.structured('整理全场沟通，不猜谁是用户。user_marks_ms 是用户关注的音频毫秒点，优先覆盖附近原文，但不猜标记原因，不遗漏未标记的重要内容。保留粤语原文引用，复盘可用普通话。输出 {"title":"简短沟通主题","summary":"总结与要点","strengths":[],"improvements":[],"open_questions":[],"next_steps":[],"expressions":[{"title":"关键问题","text":"可尝试的表达","quote":"逐字原文","segment_id":"提供的片段id","kind":"客户常问/值得复用/需要改善"}],"tags":[{"label":"名称","kind":"client或project或topic","workspace_id":null}]}。kind为客户常问时，title必须概括一个客户实际提出的问题，quote必须逐字引用该问题，不能引用回答或把陈述猜成问题；同一处问题只提取一次。next_steps只提取原文中明确讨论的后续行动，不凭空安排任务，各数组条目为字符串。只有明确匹配提供的空间方向才填其workspace_id，不确定时为null。不要凭空补事实，不把全场内容当用户经历。',
                 {'segments':[{'id':s['id'],'start_ms':s['start_ms'],'end_ms':s['end_ms'],'speaker':s.get('speaker_id'),'text':s['text']} for s in group],
-                 'project_spaces':spaces,'part':number+1,'parts':len(groups)}, timeout_seconds=240)
+                 'user_marks_ms':[m['t_ms'] for m in self.store.rows('marks',owner,session_id=sid) if m['id'] not in session.get('hidden_mark_ids',[])],'project_spaces':spaces,'part':number+1,'parts':len(groups)}, timeout_seconds=240)
             summary=result.get('summary','')
             if not isinstance(summary,str) or not summary.strip():raise Fault('KNOWLEDGE_FORMAT_INVALID','录音整理格式无效',502)
             refs=[{'source_id':'transcript:'+s['id'],'source_version':version(s),'start_ms':s['start_ms'],'end_ms':s['end_ms']} for s in group]
@@ -172,6 +174,7 @@ class Recordings:
         Companion(self.store).publish_recording(owner,sid,job['revision'])
         self.business.submit(owner,'companion_discovery',sid,job['revision'])
         if 'library_extract' in self.business.handlers:self.business.submit(owner,'library_extract',sid,job['revision'])
+        self.marks.queue(owner,sid)
         return {'knowledge_ids':[k['id'] for k in saved],'session_id':sid}
 
     def discover(self,owner,job):

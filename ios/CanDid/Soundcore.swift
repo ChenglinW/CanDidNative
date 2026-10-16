@@ -89,6 +89,9 @@ struct SoundcoreFile: Identifiable {
     private var liveFrameCount = 0
     @Published private(set) var fileMarkers:[Int32:[Int]]=[:]
     @Published private(set) var markedFragments:[Int32:Set<Int32>]=[:]
+    @Published private(set) var liveMarkTimes:[Int32:[Int]]=[:]
+    @Published private(set) var markReceiptCount=0
+    private var markerDeviceID:String?
     var onLiveAudio: ((Data,Int32)->Void)?
     var onRecordingEnded: (()->Void)?
     private let sdk = SoundcoreSDK.companion.proxy
@@ -305,6 +308,7 @@ struct SoundcoreFile: Identifiable {
         serialNumber = ""; firmwareVersion = ""; battery = nil; bindingConfirmed = false; awaitingBinding = false
         discoveryRequested = false
         status = "正在连接 \(device.name)…"
+        if markerDeviceID != device.recordingID {fileMarkers=[:];markedFragments=[:];liveMarkTimes=[:];markReceiptCount=0;markerDeviceID=device.recordingID}
         sdk.connect(macAddress: device.mac, uuid: device.uuid, listener: callbacks)
         connectionTimeout?.cancel()
         connectionTimeout = Task { [weak self] in
@@ -390,8 +394,15 @@ struct SoundcoreFile: Identifiable {
         case .markers(let mac,let uuid,let fileID,let times):
             guard matches(mac,uuid) else{return}
             fileMarkers[fileID]=Array(Set((fileMarkers[fileID] ?? [])+times.filter{$0>=0})).sorted()
-        case .markedFragment(let mac,let uuid,let fileID,let sequence):
-            guard matches(mac,uuid) else{return};markedFragments[fileID,default:[]].insert(sequence)
+            diagnose("file_markers",["file_id":String(fileID),"times_ms":times.map(String.init).joined(separator:",")])
+        case .markedFragment(let mac,let uuid,let fileID,let sequence,let continuation):
+            guard matches(mac,uuid),sequence>=0 else{return}
+            let inserted=markedFragments[fileID,default:[]].insert(sequence).inserted
+            if recordStatus != 0 && fileID==currentFileID {
+                if inserted {markReceiptCount+=1;diagnose("mark_received",["file_id":String(fileID),"sequence":String(sequence),"continuation":String(continuation)])}
+                // SDK defines 20 ms per Opus sequence; >3h continuation is finalized from file markers.
+                if !continuation && !(liveMarkTimes[fileID] ?? []).contains(Int(sequence)*20) {liveMarkTimes[fileID,default:[]].append(Int(sequence)*20)}
+            }
         case .realtimeReady(let mac,let uuid,let fileID):
             guard matches(mac,uuid) else { return };realtimeReady=true;currentFileID=fileID
         case .liveAudio(let mac,let uuid,let fileID,let data,let sequence):
@@ -542,7 +553,7 @@ enum SoundcoreEvent {
     case files(String, String, [FileInfoModel]), fileError(String, String, Int32)
     case progress(String, String, Int32, Int32, Int32), completed(String, String, Int32, String)
     case realtimeReady(String,String,Int32),liveAudio(String,String,Int32,Data,Int32)
-    case markers(String,String,Int32,[Int]),markedFragment(String,String,Int32,Int32)
+    case markers(String,String,Int32,[Int]),markedFragment(String,String,Int32,Int32,Bool)
     case transferError(String, String, Int32)
 }
 

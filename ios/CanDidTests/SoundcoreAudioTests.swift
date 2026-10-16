@@ -21,6 +21,33 @@ private final class OnboardingStubProtocol: URLProtocol {
 }
 
 final class SoundcoreAudioTests: XCTestCase {
+    @MainActor func testMarkerUploadSurvivesFailureAndRespectsBackendIdentity() async throws {
+        URLProtocol.registerClass(OnboardingStubProtocol.self)
+        let path=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("PendingMarkerUploads.json")
+        let backup=try? Data(contentsOf:path)
+        defer {URLProtocol.unregisterClass(OnboardingStubProtocol.self);OnboardingStubProtocol.handler=nil;if let backup {try? backup.write(to:path)} else {try? FileManager.default.removeItem(at:path)}}
+        let sid=UUID().uuidString;let api=API(base:"http://onboarding-test.invalid",token:"mark-test")
+        OnboardingStubProtocol.handler={_ in throw URLError(.notConnectedToInternet)}
+        let first=SpeechController()
+        do {try await first.saveMarkers([1500,4500,1500],sessionID:sid,api:api);XCTFail("must preserve failed upload")} catch {}
+        let restored=SpeechController();XCTAssertEqual(restored.pendingMarkers.first {$0.id==sid}?.times,[1500,4500])
+        var requests=0
+        OnboardingStubProtocol.handler={request in
+            requests+=1
+            var payload=request.httpBody ?? Data()
+            if payload.isEmpty,let stream=request.httpBodyStream {
+                stream.open();defer {stream.close()}
+                var buffer=[UInt8](repeating:0,count:4096)
+                while stream.hasBytesAvailable {let count=stream.read(&buffer,maxLength:buffer.count);if count<=0 {break};payload.append(contentsOf:buffer.prefix(count))}
+            }
+            let body=try JSONSerialization.jsonObject(with:payload) as? [String:Any]
+            XCTAssertEqual((body?["marks"] as? [[String:Any]])?.compactMap {$0["t_ms"] as? Int},[1500,4500])
+            return Data("{\"data\":[]}".utf8)
+        }
+        await restored.flushMarkers(api:API(base:api.base,token:"another-account"));XCTAssertEqual(requests,0)
+        await restored.flushMarkers(api:api);XCTAssertEqual(requests,1)
+        XCTAssertFalse(restored.pendingMarkers.contains {$0.id==sid})
+    }
     func testNativeVisionReadsImageAndMixedPDFPages() throws {
         let image=UIGraphicsImageRenderer(size:CGSize(width:1000,height:500)).image {ctx in
             UIColor.white.setFill();ctx.fill(CGRect(x:0,y:0,width:1000,height:500))
