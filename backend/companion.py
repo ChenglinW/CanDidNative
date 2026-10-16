@@ -76,6 +76,11 @@ class Companion:
                 'version': (same['version'] + 1) if same else 1, 'client_request_id': request_id,
                 'evidence_refs': references, 'producer': 'agent/preparation', 'rubric_version': 'companion-prep@2'}, L2, source='ai')
             if same: self.store.update('companion_preparations', owner, same['id'], {'status': 'superseded'})
+            if not space.get('is_scope_context'):
+                patch={'scenario':space.get('scenario') or data['scenario']}
+                if space.get('name_source') != 'manual':patch.update(name=data['client'],goal=data['goal'],auto_seeded=True)
+                self.store.update('project_spaces',owner,space['id'],patch)
+                if 'name' in patch:self.store.update('chat_threads',owner,thread_id,{'title':patch['name']})
             self.message(owner, 'preparation:' + pack['id'], '准备包已整理：' + pack['client'],
                          target_thread_id=thread_id, preparation_package_id=pack['id'])
             return pack
@@ -100,6 +105,8 @@ class Companion:
     def publish_recording(self, owner, sid, revision):
         with self.store.transaction(owner):
             session = self.store.get('sessions', owner, sid)
+            if session.get('customer_assignment_required') and not session.get('customer_confirmed_at'):
+                return {'recording_id':sid,'published':False,'reason':'customer_confirmation_required'}
             if str(session.get('transcript_revision', 1)) != str(revision):
                 raise Fault('TRANSCRIPT_CHANGED', '转写已更新，请重新整理', 409)
             knowledge = self.store.rows('recording_knowledge', owner, session_id=sid, revision=str(revision))
@@ -110,10 +117,15 @@ class Companion:
             content = '这场沟通整理好了。\n\n' + '\n\n'.join(k['text'] for k in sorted(knowledge, key=lambda k:k['part']))[:10000]
             citations=[{**source('knowledge',k),'citation':f'[{i+1}]'} for i,k in enumerate(sorted(knowledge,key=lambda k:k['part']))]
             artifact = {'recording_id': sid, 'recording_revision': str(revision), 'content': content,'sources':citations}
+            target = self.spaces.get(owner,session['customer_workspace_id'])['default_thread_id'] if session.get('customer_confirmed_at') else self.thread(owner)['id']
             if previous:
                 # A revision updates the same published card; it does not notify twice.
-                self.store.update('chat_messages', owner, previous[0]['id'], artifact)
-            else: self.message(owner, key, content, recording_id=sid, recording_revision=str(revision),sources=citations)
+                old_thread=previous[0]['thread_id']
+                self.store.update('chat_messages', owner, previous[0]['id'], {**artifact,'thread_id':target})
+                for tid in {old_thread,target}:
+                    self.store.update('chat_threads',owner,tid,{'message_count':len(self.store.rows('chat_messages',owner,thread_id=tid))})
+            else:
+                self.message(owner, key, content, target_thread_id=target,recording_id=sid, recording_revision=str(revision),sources=citations)
             return {'recording_id': sid, 'published': True}
 
     def save_expressions(self, owner, sid, revision, result, segments, part):

@@ -31,6 +31,7 @@ import UserNotifications
     @Published var productDetails:[ProductDetail]=[]
     @Published var personalDiscoveries:[PersonalDiscovery]=[]
     @Published var projectSpaces: [ProjectSpace] = []
+    @Published var newWorkspacePending = false
     @Published var chatReadPosition: String?
     @Published var chatThreads: [ChatThread] = []
     @Published var chatThread: ChatThread?

@@ -44,10 +44,11 @@ class Product:
             for space in spaces:
                 if space.get('product_schema') or space.get('is_scope_context'):continue
                 occasion=next((o for o in occasions if mapping.get(o['id'])==space['id']),None)
+                scenario=space.get('scenario') or (occasion.get('scenario') if occasion else None)
                 self.store.update('project_spaces',owner,space['id'],{'product_schema':1,
-                    'scenario':occasion.get('scenario') if occasion else None,'organization':'','opportunity':'',
-                    'stage':'demand' if occasion and occasion['scenario']=='sales' else 'preparing',
-                    'participants':[],'result':None,'occasion_ids':[occasion['id']] if occasion else [],'is_example':bool(occasion and occasion.get('fixture'))})
+                    'scenario':scenario,'organization':space.get('organization',''),'opportunity':space.get('opportunity',''),
+                    'stage':space.get('stage') or ('demand' if scenario=='sales' else 'preparing'),
+                    'participants':space.get('participants',[]),'result':space.get('result'),'occasion_ids':[occasion['id']] if occasion else [],'is_example':bool(occasion and occasion.get('fixture'))})
                 if occasion and not occasion.get('fixture'):
                     self.spaces.set_scope(owner,'occasion:'+occasion['id'],'spaces',[space['id']],(self.spaces.scope(owner,'occasion:'+occasion['id']) or {}).get('revision',0))
             for session in self.store.rows('sessions',owner):
@@ -141,6 +142,8 @@ class Product:
             valid={p['id'] for p in self.spaces.list(owner) if not p.get('is_scope_context') and p['status']=='active'}
             tags=self.store.rows('recording_tags',owner,session_id=sid)
             tagged={t.get('workspace_id') for t in tags if t.get('active') and t.get('workspace_id') in valid}
+            if session.get('customer_assignment_required'):
+                tagged = {session['customer_workspace_id']} if session.get('customer_confirmed_at') and session.get('customer_workspace_id') in valid else set()
             for link in self.store.rows('recording_links',owner,session_id=sid):
                 if link.get('association_source')=='ai_tag' and link['project_id'] not in tagged:
                     self.store.update('recording_links',owner,link['id'],{'active':False,'version':link['version']+1})
@@ -159,6 +162,7 @@ class Product:
         meeting=self.get_meeting(owner,mid);out=[]
         for link in self.store.rows('recording_links',owner,meeting_id=mid,active=True):
             session=self.store.get('sessions',owner,link['session_id'])
+            if session.get('customer_assignment_required') and (not session.get('customer_confirmed_at') or session.get('customer_workspace_id')!=meeting['project_id']):continue
             for line in self.store.rows('transcript_segments',owner,session_id=session['id']):
                 if session.get('consent')!='yes' and line.get('speaker')!='self':continue
                 if line.get('transcript_revision',1)!=session.get('transcript_revision',1):continue

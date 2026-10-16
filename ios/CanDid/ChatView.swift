@@ -95,6 +95,7 @@ extension Store {
     }
     func saveChatDraft(_ text: String) {
         chatDraft = text
+        if newWorkspacePending {UserDefaults.standard.set(text,forKey:recoveryKey+"-new-draft")}
         if let id = chatThread?.id { var saved = recovery(id); saved.draft = text; saveRecovery(id, saved) }
     }
     func saveChatReadPosition(_ value: String?) {
@@ -106,6 +107,7 @@ extension Store {
         UserDefaults.standard.removeObject(forKey: recoveryKey)
         UserDefaults.standard.removeObject(forKey: recoveryKey + "-last-space")
         UserDefaults.standard.removeObject(forKey: recoveryKey + "-new-space-request")
+        UserDefaults.standard.removeObject(forKey: recoveryKey + "-new-draft")
         pauseChatObservation()
     }
     func pauseChatObservation() {
@@ -168,7 +170,7 @@ extension Store {
             requestedID = ProcessInfo.processInfo.environment["CANDID_CHAT_THREAD_ID"]
             #endif
             if let id = requestedID { try await loadChat(id) }
-            else {let snapshot:CompanionSnapshot=try await api.call("/v1/companion");companion=snapshot;try await reloadProjectSpaces();try await restoreWorkspaceSelection()}
+            else {let snapshot:CompanionSnapshot=try await api.call("/v1/companion");companion=snapshot;try await reloadProjectSpaces();if !newWorkspacePending {try await restoreWorkspaceSelection()}}
             connectionReady = true
             #if DEBUG && targetEnvironment(simulator)
             if let message = ProcessInfo.processInfo.environment["CANDID_CHAT_MESSAGE"], !message.isEmpty { sendChat(message) }
@@ -308,6 +310,11 @@ extension Store {
     }
     func sendChat(_ text: String, retry: Bool = false) {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if newWorkspacePending {
+            guard !value.isEmpty, !chatControlBusy, !chatLoading else {return}
+            Task {await createProjectSpace();if !newWorkspacePending {sendChat(value,retry:retry)}}
+            return
+        }
         guard !value.isEmpty, !chatControlBusy, !chatLoading, currentProjectSpace?.status == "active" else { return }
         guard value.count <= 12000 else { chatError = "消息最多 12,000 字，请分段发送。"; return }
         guard remote, capabilities?.agent_configured == true else { chatError = "服务暂时不可用，请稍后重试。"; return }
@@ -565,9 +572,9 @@ struct ChatView: View {
         if message.role == "user" {
             HStack {
                 Spacer(minLength: 36)
-                Text(message.content).font(.body).textSelection(.enabled).lineSpacing(5)
+                Text(message.content).companionFont(15).textSelection(.enabled).lineSpacing(7)
                     .padding(.horizontal, 15).padding(.vertical, 12)
-                    .background(Warm.lavender, in: RoundedRectangle(cornerRadius: 20))
+                    .background(Warm.lavender, in: UnevenRoundedRectangle(topLeadingRadius:19,bottomLeadingRadius:19,bottomTrailingRadius:5,topTrailingRadius:19))
             }
         } else {
             VStack(alignment: .leading, spacing: 8) {
@@ -578,9 +585,12 @@ struct ChatView: View {
                         if let task=store.chatTasks.first(where:{$0.id==message.task_id}), !store.isChatTaskDismissed(task) {taskRecovery(task)}
                         else {Label("未完成",systemImage:"stop.circle").font(.caption).foregroundStyle(.secondary)}
                     }
-                    if let id=message.preparation_package_id {NavigationLink{CompanionPreparationPage(id:id)}label:{Label("查看会前准备包",systemImage:"doc.text")}.frame(minHeight:44).accessibilityIdentifier("chat-preparation-"+id)}
+                    if let id=message.preparation_package_id {
+                        if let pack=store.companion?.preparations.first(where:{$0.id==id}) {CompanionPreparationCard(pack:pack,conversation:true).accessibilityIdentifier("chat-preparation-"+id)}
+                        else {NavigationLink{CompanionPreparationPage(id:id)}label:{Label("查看会前准备包",systemImage:"doc.text")}.frame(minHeight:44).accessibilityIdentifier("chat-preparation-"+id)}
+                    }
                     if let id=message.recording_id {NavigationLink{CompanionRecordingPage(id:id)}label:{Label("查看这场复盘",systemImage:"waveform")}.frame(minHeight:44).accessibilityIdentifier("chat-recording-"+id)}
-                    Text(LocalizedStringKey(message.content)).font(.body).lineSpacing(6).textSelection(.enabled)
+                    Text(LocalizedStringKey(message.content)).companionFont(15).lineSpacing(8).textSelection(.enabled)
                     if !message.tool_steps.isEmpty {
                         HStack(spacing: 5) {
                             Image(systemName: "checkmark.circle")
@@ -617,9 +627,7 @@ struct ChatView: View {
                         ShareLink(item: message.content) { Image(systemName: "square.and.arrow.up").frame(width: 44, height: 44) }
                             .accessibilityLabel("分享这条回答")
                     }.font(.caption).foregroundStyle(Warm.purple).frame(minHeight: 44)
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
-                    .background(Warm.white, in: RoundedRectangle(cornerRadius: 20))
-                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(Warm.ink.opacity(0.08)))
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical,8)
             }
         }
     }
@@ -679,6 +687,8 @@ struct ProjectSpace: Codable, Identifiable {
     var task_status: String; var message_count: Int; var last_message: String; var queued_count: Int
     var client_request_id: String?; var archive_analysis_status: String?
     var is_scope_context:Bool?;var is_companion:Bool?;var scope_label:String?
+    var customer_id:String?;var last_active_at:String?;var confirmed_recording_count:Int?
+    var scenario:String?;var stage:String?;var organization:String?;var opportunity:String?
     var activityLabel: String {
         switch task_status { case "thinking": return queued_count > 1 ? "正在处理 · 有补充排队" : "正在处理"
         case "waiting_input": return "等待你的补充"; case "error": return "有任务待处理"
@@ -693,8 +703,16 @@ struct WorkspaceMaterial: Decodable, Identifiable {
 
 extension Store {
     var activeProjectSpaces: [ProjectSpace] { projectSpaces.filter { $0.status == "active" && ($0.is_scope_context != true || $0.is_companion == true) }.sorted { ($0.is_companion == true ? 0 : 1, $0.created_at, $0.id) < ($1.is_companion == true ? 0 : 1, $1.created_at, $1.id) } }
+    func beginNewCustomerConversation() {
+        guard !chatControlBusy, !chatLoading, !voice.active else {return}
+        pauseChatObservation();newWorkspacePending=true
+        chatThread=nil;chatMessages=[];chatTasks=[];chatTask=nil;chatBusy=false
+        chatPartial="";chatActivity=[];chatError=nil;chatPending=nil;chatReadPosition=nil
+        chatDraft=UserDefaults.standard.string(forKey:recoveryKey+"-new-draft") ?? ""
+    }
     var currentProjectSpace: ProjectSpace? {
-        projectSpaces.first { $0.id == chatThread?.workspace_id || $0.default_thread_id == chatThread?.id }
+        if let id=chatThread?.workspace_id {return projectSpaces.first {$0.id==id}}
+        return projectSpaces.first {$0.default_thread_id==chatThread?.id}
     }
     func reloadProjectSpaces() async throws {
         guard remote else { return }
@@ -708,7 +726,22 @@ extension Store {
     }
     func selectProjectSpace(_ id: String) async {
         guard !chatControlBusy, !chatLoading, !voice.active, let space = projectSpaces.first(where: { $0.id == id }), chatThread?.id != space.default_thread_id else { return }
-        do { try await loadChat(space.default_thread_id) } catch { chatError = error.localizedDescription }
+        if !remote {
+            newWorkspacePending=false
+            chatThread=ChatThread(id:space.default_thread_id,title:space.name,status:"idle",activity:[],message_count:0,updated_at:"",workspace_id:space.id)
+            chatMessages=[];chatTasks=[];chatTask=nil;chatPartial="";chatBusy=false
+            #if DEBUG
+            if Self.isolatedTestRun && space.id.hasPrefix("preview-customer-") {
+                chatMessages=[
+                    ChatMessage(id:space.id+"-user",role:"user",content:"我们继续推进"+space.name+"的沟通。",sources:[],tool_steps:[],created_at:""),
+                    ChatMessage(id:space.id+"-answer",role:"assistant",content:"这个工作区会保留"+space.name+"的会谈记录和准备信息。下一次想重点推进什么？",sources:[],tool_steps:[],created_at:"",preparation_package_id:space.id=="preview-customer-0" ? "preview-preparation":nil)
+                ]
+            }
+            #endif
+            chatDraft=recovery(space.default_thread_id).draft;chatReadPosition=recovery(space.default_thread_id).readPosition
+            return
+        }
+        do { try await loadChat(space.default_thread_id);newWorkspacePending=false } catch { chatError = error.localizedDescription }
     }
     func createProjectSpace() async {
         guard remote, !chatControlBusy, !chatLoading, !voice.active else { return }
@@ -720,7 +753,10 @@ extension Store {
         do {
             let space: ProjectSpace = try await api.call("/v1/project-spaces", method: "POST", body: ["client_request_id":requestID])
             UserDefaults.standard.removeObject(forKey: key)
+            let draft=chatDraft
             try await reloadProjectSpaces(); try await loadChat(space.default_thread_id); try await reloadChats()
+            newWorkspacePending=false;saveChatDraft(draft)
+            UserDefaults.standard.removeObject(forKey:recoveryKey+"-new-draft")
         } catch { chatError = "新建暂未完成，重试会核对原请求。" + error.localizedDescription }
     }
     func updateProjectSpace(_ space: ProjectSpace, name: String, goal: String) async throws {
@@ -736,7 +772,7 @@ extension Store {
             let _: ProjectSpace = try await api.call("/v1/project-spaces/" + space.id + (restore ? "/restore" : "/archive"),
                 method:"POST", body:["expected_version":space.version])
             try await reloadProjectSpaces()
-            if restore { try await loadChat(space.default_thread_id) }
+            if restore { try await loadChat(space.default_thread_id);newWorkspacePending=false }
             else if currentProjectSpace?.id == space.id {
                 if let next = activeProjectSpaces.first { try await loadChat(next.default_thread_id) }
                 else {

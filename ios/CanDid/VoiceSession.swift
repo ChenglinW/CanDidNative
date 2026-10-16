@@ -112,9 +112,20 @@ private final class VoiceInput {
     private func scopeValid(_ stamp:UUID)->Bool {guard let store,let api else{return false};return stamp==epoch && store.remote && store.chatForeground && identity(store.api)==identity(api) && store.currentProjectSpace?.id==workspace && store.currentProjectSpace?.status=="active"}
     func captionObserved() {mark("caption_observed")}
     func enter(store:Store) {
+        if store.newWorkspacePending {
+            showContinuous=true
+            Task {await store.createProjectSpace();if !store.newWorkspacePending && showContinuous {begin(store:store,continuous:true)}}
+            return
+        }
         showContinuous=true;begin(store:store,continuous:true)
     }
-    func beginHold(store:Store) {guard !holding,!active else{return};holding=true;cancelling=false;begin(store:store,continuous:false)}
+    func beginHold(store:Store) {
+        guard !holding,!active else{return};holding=true;cancelling=false
+        if store.newWorkspacePending {
+            phase = .connecting
+            beginTask=Task {await store.createProjectSpace();if !Task.isCancelled && holding && !store.newWorkspacePending {begin(store:store,continuous:false)}}
+        } else {begin(store:store,continuous:false)}
+    }
     private func begin(store:Store,continuous:Bool) {
         guard !active || (mode == .continuous && microphonePaused) else{notice="请先结束当前语音。";return}
         guard store.remote,store.capabilities?.asr_configured==true,let thread=store.chatThread?.id,let space=store.currentProjectSpace,space.status=="active" else{holding=false;phase = .failed;notice="请先连接 Candid，再开始语音对话。";return}

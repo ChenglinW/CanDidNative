@@ -325,8 +325,10 @@ def agent_skills(uid=Depends(owner)):
     return {'mode':'internal_fixed','data':agent.catalog.index(agent.registry.names)}
 
 @app.get('/v1/project-spaces')
-def project_spaces(cursor:str|None=None,limit:int=50,uid=Depends(owner)):
-    return list_page(sorted([agent.workspaces.view(uid,r) for r in agent.workspaces.list(uid)],key=lambda r:(r['created_at'],r['id']),reverse=True),cursor,limit)
+def project_spaces(cursor:str|None=None,limit:int=50,q:str='',customers_only:bool=False,uid=Depends(owner)):
+    rows = [r for r in agent.workspaces.list(uid) if q.casefold() in (r['name']+' '+r.get('goal','')).casefold()
+            and (not customers_only or (r.get('status')=='active' and not r.get('is_scope_context')))]
+    return list_page(sorted([agent.workspaces.view(uid,r) for r in rows],key=lambda r:(r['created_at'],r['id']),reverse=True),cursor,limit)
 
 @app.post('/v1/project-spaces',status_code=201)
 def create_project_space(body:WorkspaceIn,uid=Depends(owner)):
@@ -778,11 +780,34 @@ class RecordingIn(Input):
     scenario:Literal['interview','pitch','academic','sales']='sales'
     device_file_id:int|None=None
     device_id:str|None=None
+    customer_assignment_required:bool=False
 
 @app.post('/v1/recordings')
 def create_recording(body:RecordingIn,uid=Depends(owner)):
     payload=data(body)
-    return memory_service.create_session(uid,{**payload,'kind':'live','occasion_id':None})
+    return memory_service.create_session(uid,{**payload,'kind':'live','occasion_id':None,'customer_assignment_revision':0})
+
+class RecordingCustomerIn(Input):
+    workspace_id:UUID
+    expected_revision:int=Field(ge=0)
+
+@app.put('/v1/recordings/{id}/customer')
+def confirm_recording_customer(id:str,body:RecordingCustomerIn,uid=Depends(owner)):
+    from companion import Companion
+    with store.transaction(uid):
+        row=store.get('sessions',uid,id)
+        space=agent.workspaces.get(uid,str(body.workspace_id))
+        if space.get('is_scope_context') or space['status']!='active':raise Fault('CUSTOMER_INVALID','请选择一个可用的客户工作区',422)
+        if row.get('customer_confirmed_at'):
+            if row.get('customer_workspace_id')!=space['id']:raise Fault('CUSTOMER_ALREADY_CONFIRMED','这场录音已确认客户，请先核对原归属',409)
+        else:
+            if row.get('customer_assignment_revision',0)!=body.expected_revision:raise Fault('VERSION_CONFLICT','录音归属已更新，请刷新',409)
+            store.update('sessions',uid,id,{'customer_assignment_required':True,'customer_workspace_id':space['id'],
+                'customer_confirmed_at':now(),'customer_assignment_revision':body.expected_revision+1})
+        business.product.sync_recording(uid,id)
+        if row.get('pipeline_status')=='done' and store.rows('recording_knowledge',uid,session_id=id,revision=str(row.get('transcript_revision',1))):
+            Companion(store).publish_recording(uid,id,str(row.get('transcript_revision',1)))
+        return recording_detail(id,uid)
 
 @app.get('/v1/recordings')
 def recording_library(tag:str|None=None,uid=Depends(owner)):
