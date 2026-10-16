@@ -1,6 +1,41 @@
 import XCTest
 
 final class CanDidUITests: XCTestCase {
+    func testRoleplaySalesConversationHintReviewAndAdoption() {
+        continueAfterFailure=false
+        let app=XCUIApplication()
+        app.launchEnvironment=["CANDID_LOCAL_BACKEND":"1","CANDID_BACKEND_PORT":"8898","CANDID_BACKEND_TOKEN":"candid-roleplay-acceptance","CANDID_ACCEPTANCE_CACHE":UUID().uuidString]
+        app.launch();let skip=app.buttons["直接开始，之后再介绍"];if skip.waitForExistence(timeout:5){skip.tap()}
+        let entry=app.buttons["roleplay-entry"];XCTAssertTrue(entry.waitForExistence(timeout:25));entry.tap()
+        let start=app.buttons["practice-start"];XCTAssertTrue(start.waitForExistence(timeout:15));start.tap()
+        let answer=app.descendants(matching:.any).matching(identifier:"practice-answer").firstMatch;XCTAssertTrue(answer.waitForExistence(timeout:15))
+        XCTAssertTrue(app.staticTexts["你希望这次沟通先解决什么问题？"].waitForExistence(timeout:15))
+        answer.tap();answer.typeText("We should confirm scope.");app.buttons["practice-send"].tap()
+        XCTAssertTrue(app.staticTexts["你提到先确认范围。你会先问清哪些条件？"].waitForExistence(timeout:15))
+        app.buttons["提示"].tap();XCTAssertTrue(app.staticTexts["先问清范围，再确认下一步由谁参与。"].waitForExistence(timeout:15));app.buttons["继续模拟"].tap()
+        app.buttons["结束"].tap();XCTAssertTrue(app.staticTexts["先练好这一点"].waitForExistence(timeout:20));capture(app,"roleplay-review")
+        app.swipeUp();let save=app.buttons["保存为我的新说法"];if !save.isHittable{app.swipeUp()};XCTAssertTrue(save.waitForExistence(timeout:5));save.tap()
+        app.buttons["保存说法"].tap();XCTAssertTrue(app.staticTexts["先练好这一点"].waitForExistence(timeout:10))
+        let retry=app.buttons["重练这一段"];if !retry.isHittable{app.swipeDown()};retry.tap();XCTAssertTrue(app.buttons["practice-start"].waitForExistence(timeout:10))
+    }
+    func testRoleplayInterviewSetupAndSources() {
+        continueAfterFailure=false
+        let app=XCUIApplication();app.launchEnvironment=["CANDID_LOCAL_BACKEND":"1","CANDID_BACKEND_PORT":"8898","CANDID_BACKEND_TOKEN":"candid-roleplay-acceptance","CANDID_ACCEPTANCE_CACHE":UUID().uuidString]
+        app.launch();let skip=app.buttons["直接开始，之后再介绍"];if skip.waitForExistence(timeout:5){skip.tap()}
+        XCTAssertTrue(app.buttons["roleplay-entry"].waitForExistence(timeout:25));app.buttons["roleplay-entry"].tap()
+        XCTAssertTrue(app.buttons["面试模拟"].waitForExistence(timeout:15));app.buttons["面试模拟"].tap()
+        XCTAssertTrue(app.staticTexts["业务面试官"].waitForExistence(timeout:10));XCTAssertTrue(app.textViews["practice-goal"].exists);capture(app,"roleplay-interview-setup")
+        app.buttons["practice-start"].tap();XCTAssertTrue(app.descendants(matching:.any).matching(identifier:"practice-answer").firstMatch.waitForExistence(timeout:15))
+        app.buttons["结束"].tap();XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","PRACTICE_EMPTY")).firstMatch.waitForExistence(timeout:10))
+        let answer=app.descendants(matching:.any).matching(identifier:"practice-answer").firstMatch
+        answer.tap();answer.typeText("I handled requirements and coordinated the pilot.");app.buttons["practice-send"].tap()
+        XCTAssertTrue(app.staticTexts["你提到先确认范围。你会先问清哪些条件？"].waitForExistence(timeout:15))
+        app.buttons["结束"].tap();XCTAssertTrue(app.staticTexts["先练好这一点"].waitForExistence(timeout:20))
+        let retry=app.buttons["重练这一段"];if !retry.isHittable{app.swipeUp()};retry.tap()
+        XCTAssertTrue(app.staticTexts["业务面试官"].waitForExistence(timeout:10))
+        app.buttons["practice-start"].tap();XCTAssertTrue(app.staticTexts["业务面试官"].waitForExistence(timeout:10))
+
+    }
     private func libraryApp(large:Bool=false)->XCUIApplication {
         let app=XCUIApplication();app.launchArguments=large ? ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"]:[]
         app.launchEnvironment=["CANDID_LOCAL_BACKEND":"1","CANDID_BACKEND_PORT":"8897","CANDID_BACKEND_TOKEN":"candid-v2-local-acceptance","CANDID_ACCEPTANCE_CACHE":UUID().uuidString]

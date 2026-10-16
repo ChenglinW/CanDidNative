@@ -294,6 +294,7 @@ struct CompanionHome: View {
   private var dashboard:some View {
     VStack(alignment:.leading,spacing:8) {
       RecordingStatusBar(speech:store.speech,device:store.soundcore)
+      HStack {Text("会前准备").companionFont(12).foregroundStyle(RecordingFormat.secondary);Spacer();NavigationLink {RoleplaySetup(workspaceID:store.currentProjectSpace?.is_companion==false ? store.currentProjectSpace?.id:nil)} label:{Label("模拟练习",systemImage:"bubble.left.and.bubble.right")}.companionFont(13).foregroundStyle(Warm.purple).frame(minHeight:44).accessibilityIdentifier("roleplay-entry")}
       if let issue {HStack {Text(issue).companionFont(12);Button("重试"){Task {try? await store.reloadCompanion()}}}}
       if packs.isEmpty && customers.isEmpty {
         Spacer(minLength:20)
@@ -305,7 +306,7 @@ struct CompanionHome: View {
         Spacer(minLength:25)
       } else {
         if !packs.isEmpty {
-          HStack {Text("会前准备");Spacer();Text("\(min(preparationIndex+1,packs.count)) / \(packs.count)").monospacedDigit()}
+          HStack {Spacer();Text("\(min(preparationIndex+1,packs.count)) / \(packs.count)").monospacedDigit()}
             .companionFont(12).foregroundStyle(RecordingFormat.secondary).padding(.bottom,3)
           if expandedLayout {
             CompanionPreparationCard(pack:packs[min(preparationIndex,packs.count-1)])
@@ -430,6 +431,7 @@ struct CustomerConversationPage:View {
         Button {} label:{Mascot(size:34).frame(width:44,height:44)}.simultaneousGesture(TapGesture(count:2).onEnded {startVoice()})
           .accessibilityLabel("Candid 头像").accessibilityIdentifier("workspace-candid-avatar").accessibilityAction(named:Text("连续对话")){startVoice()}
         Menu {
+          NavigationLink {RoleplaySetup(workspaceID:space?.id)} label:{Label("模拟这次沟通",systemImage:"bubble.left.and.bubble.right")}
           Button("连续对话",systemImage:"waveform",action:startVoice)
           if space != nil {Button("修改客户信息",systemImage:"pencil"){editor=true}}
           Button("工作区与归档",systemImage:"archivebox"){spaces=true}
@@ -635,6 +637,7 @@ struct CompanionPreparationPage: View {
               Text(concerns).companionFont(14)
             }
           }
+          NavigationLink {RoleplaySetup(workspaceID:pack.workspace_id,preparationID:pack.id)} label:{Label("模拟这一场",systemImage:"mic")}.buttonStyle(CompanionButtonStyle(primary:true))
           Text("沟通建议").companionFont(12).foregroundStyle(RecordingFormat.secondary)
           ForEach(Array(pack.reportSections.enumerated()), id: \.offset) { index, section in
             HStack(alignment: .top, spacing: 12) {

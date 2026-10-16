@@ -281,6 +281,7 @@ struct LibraryFAQDetail:View {
     }
     if let suggestion=item.suggested_text {CompanionPanel {Text("新资料带来的修改建议").companionFont(15,weight:.semibold);Text(suggestion).companionFont(14);Button("采用并编辑") {beginEditing(suggestion)}}}
     if item.evidence_state != "ready" {Text(item.evidence_state == "missing" ? "事实依据尚未补齐，修改说法不会自动消除这个缺口。":"部分依据已变化或过期；说法和历史仍保留。").companionFont(13).foregroundStyle(RecordingFormat.secondary)}
+    NavigationLink {RoleplaySetup(itemID:item.id)} label:{Label("练这道题",systemImage:"mic").frame(maxWidth:.infinity)}.buttonStyle(CompanionButtonStyle(primary:true))
     NavigationLink {LibraryMockPage(item:item)} label:{Label("用 Mock 练一练",systemImage:"bubble.left.and.bubble.right").frame(maxWidth:.infinity)}.buttonStyle(CompanionButtonStyle(primary:true))
     Text("依据与原文").companionFont(17,weight:.semibold)
     ForEach(Array(item.evidence_refs.enumerated()),id:\.offset) {_,ref in

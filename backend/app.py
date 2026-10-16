@@ -1024,3 +1024,8 @@ def library_service():
     return Library(store,business,onboarding_service())
 library_service()
 install_library(app,owner,library_service)
+
+# Dedicated roleplay sessions never enter the real recording extraction pipeline.
+from roleplay import Roleplay, install as install_roleplay
+roleplay_service=Roleplay(store,business,library_service())
+install_roleplay(app,owner,roleplay_service,speech)
