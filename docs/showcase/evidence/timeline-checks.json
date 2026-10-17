@@ -1,0 +1,286 @@
+{
+  "checks": 40,
+  "allRendered": true,
+  "rows": [
+    {
+      "chapter": 0,
+      "time": 0,
+      "view": "home",
+      "body": 191,
+      "status": "准备就绪"
+    },
+    {
+      "chapter": 0,
+      "time": 3500,
+      "view": "chat",
+      "body": 53,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 0,
+      "time": 7500,
+      "view": "chat",
+      "body": 93,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 0,
+      "time": 12500,
+      "view": "chat",
+      "body": 181,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 0,
+      "time": 19500,
+      "view": "prep",
+      "body": 195,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 0,
+      "time": 26500,
+      "view": "practice",
+      "body": 138,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 0,
+      "time": 31000,
+      "view": "practice",
+      "body": 210,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 0,
+      "time": 35000,
+      "view": "practice",
+      "body": 210,
+      "status": "本段已完成"
+    },
+    {
+      "chapter": 1,
+      "time": 0,
+      "view": "record",
+      "body": 84,
+      "status": "准备就绪"
+    },
+    {
+      "chapter": 1,
+      "time": 4000,
+      "view": "record",
+      "body": 125,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 1,
+      "time": 8500,
+      "view": "record",
+      "body": 171,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 1,
+      "time": 13500,
+      "view": "record",
+      "body": 227,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 1,
+      "time": 18500,
+      "view": "record",
+      "body": 227,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 1,
+      "time": 24000,
+      "view": "review",
+      "body": 209,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 1,
+      "time": 28000,
+      "view": "review",
+      "body": 209,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 1,
+      "time": 32000,
+      "view": "review",
+      "body": 209,
+      "status": "本段已完成"
+    },
+    {
+      "chapter": 2,
+      "time": 0,
+      "view": "review",
+      "body": 209,
+      "status": "准备就绪"
+    },
+    {
+      "chapter": 2,
+      "time": 4500,
+      "view": "review",
+      "body": 209,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 2,
+      "time": 10000,
+      "view": "faq",
+      "body": 136,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 2,
+      "time": 15000,
+      "view": "faq-detail",
+      "body": 203,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 2,
+      "time": 20000,
+      "view": "docs",
+      "body": 132,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 2,
+      "time": 24500,
+      "view": "memory",
+      "body": 170,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 2,
+      "time": 28000,
+      "view": "memory",
+      "body": 170,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 2,
+      "time": 31000,
+      "view": "memory",
+      "body": 170,
+      "status": "本段已完成"
+    },
+    {
+      "chapter": 3,
+      "time": 0,
+      "view": "customer",
+      "body": 141,
+      "status": "准备就绪"
+    },
+    {
+      "chapter": 3,
+      "time": 4000,
+      "view": "archive",
+      "body": 56,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 3,
+      "time": 9500,
+      "view": "archive-processing",
+      "body": 117,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 3,
+      "time": 14500,
+      "view": "archive-extract",
+      "body": 117,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 3,
+      "time": 20000,
+      "view": "confirm",
+      "body": 160,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 3,
+      "time": 25000,
+      "view": "personal",
+      "body": 174,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 3,
+      "time": 29000,
+      "view": "personal",
+      "body": 174,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 3,
+      "time": 32000,
+      "view": "personal",
+      "body": 174,
+      "status": "本段已完成"
+    },
+    {
+      "chapter": 4,
+      "time": 0,
+      "view": "home",
+      "body": 189,
+      "status": "准备就绪"
+    },
+    {
+      "chapter": 4,
+      "time": 4000,
+      "view": "wang-chat",
+      "body": 49,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 4,
+      "time": 8500,
+      "view": "wang-chat",
+      "body": 87,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 4,
+      "time": 13500,
+      "view": "wang-chat",
+      "body": 186,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 4,
+      "time": 19500,
+      "view": "wang-prep",
+      "body": 195,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 4,
+      "time": 26000,
+      "view": "wang-practice",
+      "body": 136,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 4,
+      "time": 31000,
+      "view": "wang-practice",
+      "body": 208,
+      "status": "已暂停"
+    },
+    {
+      "chapter": 4,
+      "time": 35000,
+      "view": "wang-practice",
+      "body": 208,
+      "status": "本段已完成"
+    }
+  ]
+}

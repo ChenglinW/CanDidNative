@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-17",
+  "reference_commit": "ca263fb",
+  "timeline_render_checks": 40,
+  "real_timed_playback_chapters": 5,
+  "timed_playback_speed": 2,
+  "end_behavior": "stays at chapter result",
+  "js_syntax": "passed",
+  "http_asset_checks": 9,
+  "desktop_viewport": [
+    1280,
+    720
+  ],
+  "mobile_viewport": [
+    390,
+    844
+  ],
+  "horizontal_overflow": false,
+  "interactions": [
+    "pause/resume/replay/seek/chapter selection",
+    "three sentence playback controls present",
+    "source dialog",
+    "FAQ edit persisted in current demo",
+    "manual archive resumes automatic sequence",
+    "customer context Ouyang/Wang isolated",
+    "comparison and audio perspective switches",
+    "architecture details and native screenshots"
+  ],
+  "review": {
+    "initial_blocker": "Customer info on Wang page showed Ouyang",
+    "fix_verification": "resolved",
+    "final_disposition": "no blockers"
+  },
+  "scope": "Front-end scripted demonstration; not live provider or acoustic verification"
+}

@@ -1,0 +1,67 @@
+{
+  "model": "deepseek-v4-pro",
+  "backend_tests": 379,
+  "real_scenarios": [
+    {
+      "scenario": "sales",
+      "steps": [
+        {
+          "kind": "opening",
+          "seconds": 2.35
+        },
+        {
+          "kind": "followup",
+          "seconds": 2.67
+        },
+        {
+          "kind": "review",
+          "seconds": 7.83
+        }
+      ],
+      "grounded_corrections": 1
+    },
+    {
+      "scenario": "interview",
+      "steps": [
+        {
+          "kind": "opening",
+          "seconds": 2.64
+        },
+        {
+          "kind": "followup",
+          "seconds": 2.69
+        },
+        {
+          "kind": "review",
+          "seconds": 12.03
+        }
+      ],
+      "grounded_corrections": 2
+    }
+  ],
+  "real_voice": {
+    "tts_audio_bytes": 360960,
+    "first_audio_seconds": 1.08,
+    "asr_complete": true,
+    "asr_seconds": 7.43,
+    "reply_received": true,
+    "interrupt": "passed"
+  },
+  "voice_input": "TTS-generated synthetic user speech passed through actual ASR; not a physical iPhone microphone test",
+  "recording_pipeline_writes": 0,
+  "native_unit_tests": {
+    "passed": 41,
+    "skipped": 1,
+    "skip_reason": "Existing live Soundcore authorization fixture absent"
+  },
+  "native_ui_flows_passed": 2,
+  "native_ui_final_result": "Roleplay-Shipping.xcresult: 2 passed",
+  "recording_and_faq_prompts_unchanged": true,
+  "physical_device": {
+    "model": "iPhone 15 Pro",
+    "installation": "success",
+    "launch": "success",
+    "process_id": 8234,
+    "physical_microphone_acoustic_test": false
+  }
+}
