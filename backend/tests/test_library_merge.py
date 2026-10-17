@@ -223,3 +223,28 @@ def test_reextraction_matches_legacy_original_question_when_title_was_summarized
     assert run(l,'library_extract',session['id'])['status']=='completed'
     assert [r['id'] for r in l.store.rows('library_items',A)]==[id]
     assert l.item(A,id)['text']=='先确认需求'
+
+
+def test_companion_material_search_prefers_edited_canonical_and_never_resurfaces_archive(lib):
+    from companion import Companion
+    from tasks.materials import Materials
+    l, _, _ = lib
+    wid = Companion(l.store).thread(A)['workspace_id']
+    id = asset(l)
+    original = l.store.get('assets', A, id)
+    l.edit(A, id, Edit(expected_version=1, text='需求新版：先说明实现，再统一评价标准'))
+    # An original with no canonical counterpart must remain available.
+    standalone = l.store.put('assets', A, {'title':'独立需求素材','body':{'text':'未导入需求资料'},
+        'version':1,'status':'draft','evidence_refs':[], 'producer':'test','rubric_version':'test'}, L2, source='ai')
+    materials = Materials(l.store, l.spaces)
+    found = materials.search(A, wid, '需求', [])['items']
+    assert 'asset:'+id not in {r['source_id'] for r in found}
+    current = next(r for r in found if r['source_id']=='faq:'+id)
+    assert current['text']=='需求新版：先说明实现，再统一评价标准'
+    assert 'asset:'+standalone['id'] in {r['source_id'] for r in found}
+    l.edit(A, id, Edit(expected_version=2, status='archived'))
+    archived = materials.search(A, wid, '需求', [])['items']
+    assert not {'asset:'+id, 'faq:'+id} & {r['source_id'] for r in archived}
+    assert 'faq:'+standalone['id'] in {r['source_id'] for r in archived}
+    assert 'asset:'+standalone['id'] not in {r['source_id'] for r in archived}
+    assert l.store.get('assets', A, id)==original

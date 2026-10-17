@@ -43,8 +43,12 @@ class Materials:
         for word in list(terms):
             if re.fullmatch(r'[\u4e00-\u9fff]+',word):terms.update(word[i:i+2] for i in range(len(word)-1))
         ranked=[]
+        # Imported originals are history, including after a canonical edit or archive.
+        canonical={(r.get('legacy_table','assets'),r['legacy_id'])
+                   for r in self.store.rows('library_items',owner) if r.get('legacy_id')}
         for kind in ('document','research','knowledge','transcript','faq','asset','personal','discovery'):
             for row in self.store.rows(SOURCE_TABLES[kind],owner):
+                if (SOURCE_TABLES[kind],row['id']) in canonical:continue
                 if row.get('material_kind') in {'live_caption_snapshot','recording_mark_snapshot'}:continue
                 if not self.workspaces.allowed(owner,kind,row,workspace_id) or row.get('status') in {'archived','withdrawn','superseded'}:continue
                 from adapters.sqlite_memory import SQLiteMemoryAdapter

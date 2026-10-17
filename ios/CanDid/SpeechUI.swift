@@ -37,9 +37,20 @@ struct RecordingReview: Decodable {
     }
 }
 struct RecordingEvidence: Decodable { var source_id: String; var start_ms: Int?; var end_ms: Int? }
+struct SessionQAItem: Decodable, Identifiable {
+    var id: String
+    var question: String
+    var answer: String?
+    var status: String
+    var reason: String?
+    var segment_ids: [String]?
+    var start_ms: Int
+    var end_ms: Int
+}
 struct RecordingRecord: Decodable, Identifiable {
     var id: String; var started_at: String?; var pipeline_status: String; var recording_source: String?
     var tags: [RecordingTag]?; var segments: [RecordingSentence]?; var knowledge: [RecordingKnowledge]?
+    var session_qa: [SessionQAItem]?
     var jobs: [BusinessJob]?; var transcript_revision: Int?
     var highlights:RecordingHighlights?
     var marks:[RecordingMark]?

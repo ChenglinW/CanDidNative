@@ -144,7 +144,7 @@ def test_partial_reader_does_not_receive_context_without_evidence(context,monkey
 
 
 def test_downstream_prompt_literals_unchanged():
- expected={'backend/tasks/recordings.py': '98c76093a614fbd8eab0b4361e3e829e3d6b5a90abd126e31c1d690b2461018b', 'backend/memory_library.py': 'b3309c995f7e7540a3b06f8881b6922077c3e799e852ea2ac6e7e949fb4c3762'}
+ expected={'backend/tasks/recordings.py': '98c76093a614fbd8eab0b4361e3e829e3d6b5a90abd126e31c1d690b2461018b', 'backend/memory_library.py': '20eda4dca67447a79e5ada1c1249afca26918e70e69dcf6f416f184b8155c32a'}
  for filename,digest in expected.items():
   path=Path(__file__).resolve().parents[2]/filename
   tree=ast.parse(path.read_text())

@@ -823,10 +823,13 @@ def recording_library(tag:str|None=None,uid=Depends(owner)):
 @app.get('/v1/recordings/{id}')
 def recording_detail(id:str,uid=Depends(owner)):
     row=store.get('sessions',uid,id)
+    rev=str(row.get('transcript_revision',1))
+    session_qa=row.get('session_qa') if str(row.get('session_qa_revision',''))==rev else []
     return {**row,'segments':recordings.segments(uid,id),'marks':[m for m in store.rows('marks',uid,session_id=id) if m['id'] not in row.get('hidden_mark_ids',[])],
         'highlights':recordings.marks.snapshot(uid,id),
         'tags':[t for t in store.rows('recording_tags',uid,session_id=id) if t.get('active')],
-        'knowledge':[r for r in store.rows('recording_knowledge',uid,session_id=id) if str(r.get('revision'))==str(row.get('transcript_revision',1))],
+        'knowledge':[r for r in store.rows('recording_knowledge',uid,session_id=id) if str(r.get('revision'))==rev],
+        'session_qa':session_qa or [],
         'jobs':store.rows('business_jobs',uid,object_id=id)}
 
 class MarkTitleIn(Input):title:str=Field(min_length=1,max_length=80)

@@ -21,6 +21,73 @@ private final class OnboardingStubProtocol: URLProtocol {
 }
 
 final class SoundcoreAudioTests: XCTestCase {
+    func testAcousticMetricsDecodeOldResponsesAndIgnoreUnavailableMeasurements() throws {
+        let base:[String:Any] = ["id":"a","title":"录音","date":"2026-10-17","scenario":"sales","self_ms":10000,"total_ms":20000,"pace":120,"share":50,"filler_rate":0,"coverage":100]
+        func decode(_ fields:[String:Any]) throws -> LibrarySessionMetric {
+            try JSONDecoder().decode(LibrarySessionMetric.self,from:JSONSerialization.data(withJSONObject:base.merging(fields) {_,new in new}))
+        }
+        let old=try decode([:])
+        XCTAssertNil(old.pitch_range_st)
+        XCTAssertNil(LibraryAcousticSummary(rows:[old]).pauseRate)
+        let first=try decode(["acoustic_status":"ready","pause_count":1,"pause_mean_seconds":0.5,"acoustic_ms":10000,"voiced_ms":8000,"pitch_range_st":2])
+        let second=try decode(["acoustic_status":"ready","pause_count":3,"pause_mean_seconds":1.5,"acoustic_ms":30000,"voiced_ms":24000,"pitch_range_st":6])
+        let summary=LibraryAcousticSummary(rows:[first,old,second])
+        XCTAssertEqual(try XCTUnwrap(summary.pauseRate),6,accuracy:0.01)
+        XCTAssertEqual(try XCTUnwrap(summary.meanPause),1.25,accuracy:0.01)
+        XCTAssertEqual(try XCTUnwrap(summary.weighted(\.pitch_range_st)),5,accuracy:0.01)
+    }
+
+    func testDeliveryRadarScoreAggregationAndUnscoredRadius() throws {
+        func axis(_ score:Int?)->[String:Any] {
+            if let score {return ["score":score,"status":"scored","label":"参考","color":"green","suggestion":"合成建议","evidence_grade":"C","measurement_quality":"ready"]}
+            return ["status":"unscored","label":"未评分","measurement_quality":"insufficient"]
+        }
+        func row(_ id:String,_ date:String,_ scenario:String,scores:[String:Int?],status:String="ready") throws -> LibrarySessionMetric {
+            var fields:[String:Any]=["id":id,"title":id,"date":date,"scenario":scenario,"self_ms":20000,"total_ms":40000,"pace":180,"share":50,"filler_rate":1,"coverage":100,"acoustic_status":status,
+                                     "expression_scores":["rule_version":"expression-scoring@1.0.0","profile":"sales_reference","language":"zh",
+                                                          "axes":["pace":axis(scores["pace"] ?? nil),"pause":axis(scores["pause"] ?? nil),"filler":axis(scores["filler"] ?? nil),"pitch":axis(scores["pitch"] ?? nil),"duration":axis(scores["duration"] ?? nil)]]]
+            return try JSONDecoder().decode(LibrarySessionMetric.self,from:JSONSerialization.data(withJSONObject:fields))
+        }
+        let interview=try row("i1","2026-10-20T00:00:00Z","interview",scores:["pace":4,"pause":4,"filler":4,"pitch":4,"duration":4])
+        let early=(1...3).map {try! row("e\($0)","2026-10-0\($0)T00:00:00Z","sales",scores:["pace":1,"pause":3,"filler":3,"pitch":2,"duration":nil])}
+        let late=(4...6).map {try! row("l\($0)","2026-10-1\($0)T00:00:00Z","sales",scores:["pace":4,"pause":4,"filler":3,"pitch":4,"duration":nil])}
+        let snap=DeliveryRadarAggregation.snapshot(sessions:late.reversed()+[interview]+early.reversed(),scenario:"sales")
+        XCTAssertEqual(snap.ordered.map(\.id),["e1","e2","e3","l4","l5","l6"])
+        XCTAssertEqual(try XCTUnwrap(snap.recent?.point("语速")?.score),4)
+        XCTAssertEqual(try XCTUnwrap(snap.recent?.point("语速")?.radius),1.0,accuracy:0.001)
+        XCTAssertEqual(try XCTUnwrap(snap.baseline?.point("语速")?.score),1)
+        XCTAssertEqual(try XCTUnwrap(snap.baseline?.point("语速")?.radius),0.25,accuracy:0.001)
+        XCTAssertNil(snap.recent?.point("时长控制")?.radius)
+        if case .unscored=snap.recent?.point("时长控制")?.status {} else {XCTFail("duration should be unscored for sales preview")}
+        let analyzing=try row("a","2026-10-24T00:00:00Z","sales",scores:["pace":3,"pause":nil,"filler":3,"pitch":nil,"duration":nil],status:"running")
+        let partial=DeliveryRadarAggregation.snapshot(sessions:[analyzing],scenario:"sales")
+        XCTAssertEqual(partial.recent?.point("起伏")?.status,.analyzing)
+        XCTAssertNil(partial.recent?.point("起伏")?.radius)
+        XCTAssertEqual(DeliveryRadarScale.radius(score:nil),nil)
+        XCTAssertEqual(DeliveryRadarAggregation.medianScore([1,4]),1)
+        XCTAssertEqual(DeliveryRadarAggregation.medianScore([1,3]),1)
+        let low=try row("low","2026-10-01","sales",scores:["pace":1])
+        var high=try row("high","2026-10-02","sales",scores:["pace":4])
+        let mixedScores=DeliveryRadarAggregation.snapshot(sessions:[low,high],scenario:"sales")
+        XCTAssertEqual(mixedScores.recent?.point("语速")?.detail?.score,1)
+        high.expression_scores?.rule_version="older-rule"
+        let versions=DeliveryRadarAggregation.snapshot(sessions:[low,high],scenario:"sales")
+        XCTAssertNil(versions.recent?.point("语速")?.score)
+    }
+
+    func testLibraryHistoryRestoresAbsentAndExplicitExpiryMetadata() throws {
+        let decoder=JSONDecoder()
+        for metadata in ["",",\"period\":null,\"valid_until\":null",",\"period\":\"旧活动\",\"valid_until\":\"2026-12-01T00:00:00Z\""] {
+            let data=Data(("{\"id\":\"old\",\"text\":\"历史说法\",\"answer_version\":1"+metadata+"}").utf8)
+            let version=try decoder.decode(LibraryVersion.self,from:data)
+            let body=version.restorationPatch
+            XCTAssertEqual(body["text"] as? String,"历史说法")
+            XCTAssertEqual(body["period"] as? String,version.period ?? "")
+            XCTAssertEqual(body["valid_until"] as? String,version.valid_until ?? "")
+            XCTAssertNoThrow(try JSONSerialization.data(withJSONObject:body))
+        }
+    }
+
     @MainActor func testMarkerUploadSurvivesFailureAndRespectsBackendIdentity() async throws {
         URLProtocol.registerClass(OnboardingStubProtocol.self)
         let path=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("PendingMarkerUploads.json")

@@ -1,6 +1,135 @@
 import XCTest
 
 final class CanDidUITests: XCTestCase {
+    func testAcousticPauseAndPitchValuesAndSourceNavigation() {
+        continueAfterFailure=false
+        let app=XCUIApplication()
+        app.launchArguments=["-candid-ui-testing","-candid-v2-populated","-candid-acoustics-preview"]
+        app.launchEnvironment=[:];app.launch()
+        app.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["memory-expression-overview"].waitForExistence(timeout:15))
+        app.buttons["memory-expression-overview"].tap()
+        XCTAssertTrue(app.otherElements["delivery-radar"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.descendants(matching:.any)["delivery-radar-window-label"].waitForExistence(timeout:5))
+        app.buttons["停顿"].tap()
+        XCTAssertTrue(app.staticTexts["3.0 次/分钟"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.staticTexts["平均每次 0.50 秒"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@","参考")).firstMatch.exists)
+        capture(app,"acoustic-pause")
+        app.buttons["起伏"].tap()
+        XCTAssertTrue(app.staticTexts["4.5 半音"].exists)
+        XCTAssertTrue(app.staticTexts["音量变化 8.2 dB"].exists)
+        capture(app,"acoustic-pitch")
+        app.swipeUp()
+        let trend=app.buttons["查看逐场记录与趋势"]
+        XCTAssertTrue(trend.waitForExistence(timeout:10));trend.tap()
+        XCTAssertTrue(app.staticTexts["音高起伏 · 4.5 半音"].firstMatch.waitForExistence(timeout:10))
+        capture(app,"acoustic-session")
+    }
+
+    func testDeliveryRadarFullAxesSelectionBaselineAndTrendEntry() {
+        continueAfterFailure=false
+        let app=XCUIApplication()
+        app.launchArguments=["-candid-ui-testing","-candid-v2-populated","-candid-radar-full"]
+        app.launchEnvironment=["CANDID_ACCEPTANCE_CACHE":UUID().uuidString];app.launch()
+        app.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["memory-expression-overview"].waitForExistence(timeout:15))
+        app.buttons["memory-expression-overview"].tap()
+        XCTAssertTrue(app.otherElements["delivery-radar"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.descendants(matching:.any)["delivery-radar-window-label"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["近期 3 场"].exists)
+        let compare=app.descendants(matching:.any)["delivery-radar-compare-toggle"]
+        XCTAssertTrue(compare.waitForExistence(timeout:5))
+        app.buttons["delivery-radar-axis-口头禅"].tap()
+        XCTAssertTrue(app.buttons["delivery-axis-button-口头禅"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@", "参考")).firstMatch.waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@", "改进建议")).firstMatch.exists)
+        capture(app,"radar-full-filler")
+        app.buttons["delivery-axis-button-语速"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@", "发音速率")).firstMatch.waitForExistence(timeout:5) || app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@", "语速")).firstMatch.exists)
+        app.buttons["delivery-axis-button-时长控制"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@", "未评分")).firstMatch.waitForExistence(timeout:5) || app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@", "不适用")).firstMatch.exists)
+        if let value=compare.value as? String,value=="0" || value=="Off" {compare.tap()}
+        else {compare.tap()}
+        XCTAssertTrue(app.descendants(matching:.any)["delivery-radar-baseline-legend"].waitForExistence(timeout:5))
+        capture(app,"radar-full-baseline")
+        app.swipeUp()
+        let trend=app.buttons["delivery-session-trend"]
+        XCTAssertTrue(trend.waitForExistence(timeout:10));trend.tap()
+        XCTAssertTrue(app.staticTexts["表达与趋势"].waitForExistence(timeout:10))
+        capture(app,"radar-full-trend")
+    }
+
+    func testDeliveryRadarPartialAcousticsAndEmptyState() {
+        continueAfterFailure=false
+        let partial=XCUIApplication()
+        partial.launchArguments=["-candid-ui-testing","-candid-v2-populated","-candid-radar-partial"]
+        partial.launchEnvironment=["CANDID_ACCEPTANCE_CACHE":UUID().uuidString];partial.launch()
+        partial.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(partial.buttons["memory-expression-overview"].waitForExistence(timeout:15))
+        partial.buttons["memory-expression-overview"].tap()
+        XCTAssertTrue(partial.otherElements["delivery-radar"].waitForExistence(timeout:10))
+        XCTAssertTrue(partial.staticTexts["近期 2 场"].waitForExistence(timeout:5))
+        partial.buttons["delivery-axis-button-起伏"].tap()
+        XCTAssertTrue(partial.staticTexts["正在分析原音频"].waitForExistence(timeout:5) || partial.staticTexts["分析中"].waitForExistence(timeout:2))
+        capture(partial,"radar-partial-analyzing")
+        partial.terminate()
+
+        let empty=XCUIApplication()
+        empty.launchArguments=["-candid-ui-testing","-candid-v2-populated"]
+        empty.launchEnvironment=["CANDID_ACCEPTANCE_CACHE":UUID().uuidString];empty.launch()
+        empty.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(empty.buttons["memory-expression-overview"].waitForExistence(timeout:15))
+        empty.buttons["memory-expression-overview"].tap()
+        XCTAssertTrue(empty.descendants(matching:.any)["delivery-radar-empty"].waitForExistence(timeout:10))
+        capture(empty,"radar-empty")
+    }
+
+    func testDeliveryRadarLargeDynamicTypeLayout() {
+        continueAfterFailure=false
+        let app=XCUIApplication()
+        app.launchArguments=["-candid-ui-testing","-candid-v2-populated","-candid-radar-full","-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXL"]
+        app.launchEnvironment=["CANDID_ACCEPTANCE_CACHE":UUID().uuidString];app.launch()
+        app.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["memory-expression-overview"].waitForExistence(timeout:15))
+        app.buttons["memory-expression-overview"].tap()
+        XCTAssertTrue(app.otherElements["delivery-radar"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["delivery-radar-axis-语速"].exists)
+        capture(app,"radar-large-type")
+    }
+
+    func testRealRecordingCloudPlaybackMetricsAndSavedMaterial() throws {
+        let env=ProcessInfo.processInfo.environment
+        guard env["CANDID_REAL_RECORDING_UI"]=="1",let token=env["CANDID_BACKEND_TOKEN"],
+              let title=env["CANDID_REAL_RECORDING_TITLE"],let material=env["CANDID_REAL_RECORDING_MATERIAL"],
+              let saying=env["CANDID_REAL_RECORDING_SAYING"],let pace=env["CANDID_REAL_RECORDING_PACE"]
+        else {throw XCTSkip("Requires an isolated cloud owner with a processed real recording")}
+        continueAfterFailure=false
+        let app=XCUIApplication()
+        app.launchEnvironment=["CANDID_CLOUD_ACCEPTANCE":"1","CANDID_BACKEND_TOKEN":token,"CANDID_ACCEPTANCE_CACHE":UUID().uuidString]
+        app.launch()
+        let skip=app.buttons["直接开始，之后再介绍"]
+        let recordings=app.buttons["录音"].firstMatch
+        let entryDeadline=Date().addingTimeInterval(90)
+        while !recordings.exists && Date()<entryDeadline {
+            if skip.exists && skip.isHittable {skip.tap()}
+            Thread.sleep(forTimeInterval:0.5)
+        }
+        if !recordings.exists {capture(app,"real-recording-cloud-entry-diagnostic")}
+        XCTAssertTrue(recordings.exists);recordings.tap()
+        let recording=app.buttons.containing(.staticText,identifier:title).firstMatch
+        XCTAssertTrue(recording.waitForExistence(timeout:30));recording.tap()
+        XCTAssertTrue(app.buttons["播放录音"].waitForExistence(timeout:30));app.buttons["播放录音"].tap()
+        XCTAssertTrue(app.buttons["暂停回听"].waitForExistence(timeout:30));app.buttons["暂停回听"].tap()
+        app.buttons["原文"].tap();XCTAssertTrue(app.buttons["说话人认领"].waitForExistence(timeout:15));capture(app,"real-recording-cloud-transcript")
+        app.navigationBars.buttons.firstMatch.tap();app.buttons["记忆库"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["memory-expression-overview"].waitForExistence(timeout:30));app.buttons["memory-expression-overview"].tap()
+        XCTAssertTrue(app.staticTexts[pace+" 字词/分钟"].waitForExistence(timeout:15));capture(app,"real-recording-cloud-metrics")
+        app.navigationBars.buttons.firstMatch.tap();app.buttons["memory-materials-overview"].tap()
+        let row=app.buttons.containing(.staticText,identifier:material).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout:15));row.tap()
+        XCTAssertTrue(app.staticTexts[saying].waitForExistence(timeout:20));capture(app,"real-recording-cloud-saved-material")
+    }
     func testRoleplaySalesConversationHintReviewAndAdoption() {
         continueAfterFailure=false
         let app=XCUIApplication()
@@ -91,8 +220,8 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["还没有素材。历史内容同步后会显示在这里。"].waitForExistence(timeout:10))
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["memory-expression-overview"].tap()
-        for axis in ["语速","停顿","口头禅","起伏","说话占比"] {XCTAssertTrue(app.buttons[axis].exists)}
-        app.buttons["停顿"].tap();XCTAssertTrue(app.staticTexts["暂无可靠测量"].exists)
+        for axis in ["语速","停顿","口头禅","起伏","时长控制"] {XCTAssertTrue(app.buttons[axis].exists)}
+        app.buttons["停顿"].tap();XCTAssertTrue(app.staticTexts["认领本人录音后显示"].exists)
         capture(app,"merged-five-axis")
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["FAQ"].tap();XCTAssertTrue(app.textFields["memory-question-search"].exists)
@@ -124,6 +253,78 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["先确认需求这个方向很好；下一次请补上明确的下一步。"].waitForExistence(timeout:35));capture(app,"memory-mock")
         app.swipeUp();let save=app.buttons["保存为我的新说法"];if !save.isHittable {app.swipeDown()};save.tap()
         XCTAssertTrue(app.staticTexts["已保存新说法，仍待实战使用。"].waitForExistence(timeout:10))
+    }
+    func testLibraryEditedAnswerRefreshesWhenReturningToGroup() {
+        continueAfterFailure=false
+        let app=libraryApp();app.buttons["FAQ"].tap()
+        let search=app.textFields["memory-question-search"];search.tap();search.typeText("价格")
+        let group=app.buttons.containing(.staticText,identifier:"价格怎么解释？").firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout:15));group.tap()
+        let member=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","library-group-item-")).firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout:10));member.tap()
+        app.buttons["更新"].tap()
+        let editor=app.textViews["FAQ 说法"]
+        XCTAssertTrue(editor.waitForExistence(timeout:10));editor.tap()
+        let revised="Updated answer "+UUID().uuidString
+        editor.typeText(revised)
+        app.buttons["保存说法"].tap()
+        XCTAssertTrue(app.buttons["更新"].waitForExistence(timeout:10))
+        app.navigationBars.buttons.firstMatch.tap()
+        let refreshed=app.buttons.containing(NSPredicate(format:"label CONTAINS %@",revised)).firstMatch
+        XCTAssertTrue(refreshed.waitForExistence(timeout:10));capture(app,"memory-group-refreshed")
+    }
+    private func libraryRequest(_ method:String,_ path:String,body:[String:Any]?=nil)->[String:Any] {
+        let done=expectation(description:"isolated library request")
+        var result:[String:Any]=[:]
+        var request=URLRequest(url:URL(string:"http://127.0.0.1:8897"+path)!)
+        request.httpMethod=method;request.setValue("Bearer candid-v2-local-acceptance",forHTTPHeaderField:"Authorization")
+        if let body {request.httpBody=try! JSONSerialization.data(withJSONObject:body);request.setValue("application/json",forHTTPHeaderField:"Content-Type")}
+        URLSession.shared.dataTask(with:request) {data,response,error in
+            XCTAssertNil(error);XCTAssertEqual((response as? HTTPURLResponse)?.statusCode,200)
+            if let data {result=(try? JSONSerialization.jsonObject(with:data)) as? [String:Any] ?? [:]}
+            done.fulfill()
+        }.resume()
+        wait(for:[done],timeout:15);return result
+    }
+    func testLibraryVersionConflictReloadPreservesDraft() {
+        continueAfterFailure=false
+        let app=libraryApp();app.buttons["FAQ"].tap()
+        let search=app.textFields["memory-question-search"];search.tap();search.typeText("价格")
+        let group=app.buttons.containing(.staticText,identifier:"价格怎么解释？").firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout:15));group.tap()
+        let member=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","library-group-item-")).firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout:10))
+        let id=String(member.identifier.dropFirst("library-group-item-".count));member.tap()
+        app.buttons["更新"].tap()
+        let editor=app.textViews["FAQ 说法"];XCTAssertTrue(editor.waitForExistence(timeout:10));editor.tap()
+        let draft="Preserved draft "+UUID().uuidString;editor.typeText(draft)
+        let path="/v1/library/items/"+id
+        let current=libraryRequest("GET",path)
+        _ = libraryRequest("PATCH",path,body:["expected_version":current["version"]!,"text":"Edited from another device"])
+        app.buttons["保存说法"].tap()
+        let reload=app.buttons["重新读取当前版本（保留输入）"]
+        XCTAssertTrue(reload.waitForExistence(timeout:10));reload.tap()
+        XCTAssertTrue(reload.waitForNonExistence(timeout:10))
+        XCTAssertTrue((editor.value as? String ?? "").contains(draft))
+        app.buttons["保存说法"].tap()
+        XCTAssertTrue(app.buttons["更新"].waitForExistence(timeout:10))
+        let saved=libraryRequest("GET",path)
+        XCTAssertTrue((saved["text"] as? String ?? "").contains(draft));capture(app,"memory-conflict-recovered")
+    }
+    func testLibraryHistoricalCitationOpensCurrentDocumentAndHistory() {
+        continueAfterFailure=false
+        let app=libraryApp();app.buttons["FAQ"].tap()
+        let search=app.textFields["memory-question-search"];search.tap();search.typeText("历史依据")
+        let group=app.buttons.containing(.staticText,identifier:"历史依据如何核对？").firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout:15));group.tap()
+        let member=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","library-group-item-")).firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout:10));member.tap()
+        let citation=app.buttons["历史依据旧版.txt"]
+        if !citation.isHittable {app.swipeUp()}
+        XCTAssertTrue(citation.waitForExistence(timeout:10));citation.tap()
+        XCTAssertTrue(app.staticTexts["这份依据已更新，以下为当前版本；历史原文件可在版本记录中查看。"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.staticTexts["新资料交期四周。"].exists)
+        XCTAssertTrue(app.buttons["查看 v1 原文件"].exists);capture(app,"memory-historical-citation")
     }
     func testMemoryLibraryDocumentsAndMetrics() {
         continueAfterFailure=false
@@ -609,9 +810,9 @@ final class CanDidUITests: XCTestCase {
         XCTAssertTrue(app.buttons["memory-expression-overview"].exists)
         capture(app,"memory-me-overview")
         app.buttons["memory-expression-overview"].tap()
-        XCTAssertTrue(app.buttons["说话占比"].waitForExistence(timeout:10))
-        app.buttons["说话占比"].tap()
-        XCTAssertTrue(app.staticTexts["说话占比"].exists)
+        XCTAssertTrue(app.buttons["时长控制"].waitForExistence(timeout:10))
+        app.buttons["时长控制"].tap()
+        XCTAssertTrue(app.staticTexts["时长控制"].exists)
         capture(app,"memory-expression-detail")
         app.navigationBars.buttons.firstMatch.tap()
         tabs.buttons["FAQ"].tap()

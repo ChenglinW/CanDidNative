@@ -5563,6 +5563,22 @@
         }
       }
     },
+    "/v1/library/metrics": {
+      "get": {
+        "summary": "Acoustic Metrics",
+        "operationId": "acoustic_metrics_v1_library_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/library": {
       "get": {
         "summary": "Snapshot",

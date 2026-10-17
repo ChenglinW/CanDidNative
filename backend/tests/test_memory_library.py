@@ -114,8 +114,9 @@ def test_extraction_revision_dedup_and_generic_method_scope(lib,monkeypatch):
  def model(prompt,payload,**kwargs):
   assert 'user_marks_ms' not in payload and 'user_marks_ms' not in prompt
   assert payload['segments'][0]['text']==r['text'] # No model-consent: unchanged transcript fallback.
+  assert payload['segments'][0]['id']=='s1'
   assert payload['segments'][0]['start_ms']==0 and payload['segments'][0]['end_ms']==3000
-  return {'items':[{'question':'价格怎么说？','answer':'先确认需求','topic':'价格与政策','segment_ids':[r['id']],'general_method':True}]}
+  return {'items':[{'question':'价格怎么说？','answer':'先确认需求','topic':'价格与政策','segment_ids':['s1'],'general_method':True}]}
  monkeypatch.setattr(l.business,'structured',model)
  j=run(l,'library_extract',s['id']);assert j['status']=='completed'
  l.snapshot(A);rows=l.store.rows('library_items',A);assert len(rows)==2
@@ -123,6 +124,32 @@ def test_extraction_revision_dedup_and_generic_method_scope(lib,monkeypatch):
  assert l.spaces.allowed(A,'faq',generic,other['id']) and not l.spaces.allowed(A,'faq',specific,other['id'])
  assert generic['evidence_refs']==[] and '客户私名' not in generic['text']
  run(l,'library_extract',s['id']);assert len(l.store.rows('library_items',A))==2
+
+def test_session_key_qa_filters_memory_and_keeps_playback_refs(lib,monkeypatch):
+ l,c,app=lib
+ s=l.store.create_session(A,{'client_request_id':ident(),'kind':'live','consent':'yes','consent_ack_text_version':'v1'})
+ l.store.update('sessions',A,s['id'],{'transcript_revision':1,'pipeline_status':'done'})
+ q=l.store.put('transcript_segments',A,{'session_id':s['id'],'speaker':'other','start_ms':0,'end_ms':2000,'text':'预算大概多少？','transcript_revision':1},L1)
+ a=l.store.put('transcript_segments',A,{'session_id':s['id'],'speaker':'self','start_ms':2000,'end_ms':5000,'text':'先确认范围再报价。','transcript_revision':1},L1)
+ def model(prompt,payload,**kwargs):
+  assert payload['segments'][0]['id']=='s1' and payload['segments'][1]['id']=='s2'
+  return {'session_qa':[
+    {'question':'预算大概多少？','answer':'先确认范围再报价。','status':'answered','segment_ids':['s1','s2'],'reason':'价格与需求'},
+    {'question':'交付周期？','answer':'','status':'pending','segment_ids':['s1'],'reason':'后续行动未答'},
+   ],'items':[
+    {'question':'预算大概多少？','answer':'先确认范围再报价','topic':'价格与政策','segment_ids':['s1','s2'],'memory_worthy':True,'state':'reusable'},
+    {'question':'一次性客户细节','answer':'只服务这一家','topic':'需求与场景','segment_ids':['s2'],'memory_worthy':False},
+   ]}
+ monkeypatch.setattr(l.business,'structured',model)
+ assert run(l,'library_extract',s['id'])['status']=='completed'
+ session=l.store.get('sessions',A,s['id'])
+ assert session['session_qa_revision']==1 and len(session['session_qa'])==2
+ assert session['session_qa'][0]['segment_ids']==[q['id'],a['id']]
+ assert session['session_qa'][1]['status']=='pending'
+ faqs=[r for r in l.store.rows('library_items',A) if r.get('item_type')=='faq']
+ assert len(faqs)==1 and faqs[0]['title']=='预算大概多少？'
+ detail=c.get('/v1/recordings/'+s['id'],headers=H).json()
+ assert len(detail['session_qa'])==2 and detail['session_qa'][1]['status']=='pending'
 
 def test_ocr_revision_supersedes_only_previous_extraction(lib):
  l,c,app=lib;r=l.onboarding.intake(A,'scan.png',b'img',True);digest=hashlib.sha256(b'img').hexdigest()
@@ -216,3 +243,16 @@ def test_reextract_same_legacy_question_reuses_item_and_preserves_my_answer(lib,
  assert result['status']=='completed'
  assert len([r for r in l.store.rows('library_items',A) if r.get('item_type')=='faq'])==1
  assert l.item(A,id)['text']=='先确认需求'
+
+
+def test_restoring_unbounded_history_clears_current_expiry_and_period(lib):
+ l,c,app=lib;id=asset(l)
+ changed=c.patch('/v1/library/items/'+id,headers=H,json={'expected_version':1,'text':'限时新说法','period':'限时活动','valid_until':'2020-01-01T00:00:00+00:00'}).json()
+ assert changed['evidence_state']=='expired'
+ historical=next(v for v in changed['history'] if v['answer_version']==1)
+ restored=c.patch('/v1/library/items/'+id,headers=H,json={'expected_version':changed['version'],'text':historical['text'],'period':historical.get('period') or '', 'valid_until':historical.get('valid_until') or ''})
+ assert restored.status_code==200,restored.text
+ row=restored.json()
+ assert row['text']=='先确认需求' and row['period']=='' and row['valid_until']==''
+ assert row['evidence_state']!='expired' and row['version']==3
+ assert any(v['text']=='限时新说法' and v['period']=='限时活动' and v['valid_until'] for v in row['history'])

@@ -55,6 +55,16 @@ if not app.store.rows('sessions',owner,title='逐句回听验收录音'):
  app.store.put('marks',owner,{'session_id':sid,'t_ms':10000,'user_label':'unlabeled'},L1)
  job=app.recordings.marks.queue(owner,sid)
  if job:app.business.run(owner,job)
+# A stale citation must still lead to the current family and its original-file history.
+if not app.store.rows('library_items',owner,title='历史依据如何核对？'):
+ originals=[]
+ for title,text in [('历史依据旧版.txt','旧资料交期两周。'),('历史依据新版.txt','新资料交期四周。')]:
+  receipt=lib.onboarding.intake(owner,title,text.encode())
+  app.business.run(owner,app.store.get('business_jobs',owner,receipt['job_id']))
+  originals.append((receipt,app.store.rows('documents',owner,onboarding_original_id=receipt['id'])[0]))
+ job=lib.replace(owner,originals[0][0]['id'],originals[1][0]['id']);app.business.run(owner,job)
+ row=app.store.put('library_items',owner,{'title':'历史依据如何核对？','text':'先核对最新交期。','topic':'交付与服务','scenario':'sales','item_type':'faq','version':1,'status':'active','expression_state':'improve','evidence_refs':[{'source_id':'document:'+originals[0][1]['id'],'source_version':version(originals[0][1])}],'producer':'acceptance/synthetic','rubric_version':'acceptance@1'},L2,source='ai')
+ lib.spaces.set_scope(owner,'faq:'+row['id'],'personal',[],0)
 if __name__=='__main__':
  import uvicorn
  uvicorn.run(app.app,host='127.0.0.1',port=8897,log_level='warning')

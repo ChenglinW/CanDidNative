@@ -871,8 +871,7 @@ struct CompanionRecordings: View {
   }
 }
 
-/// Questions come from actual transcript punctuation, never invented model attributions.
-/// Answers remain labelled by their recorded speakers, including unknown speakers.
+/// Legacy punctuation split kept for unit coverage; review UI uses backend session_qa.
 struct CompanionExchange: Identifiable {
   var question: RecordingSentence
   var following: [RecordingSentence]
@@ -886,6 +885,34 @@ struct CompanionExchange: Identifiable {
       let end = offset + 1 < questions.count ? questions[offset + 1] : sorted.count
       return CompanionExchange(question: sorted[index], following: Array(sorted[(index + 1)..<end]))
     }
+  }
+}
+struct CompanionSessionQAPlay: View {
+  @EnvironmentObject var store: Store
+  let recordID: String
+  let item: SessionQAItem
+  var selected: Bool {
+    store.recordingPlaybackID == recordID && store.recordingPlaybackStartMS == item.start_ms
+      && store.recordingPlaybackEndMS == item.end_ms
+  }
+  var body: some View {
+    Button {
+      Task {
+        await store.perform {
+          if selected {
+            store.toggleRecordingPlayback()
+          } else {
+            try await store.playRecording(recordID, startMS: item.start_ms, endMS: item.end_ms)
+          }
+        }
+      }
+    } label: {
+      Image(systemName: selected && store.recordingPlaybackPlaying ? "pause.fill" : "play.fill")
+        .font(.system(size: 12)).foregroundStyle(Warm.purple).frame(width: 30, height: 30)
+        .background(Warm.lavender, in: Circle()).frame(width: 44, height: 44)
+    }.buttonStyle(.plain).disabled(item.end_ms <= item.start_ms).accessibilityLabel(
+      selected && store.recordingPlaybackPlaying ? "暂停这一条问答" : "播放这一条问答"
+    ).accessibilityIdentifier("play-session-qa-" + item.id)
   }
 }
 struct CompanionSentencePlay: View {
@@ -1146,25 +1173,43 @@ struct CompanionRecordingPage: View {
         }.buttonStyle(.plain)
       }
     }
-    let exchanges = CompanionExchange.extract(r.segments ?? [])
-    if !exchanges.isEmpty {
-      Text("本场全部问答 · \(exchanges.count) 条").companionFont(16, weight: .semibold)
-      Text("保留问题与后续原文，姓名以说话人认领为准。").companionFont(12).foregroundStyle(RecordingFormat.secondary)
-      ForEach(exchanges) { exchange in
+    let keyQA = r.session_qa ?? []
+    let extracting = (r.jobs ?? []).contains {
+      $0.kind == "library_extract" && ["queued", "running", "waiting_input"].contains($0.status)
+    }
+    if !keyQA.isEmpty {
+      Text("本场关键问答 · \(keyQA.count) 条").companionFont(16, weight: .semibold)
+      Text("按上下文保留实质问答；完整对话仍在原文页。").companionFont(12).foregroundStyle(
+        RecordingFormat.secondary)
+      ForEach(keyQA) { item in
         DisclosureGroup {
-          sentence(exchange.question)
-          ForEach(exchange.following) { sentence($0) }
+          let matched = (r.segments ?? []).filter { item.segment_ids?.contains($0.id) == true }
+          if matched.isEmpty {
+            Text(item.question).companionFont(14)
+            if let answer = item.answer, !answer.isEmpty {
+              Text(answer).companionFont(14).foregroundStyle(RecordingFormat.secondary)
+            }
+          } else {
+            ForEach(matched) { sentence($0) }
+          }
         } label: {
-          VStack(alignment: .leading, spacing: 5) {
-            Text(exchange.question.text).companionFont(14, weight: .semibold)
-            Text(
-              RecordingFormat.speakerName(exchange.question) + " · "
-                + RecordingFormat.clock(exchange.question.start_ms / 1000)
-            ).companionFont(11).foregroundStyle(RecordingFormat.secondary)
+          HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 5) {
+              Text(item.question).companionFont(14, weight: .semibold)
+              Text(
+                (item.status == "pending" ? "待确认" : "已有回答") + " · "
+                  + RecordingFormat.clock(item.start_ms / 1000)
+              ).companionFont(11).foregroundStyle(RecordingFormat.secondary)
+            }
+            Spacer(minLength: 0)
+            CompanionSessionQAPlay(recordID: r.id, item: item)
           }
         }.padding(.vertical, 10)
         Divider()
       }
+    } else if extracting {
+      Text("本场关键问答").companionFont(16, weight: .semibold)
+      Text("正在按上下文筛选实质问答…").companionFont(12).foregroundStyle(RecordingFormat.secondary)
     }
     Button("查看完整原文") { tab = "原文" }.companionFont(13).frame(minHeight: 44)
   }
@@ -1884,6 +1929,13 @@ struct CompanionEvidencePage: View {
               [
                 "id": "preview-knowledge-" + $0.0, "title": "从价格比较，聊到了落地细节",
                 "text": "明确试点范围，接口和实施排期仍待核实。", "review": ["next_steps": ["核实接口与排期，再确认下一次沟通安排。"]],
+              ]
+            ],
+            "session_qa": [
+              [
+                "id": "preview-qa-" + $0.0, "question": "试点范围怎么定？",
+                "answer": "先确认服务范围，再安排三家门店试点。", "status": "answered",
+                "segment_ids": ["preview-line"], "start_ms": 1000, "end_ms": 4000,
               ]
             ],
           ] as [String: Any]

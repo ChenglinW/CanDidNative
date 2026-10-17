@@ -4,7 +4,7 @@
 
 ## 当前运行位置
 
-新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261016-semantic-da97b38/backend`（标记语义前置增强，保留重点卡片、统一 FAQ、记忆库、工作区、Monid 和 D3200 修复），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
+新加坡 `ap-southeast-1`，实例 `i-02d9b4fda6c8cc2d5`，Ubuntu 24.04 LTS，t2.micro（1 vCPU、约 1GiB RAM），根文件系统约 6.8GiB。代码现为 `/opt/candid/releases/20261017-expression-scoring/backend`（在既有声学版本上增加经过验收修订的表达参考评分，其他线上能力沿用），当前链接 `/opt/candid/current`，虚拟环境 `/opt/candid/venv`。
 
 ```sh
 ssh -i ~/Downloads/candid.pem ubuntu@47.129.137.212
@@ -94,3 +94,23 @@ sudo journalctl -u candid-cert-renew -n 30 --no-pager
 ## 标记语义前置增强发布
 
 实现 `da97b38`，release `/opt/candid/releases/20261016-semantic-da97b38`；前版与备份 `/var/backups/candid-semantic-da97b38` 保留。服务器67项相关测试通过，数据数量一致，完整性、HTTPS健康和鉴权检查通过。仅改前置，网关120秒504依用户决定保留为独立问题，未改传输层或后续prompt。详见 [语义增强验收](../../docs/recording-marks/SEMANTIC_REPORT.md)。
+
+## 2026-10-17 停顿与起伏分析发布
+
+- 新 release `/opt/candid/releases/20261017-acoustics`，原 `/opt/candid/releases/20261017-roleplay` 保留；当前链接已原子切换。发布前停止服务并使用 SQLite backup API 备份至 `/var/backups/candid-acoustics-20261017/memory.sqlite3`，完整性为 ok。部署元数据保存于同目录 `deployment.json`。
+- 仅新增 `audio_metrics.py`、声学测试，补丁修改 `memory_library.py` 与 `tasks/business.py`；没有发布本机工作区中的其他未完成改动，没有更换供应商配置或持久数据目录。沿用已安装的 numpy 2.5.4 和 `/usr/bin/ffmpeg`，不迁移数据库结构。
+- 在服务器新 release 上运行声学与既有记忆库测试：23 passed。两项既有依赖提醒及一项只读源码目录的 pytest 缓存写入提醒，不影响测试结果。
+- 真实 172.78 秒 M4A 在服务器隔离库中，由实际 `audio_metrics` 后台处理器调用 FFmpeg 解码；按 speaker1（part0:1）分析，得到停顿 11 次、27.36 次/分钟、平均 0.51 秒、音高跨度 14.84 半音、音量跨度 13.62 dB，与本机结果一致，任务约 0.26 秒完成。鉴权接口和缓存复用通过。测试音频与临时数据已清理，没有重新调用语音或文本模型。
+- 发布前后所有生产表数量一致：26 场录音、860 段原文、19 份录音知识、50 条聊天、50 个设备凭证；数据库 integrity_check 为 ok。公网 HTTPS health 正常，新指标接口鉴权 200、未鉴权 401；服务 active。
+- 本次只更新服务器。停顿、起伏的数值展示需要包含相应界面改动的客户端；本轮未更新实体手机 App。
+- 私有部署回执位于本机 `.build/deploy-acoustics-20261017/`，不包含登录私钥或令牌。
+
+
+## 2026-10-17 表达参考评分发布
+
+- 初版发现量纲不匹配的 PVQ 评分、多题时长合并、思考停顿豁免错位、来源时间错误和前后端汇总不一致，修订后发布 `expression-scoring@1.0.1`，声学缓存 `claimed-acoustics@3`。详见 [验收记录](../../docs/EXPRESSION_RADAR_ACCEPTANCE_20261017.md)。
+- release `/opt/candid/releases/20261017-expression-scoring`，旧 `/opt/candid/releases/20261017-acoustics` 保留。一致备份 `/var/backups/candid-expression-scoring-20261017`；仅更换 `audio_metrics.py`、新增 `expression_scoring.py` 并定向更新 `memory_library.py` 的指标方法，没有发布本机其他未完成改动，没有数据库结构迁移或供应商配置变更。
+- 本机完整回归 405 项通过；原生最终验收 2 项单元和 3 项界面测试通过；服务器候选版本定向回归 36 项通过。实际 172.785 秒 iPhone M4A 经服务器 FFmpeg 和后台处理器分析、缓存复用通过，没有调用付费模型。
+- 切换前后正式数据数量一致：27 场录音、1157 段原文、22 份录音知识、54 条聊天、52 个设备凭证；SQLite 完整性 ok，服务 active。随后公网隔离账号验证评分规则 1.0.1、指标鉴权 200、未鉴权 401、重复读取与 HTTPS health 均通过，测试账号已清理。
+- 起伏评分因文档阈值与可验证公式量纲不一致而暂不提供，保留原始半音/音量跨度。停顿不足样本不评分，时长需明确题型、目标及回答边界；销售场景不套用面试单题规则。不能将本次发布称为所有录音均有完整五轴评分。
+- 本次仅更新后端，实体 iPhone App 未覆盖安装。私有部署回执 `.build/radar-acceptance-20261017/deployment.json`，公网检查 `public-result.json`；临时音频与服务器隔离库随后清理。

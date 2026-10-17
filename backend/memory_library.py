@@ -29,6 +29,8 @@ class Library:
         business.handlers['library_extract']=self.extract
         business.handlers['library_sync']=self.sync
         business.handlers['library_mock']=self.mock
+        from audio_metrics import AudioMetrics
+        self.audio_metrics = AudioMetrics(store, business)
         if not hasattr(business, 'library_grouping'):
             from library_grouping import LibraryGrouping
             business.library_grouping = LibraryGrouping(store, business)
@@ -154,30 +156,77 @@ class Library:
 
     def extract(self,owner,job):
         s=self.store.get('sessions',owner,job['object_id']);rev=int(job['revision'])
-        lines=[r for r in self.store.rows('transcript_segments',owner,session_id=s['id']) if r.get('transcript_revision',1)==rev]
-        if not lines or s.get('fixture') or s.get('kind')=='practice':return {'items':0}
+        lines=sorted((r for r in self.store.rows('transcript_segments',owner,session_id=s['id']) if r.get('transcript_revision',1)==rev),
+                     key=lambda r:(r.get('start_ms',0),r['id']))
+        if not lines or s.get('fixture') or s.get('kind')=='practice':return {'items':0,'session_qa':0}
         if rev!=s.get('transcript_revision',1):raise Fault('SOURCE_SUPERSEDED','原文已更新',409)
-        if s.get('consent')!='yes' and not all(x.get('speaker')=='self' for x in lines):return {'items':0}
+        if s.get('consent')!='yes' and not all(x.get('speaker')=='self' for x in lines):return {'items':0,'session_qa':0}
         scenario=s.get('scenario','sales');topics=TOPICS.get(scenario,TOPICS['sales'])
         workspace=s.get('customer_workspace_id') if s.get('customer_confirmed_at') else None
         docs=[d for d in self.store.rows('documents',owner) if d.get('text') and ((workspace and self.spaces.allowed(owner,'document',d,workspace)) or (not workspace and (self.spaces.scope(owner,'document:'+d['id']) or {}).get('mode')=='personal'))]
         docs=[d for d in docs if self.adapter.references_status(owner,[{'source_id':'document:'+d['id'],'source_version':version(d)}],workspace)[0]['status']=='current']
-        prepared=enhance_transcript(self.store,owner,s['id'],lines,processor=getattr(self.business,'transcript_preparer',None))
-        result=self.business.structured('从沟通原文提取有依据的常见问题及可改进/复用表达。只返回 {"items":[{"question":"问题","answer":"建议说法，不能编报价、承诺或经历","topic":"主题","segment_ids":["原文id"],"state":"improve或reusable","used_text":"原文实际说法","outcome":"unknown或positive或questioned","reason":"有具体原文依据的效果说明","document_id":"实际适用资料id或空","document_quote":"资料逐字原文或空","general_method":false}]}。最多12条。普通追问不代表失败，只有明确理解/行动才positive。未知说话人不写成用户经历。原文不足则items为空。只有可抽象为提问、澄清、确认下一步等通用方法时general_method=true，客户事实不是通用方法。',
-            {'scenario':scenario,'topics':topics,'segments':[{'id':r['id'],'start_ms':r['start_ms'],'end_ms':r['end_ms'],'speaker':r.get('speaker'),'text':r['text']} for r in prepared],'documents':[{'id':d['id'],'text':d['text'][:18000]} for d in docs]},timeout_seconds=180)
-        byid={r['id']:r for r in lines};added=0
+        prepared={r['id']:r for r in enhance_transcript(self.store,owner,s['id'],lines,processor=getattr(self.business,'transcript_preparer',None))}
+        # Short keys keep model citations stable; UUIDs were truncated on long FAQ calls.
+        seg_map={f's{i+1}':r for i,r in enumerate(lines)}
+        doc_map={f'd{i+1}':d for i,d in enumerate(docs)}
+        result=self.business.structured(
+            '从沟通原文提取本场关键问答，并判断哪些说法值得进入长期记忆库。'
+            '只返回 {"session_qa":[{"question":"问题","answer":"对应回答原文摘要，未答则空","status":"answered或pending","segment_ids":["短id"],"reason":"保留原因"}],'
+            '"items":[{"question":"问题","answer":"建议说法，不能编报价、承诺或经历","topic":"主题","segment_ids":["短id"],'
+            '"state":"improve或reusable","used_text":"原文实际说法","outcome":"unknown或positive或questioned",'
+            '"reason":"有具体原文依据的效果说明","document_id":"短资料id或空","document_quote":"资料逐字原文或空",'
+            '"general_method":false,"memory_worthy":true}]}。'
+            'session_qa只保留涉及需求、异议、价格、决策、承诺和后续行动的实质问答；过滤寒暄、口头确认和无新增信息的重复句；'
+            '同一问题的连续追问合并为一条；有价值但未回答的标pending。最多16条。'
+            'items仅当说法对以后多场仍有复用价值时设memory_worthy=true；一次性客户细节不得进入items。最多12条。'
+            '普通追问不代表失败，只有明确理解/行动才positive。未知说话人不写成用户经历。原文不足则数组为空。'
+            '只有可抽象为提问、澄清、确认下一步等通用方法时general_method=true，客户事实不是通用方法。'
+            'segment_ids与document_id必须使用输入中的短id。',
+            {'scenario':scenario,'topics':topics,
+             'segments':[{'id':f's{i+1}','start_ms':r['start_ms'],'end_ms':r['end_ms'],'speaker':r.get('speaker'),
+                          'text':prepared.get(r['id'],r)['text']} for i,r in enumerate(lines)],
+             'documents':[{'id':f'd{i+1}','text':d['text'][:18000]} for i,d in enumerate(docs)]},
+            timeout_seconds=180)
+        byid={r['id']:r for r in lines};added=0;session_qa=[]
+        def resolve_segments(ids):
+            rows=[]
+            for raw in ids or []:
+                key=str(raw)
+                row=seg_map.get(key) or byid.get(key)
+                if row:rows.append(row)
+            return rows
         with self.store.transaction(owner):
             self.business.guard(owner,job)
             if self.store.get('sessions',owner,s['id']).get('transcript_revision',1)!=rev:raise Fault('SOURCE_SUPERSEDED','原文已更新',409)
+            for n,data in enumerate(result.get('session_qa',[])[:16]):
+                if not isinstance(data,dict) or not data.get('question'):continue
+                evidence=resolve_segments(data.get('segment_ids',[]))
+                if not evidence:continue
+                status='pending' if data.get('status')=='pending' or not str(data.get('answer') or '').strip() else 'answered'
+                session_qa.append({
+                    'id':hashlib.sha256((s['id']+':'+str(rev)+':qa:'+str(n)).encode()).hexdigest()[:24],
+                    'question':str(data['question'])[:400],
+                    'answer':str(data.get('answer') or '')[:2000],
+                    'status':status,
+                    'reason':str(data.get('reason') or '')[:300],
+                    'segment_ids':[r['id'] for r in evidence],
+                    'start_ms':min(r['start_ms'] for r in evidence),
+                    'end_ms':max(r['end_ms'] for r in evidence),
+                })
+            # Legacy mocks that only return items still populate the memory library.
+            legacy_items_only='session_qa' not in result
             for n,data in enumerate(result.get('items',[])[:12]):
                 if not isinstance(data,dict) or not data.get('question') or not data.get('answer'):continue
-                evidence=[byid[x] for x in data.get('segment_ids',[]) if x in byid]
+                if not legacy_items_only and data.get('memory_worthy') is not True:continue
+                evidence=resolve_segments(data.get('segment_ids',[]))
                 if not evidence:continue
                 key=s['id']+':'+str(rev)+':'+str(n)
                 if self.store.rows('library_items',owner,extraction_key=key):continue
                 refs=[{'source_id':'transcript:'+r['id'],'source_version':version(r),'session_id':s['id'],'start_ms':r['start_ms'],'end_ms':r['end_ms']} for r in evidence]
-                cited=next((d for d in docs if d['id']==data.get('document_id') and data.get('document_quote') and data['document_quote'] in d['text']),None)
-                if cited:refs.append({'source_id':'document:'+cited['id'],'source_version':version(cited),'quote':data['document_quote']})
+                doc_key=str(data.get('document_id') or '')
+                cited=doc_map.get(doc_key) or next((d for d in docs if d['id']==doc_key),None)
+                if cited and data.get('document_quote') and data['document_quote'] in cited['text']:
+                    refs.append({'source_id':'document:'+cited['id'],'source_version':version(cited),'quote':data['document_quote']})
                 faq_key=hashlib.sha256((scenario+'|'+str(workspace or s['id'])+'|'+re.sub(r'[^\w\u4e00-\u9fff]','',str(data['question']).casefold())).encode()).hexdigest()
                 existing=next(iter(self.store.rows('library_items',owner,faq_key=faq_key)),None)
                 if not existing:
@@ -199,8 +248,8 @@ class Library:
                     for previous in self.store.rows('library_items',owner):
                         if previous.get('text')!=used:continue
                         if not workspace or not self.spaces.allowed(owner,'faq',previous,workspace):continue
-                        key=previous['id']+':'+str(previous['version'])+':'+s['id']+':'+str(rev)
-                        if not self.store.rows('library_uses',owner,usage_key=key):self.store.put('library_uses',owner,{'usage_key':key,'item_id':previous['id'],'answer_version':previous['version'],'session_id':s['id'],'text':used,'outcome':data.get('outcome','unknown'),'reason':data.get('reason',''),'evidence_refs':refs},L1)
+                        use_key=previous['id']+':'+str(previous['version'])+':'+s['id']+':'+str(rev)
+                        if not self.store.rows('library_uses',owner,usage_key=use_key):self.store.put('library_uses',owner,{'usage_key':use_key,'item_id':previous['id'],'answer_version':previous['version'],'session_id':s['id'],'text':used,'outcome':data.get('outcome','unknown'),'reason':data.get('reason',''),'evidence_refs':refs},L1)
                         if data.get('outcome') in {'positive','questioned'}:self.store.update('library_items',owner,previous['id'],{'expression_state':'reusable' if data['outcome']=='positive' else 'improve'})
                 if data.get('general_method') is True:
                     topic=row['topic'];common_key=scenario+':'+topic
@@ -210,7 +259,8 @@ class Library:
                             'evidence_refs':[],'private_provenance':refs,'producer':'agent/general-method','rubric_version':'library@1'},L2,source='ai')
                         self.spaces.set_scope(owner,'faq:'+common['id'],'personal',[],0)
                 added+=1
-        return {'items':added}
+            self.store.update('sessions',owner,s['id'],{'session_qa':session_qa,'session_qa_revision':rev})
+        return {'items':added,'session_qa':len(session_qa)}
 
     def documents(self,owner):
         output=[]
@@ -317,31 +367,80 @@ class Library:
             self.store.update('library_practices',owner,p['id'],{'status':'reviewed','turns':p['turns']+[turn],'question':str(result.get('next_question') or row['title'])})
         return {'practice_id':p['id']}
 
+    def _answer_duration(self,session,lines):
+        """Only one unambiguous current answer can use a single-answer target."""
+        defaults={'fact':30000,'intro':75000,'behavior':120000,'complex':270000,'motivation':75000}
+        target=session.get('target_answer_ms') or session.get('answer_target_ms')
+        if target is None:target=defaults.get(session.get('answer_type') or session.get('question_kind'))
+        if str(session.get('session_qa_revision',''))!=str(session.get('transcript_revision',1)):
+            return None,target,False
+        answered=[q for q in session.get('session_qa',[]) if isinstance(q,dict) and q.get('status')=='answered']
+        if len(answered)!=1:return None,target,False
+        item=answered[0]
+        target=item.get('target_answer_ms') or defaults.get(item.get('answer_type')) or target
+        exempt=bool(item.get('followup') or item.get('clarification'))
+        byid={r['id']:r for r in lines}
+        ids=item.get('segment_ids') or []
+        if not ids or any(sid not in byid for sid in ids):return None,target,exempt
+        mine=[byid[sid] for sid in ids if byid[sid].get('speaker')=='self']
+        if not mine:return None,target,exempt
+        start=min(r['start_ms'] for r in mine);end=max(r['end_ms'] for r in mine)
+        # Include pauses in elapsed answer time. Another/unknown speaker makes
+        # the answer boundary ambiguous; do not sum speech across interruptions.
+        if any(r.get('speaker')!='self' and r['start_ms']<end and r['end_ms']>start for r in lines):
+            return None,target,exempt
+        return end-start,target,exempt
+
     def metrics(self,owner):
-        rows=[];seen=set()
-        for s in sorted(self.store.rows('sessions',owner),key=lambda x:x.get('recorded_at') or x['created_at']):
+        from expression_scoring import score_session,aggregate_axis_scores,detect_language,count_fillers,RULE_VERSION
+        rows=[];seen=set();scored_rows=[]
+        for s in sorted(self.store.rows('sessions',owner),key=lambda x:(x.get('recorded_at') or x['created_at'],x['id'])):
             if s.get('fixture') or s.get('kind') in {'practice','oral_debrief'} or s.get('consent')!='yes':continue
             media=self.store.rows('session_media',owner,session_id=s['id'])
             if not media:continue
             digest=media[0].get('sha256') or s['id']
-            if digest in seen:continue
+            dedup=(s.get('scenario','sales'),digest)
+            if dedup in seen:continue
             lines=[r for r in self.store.rows('transcript_segments',owner,session_id=s['id']) if r.get('transcript_revision',1)==s.get('transcript_revision',1)]
             mine=[r for r in lines if r.get('speaker')=='self'];ms=union_ms(mine);allms=union_ms(lines)
             if not ms:continue
-            seen.add(digest);text=' '.join(r['text'] for r in mine);count=words(text)
-            fillers=sum(len(re.findall(pattern,text,re.I)) for pattern in [r'嗯',r'呃',r'\bum\b',r'\buh\b',r'你知道',r'就是说'])
-            rows.append({'id':s['id'],'title':s.get('title','沟通录音'),'date':s.get('recorded_at') or s['created_at'],'scenario':s.get('scenario','sales'),
+            seen.add(dedup);mine.sort(key=lambda r:(r['start_ms'],r['id']));text=' '.join(r['text'] for r in mine);count=words(text)
+            acoustic = self.audio_metrics.snapshot(owner, s, media[0], lines)
+            language=detect_language(text)
+            fillers,_=count_fillers(text,language)
+            spoken=acoustic.get('acoustic_ms') or ms
+            voiced=acoustic.get('voiced_ms')
+            articulation=round(count*60000/voiced,1) if voiced and voiced>0 else None
+            answer_ms,target_ms,exempt=self._answer_duration(s,lines)
+            row={'id':s['id'],'title':s.get('title','沟通录音'),'date':s.get('recorded_at') or s['created_at'],'scenario':s.get('scenario','sales'),
                 'self_ms':ms,'total_ms':allms,'words':count,'fillers':fillers,'pace':round(count*60000/ms,1),
-                'share':round(ms*100/allms,1) if allms else 0,'filler_rate':round(fillers*60000/ms,1),
+                'articulation_rate':articulation,'language':language,
+                'share':round(ms*100/allms,1) if allms else 0,'filler_rate':round(fillers*60000/spoken,1) if spoken else 0,
                 'coverage':round(sum(r['end_ms']-r['start_ms'] for r in lines if r.get('speaker') in {'self','other'})*100/max(1,sum(r['end_ms']-r['start_ms'] for r in lines)),1),
-                'transcript_revision':s.get('transcript_revision',1)})
+                'transcript_revision':s.get('transcript_revision',1),
+                'answer_ms':answer_ms,'target_answer_ms':target_ms,'duration_exempt':exempt,
+                'text':text, 'sources':[{'session_id':s['id'],'segment_id':r['id'],'from_ms':r['start_ms'],'to_ms':r['end_ms']} for r in mine], **acoustic}
+            scores=score_session(row)
+            row['expression_scores']=scores
+            # Keep payload lean for clients that only need scores + metrics.
+            row.pop('text',None);row.pop('sources',None)
+            rows.append(row);scored_rows.append(scores)
         def aggregate(group):
             ms=sum(x['self_ms'] for x in group);total=sum(x['total_ms'] for x in group)
             return {'count':len(group),'self_ms':ms,'pace':round(sum(x['words'] for x in group)*60000/ms,1) if ms else None,
                     'share':round(ms*100/total,1) if total else None,'filler_rate':round(sum(x['fillers'] for x in group)*60000/ms,1) if ms else None,
                     'from':group[0]['date'] if group else None,'to':group[-1]['date'] if group else None}
+        # A window never mixes sales with interviews.
+        score_windows={}
+        for scenario in sorted({r['scenario'] for r in rows}):
+            group=[r['expression_scores'] for r in rows if r['scenario']==scenario]
+            score_windows[scenario]={'recent':aggregate_axis_scores(group[-3:]),
+                                    'baseline':aggregate_axis_scores(group[:3]) if len(group)>=6 else None}
+        single=next(iter(score_windows.values())) if len(score_windows)==1 else {}
         return {'sessions':rows,'recent':aggregate(rows[-3:]),'baseline':aggregate(rows[:3]) if len(rows)>=6 else None,
-            'note':'按本人有效句段时长加权；语速为转写估计，口头禅可能被 ASR 省略。部分认领仅统计已认领部分；精确停顿与评分雷达暂未提供。'}
+            'score_recent':single.get('recent'),'score_baseline':single.get('baseline'),
+            'score_windows':score_windows,'score_rule_version':RULE_VERSION,
+            'note':f'参考评分（{RULE_VERSION}）。数字越大表示越接近参考标准，不代表录用或成交。语速使用发音速率；口头禅可能被转写省略；停顿依据句段边界估计；起伏量纲待校准，暂不评分。'}
 
 class Edit(BaseModel):
     legacy_period:str|None=Field(default=None,max_length=120)
@@ -374,6 +473,8 @@ class OCR(BaseModel):
 
 
 def install(app,owner,get_library):
+    @app.get('/v1/library/metrics')
+    def acoustic_metrics(uid=Depends(owner)):return get_library().metrics(uid)
     @app.get('/v1/library')
     def snapshot(uid=Depends(owner)):return get_library().snapshot(uid)
     @app.get('/v1/library/items/{id}')

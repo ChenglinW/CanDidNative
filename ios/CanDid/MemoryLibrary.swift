@@ -7,7 +7,11 @@ import QuickLook
 import Charts
 
 struct LibraryPage:Decodable,Identifiable {var page:Int;var text:String;var source:String?;var review_required:Bool?;var id:Int {page}}
-struct LibraryVersion:Decodable,Identifiable {var id:String;var text:String;var answer_version:Int;var reason:String?;var period:String?;var valid_until:String?}
+struct LibraryVersion:Decodable,Identifiable {
+  var id:String;var text:String;var answer_version:Int;var reason:String?;var period:String?;var valid_until:String?
+  // An omitted field means “keep current” in PATCH, so clear absent historical metadata explicitly.
+  var restorationPatch:[String:Any] {["text":text,"period":period ?? "","valid_until":valid_until ?? ""]}
+}
 struct LibraryUse:Decodable,Identifiable {var id:String;var session_id:String?;var answer_version:Int;var text:String?;var outcome:String?;var reason:String?}
 struct LibraryTurn:Decodable {var question:String;var answer:String;var feedback:String;var suggested_text:String?}
 struct LibraryPractice:Decodable,Identifiable {var id:String;var question:String;var status:String;var turns:[LibraryTurn];var job_id:String?}
@@ -27,9 +31,62 @@ struct LibraryDocument:Decodable,Identifiable {
   var id:String;var title:String;var status:String;var error:String?;var job_id:String?;var family_id:String
   var version:Int;var versions:[String];var sha256:String;var pages:[LibraryPage];var text:String;var parsed_id:String?;var changes:[String];var pending_id:String?
 }
-struct LibrarySessionMetric:Decodable,Identifiable {var id:String;var title:String;var date:String;var scenario:String;var self_ms:Double;var total_ms:Double;var pace:Double;var share:Double;var filler_rate:Double;var coverage:Double}
+struct LibrarySessionMetric:Decodable,Identifiable {
+  var id:String;var title:String;var date:String;var scenario:String;var self_ms:Double;var total_ms:Double;var pace:Double;var share:Double;var filler_rate:Double;var coverage:Double
+  var articulation_rate:Double?;var language:String?
+  var pause_count:Double?;var pause_rate:Double?;var pause_mean_seconds:Double?
+  var pitch_range_st:Double?;var volume_range_db:Double?;var acoustic_ms:Double?;var voiced_ms:Double?
+  var pvq:Double?;var boundary_pause_median_s:Double?;var boundary_pause_samples:Int?
+  var non_boundary_pause_ratio:Double?;var long_pause_rate:Double?
+  var acoustic_status:String?;var acoustic_job_id:String?
+  var expression_scores:LibraryExpressionScores?
+  var acousticMessage:String {
+    switch acoustic_status {
+    case "queued","running":return "正在分析原音频"
+    case "failed","interrupted","cancelled":return "音频分析未完成，可重试"
+    case "unavailable":return "原音频不可用，无法分析"
+    case "insufficient":return "本人有效声音不足，暂无法测量"
+    case "ready":return "已完成音频分析"
+    default:return "音频分析尚未提供"
+    }
+  }
+}
+struct LibraryAcousticSummary {
+  let rows:[LibrarySessionMetric]
+  var ready:[LibrarySessionMetric] {rows.filter {$0.acoustic_status=="ready"}}
+  var pauseRate:Double? {
+    let valid=ready.filter {
+      guard let count=$0.pause_count,count.isFinite,count >= 0 else {return false}
+      guard let ms=$0.acoustic_ms,ms.isFinite,ms > 0 else {return false}
+      return true
+    }
+    let ms=valid.reduce(0) {$0+($1.acoustic_ms ?? 0)}
+    return ms>0 ? valid.reduce(0) {$0+($1.pause_count ?? 0)}*60000/ms:nil
+  }
+  var meanPause:Double? {
+    let valid=ready.filter {
+      guard let mean=$0.pause_mean_seconds,mean.isFinite,mean >= 0 else {return false}
+      guard let count=$0.pause_count,count.isFinite,count >= 0 else {return false}
+      return true
+    }
+    let count=valid.reduce(0) {$0+($1.pause_count ?? 0)}
+    return count>0 ? valid.reduce(0) {$0+($1.pause_mean_seconds ?? 0)*($1.pause_count ?? 0)}/count:(valid.isEmpty ? nil:0)
+  }
+  func weighted(_ key:KeyPath<LibrarySessionMetric,Double?>)->Double? {
+    let valid=ready.filter {
+      guard let value=$0[keyPath:key],value.isFinite,value >= 0 else {return false}
+      guard let voiced=$0.voiced_ms,voiced.isFinite,voiced > 0 else {return false}
+      return true
+    }
+    let ms=valid.reduce(0) {$0+($1.voiced_ms ?? 0)}
+    return ms>0 ? valid.reduce(0) {$0+($1[keyPath:key] ?? 0)*($1.voiced_ms ?? 0)}/ms:nil
+  }
+}
 struct LibraryAggregate:Decodable {var count:Int;var self_ms:Double;var pace:Double?;var share:Double?;var filler_rate:Double?;var from:String?;var to:String?}
-struct LibraryMetrics:Decodable {var sessions:[LibrarySessionMetric];var recent:LibraryAggregate;var baseline:LibraryAggregate?;var note:String}
+struct LibraryMetrics:Decodable {
+  var sessions:[LibrarySessionMetric];var recent:LibraryAggregate;var baseline:LibraryAggregate?;var note:String
+  var score_rule_version:String?
+}
 struct LibraryUpdate:Decodable,Identifiable {var id:String;var status:String;var message:String}
 struct LibrarySnapshot:Decodable {var items:[LibraryItem];var documents:[LibraryDocument];var metrics:LibraryMetrics;var updates:[LibraryUpdate];var question_grouping:LibraryQuestionGrouping?}
 
@@ -86,7 +143,7 @@ struct CompanionMemory:View {
         HStack {Text("表达").companionFont(16,weight:.semibold);Spacer();Text("查看详情").companionFont(12);Image(systemName:"chevron.right")}
         HStack(spacing:18) {
           if !typeSize.isAccessibilitySize {Image(systemName:"waveform.path").font(.system(size:38,weight:.light)).foregroundStyle(Warm.purple).frame(width:86,height:86).background(Warm.lavender,in:RoundedRectangle(cornerRadius:20))}
-          VStack(alignment:.leading,spacing:7) {Text("来自 \(s.metrics.sessions.filter {$0.scenario==scenario}.count) 次有本人录音的沟通").companionFont(12).foregroundStyle(RecordingFormat.secondary);Text("五个维度，了解你的表达习惯").companionFont(14,weight:.semibold);Text("语速、占比与口头禅有数据时展示；停顿与起伏待测量。").companionFont(12).foregroundStyle(RecordingFormat.secondary)}
+          VStack(alignment:.leading,spacing:7) {Text("来自 \(s.metrics.sessions.filter {$0.scenario==scenario}.count) 次有本人录音的沟通").companionFont(12).foregroundStyle(RecordingFormat.secondary);Text("五个维度，了解你的表达习惯").companionFont(14,weight:.semibold);Text("五个维度基于本人片段；停顿与起伏在音频分析后展示。").companionFont(12).foregroundStyle(RecordingFormat.secondary)}
         }.padding(.top,6)
       }
     }.buttonStyle(.plain).accessibilityIdentifier("memory-expression-overview")
@@ -115,35 +172,244 @@ struct CompanionMemory:View {
     let empty:[String:Any]=["count":0,"self_ms":0]
     let payload:[String:Any]=["items":items,"documents":[],"metrics":["sessions":[],"recent":empty,"note":"隔离测试数据"],"updates":[]]
     var result=payload
+    let args=ProcessInfo.processInfo.arguments
+    if args.contains("-candid-radar-full") {
+      result["metrics"]=LibraryPreviewMetrics.radarFull()
+    } else if args.contains("-candid-radar-partial") {
+      result["metrics"]=LibraryPreviewMetrics.radarPartial()
+    } else if args.contains("-candid-acoustics-preview") {
+      result["metrics"]=LibraryPreviewMetrics.acousticsSingle()
+    }
     if let grouping=store.companionMemory?.question_grouping {result["question_grouping"]=["groups":grouping.groups.map {g in ["id":g.id,"title":g.title,"question":g.question,"item_ids":g.expression_ids,"occurrences":g.occurrences,"recording_count":g.recording_count,"scenario":"sales"] as [String:Any]},"status":"ready"]}
     if let data=try? JSONSerialization.data(withJSONObject:result) {snapshot=try? JSONDecoder().decode(LibrarySnapshot.self,from:data)}
   }
   #endif
 }
+
+#if DEBUG
+enum LibraryPreviewMetrics {
+  private static let note="隔离合成数据，用于验证表达参考评分展示，不代表真实录音精度。"
+  private static let empty:[String:Any]=["count":0,"self_ms":0]
+  static func acousticsSingle()->[String:Any] {
+    metrics([ready(id:"acoustic-preview",day:17,pace:210,pause:3,pitch:4.5,pvq:170,scores:demoScores(pace:4,pause:3,filler:4,pitch:4,duration:nil))])
+  }
+  static func radarPartial()->[String:Any] {
+    metrics([
+      ready(id:"radar-partial-1",day:15,pace:160,pause:2,pitch:nil,pvq:nil,scores:demoScores(pace:2,pause:3,filler:3,pitch:nil,duration:nil)),
+      running(id:"radar-partial-2",day:16,pace:170,scores:demoScores(pace:2,pause:nil,filler:3,pitch:nil,duration:nil))
+    ])
+  }
+  static func radarFull()->[String:Any] {
+    var sessions:[[String:Any]]=[]
+    for index in 1...6 {
+      let paceScore=index <= 3 ? 2:4
+      sessions.append(ready(id:"radar-full-\(index)",day:10+index,pace:140+Double(index)*12,pause:Double(index),pitch:3+Double(index)*0.7,pvq:120+Double(index)*10,share:40+Double(index)*3,filler:0.5+Double(index)*0.2,
+                            scores:demoScores(pace:paceScore,pause:min(4,index),filler:3,pitch:index <= 2 ? 2:4,duration:nil)))
+    }
+    return metrics(sessions)
+  }
+  private static func metrics(_ sessions:[[String:Any]])->[String:Any] {
+    ["sessions":sessions,"recent":empty,"note":note,"score_rule_version":"expression-scoring@1.0.0"]
+  }
+  private static func demoScores(pace:Int?,pause:Int?,filler:Int?,pitch:Int?,duration:Int?)->[String:Any] {
+    func axis(_ score:Int?,_ label:String,_ suggestion:String)->[String:Any] {
+      if let score {
+        return ["score":score,"status":"scored","label":label,"color":score >= 3 ? "green":(score == 2 ? "yellow":"red"),
+                "target":"见研究稿","explanation":"隔离合成参考分","suggestion":suggestion,
+                "evidence_grade":"C","measurement_quality":"ready","rule_id":"preview"]
+      }
+      return ["status":"unscored","label":label,"color":"neutral","explanation":"数据不足、不适用或分析中",
+              "suggestion":suggestion,"evidence_grade":"C","measurement_quality":"insufficient","rule_id":"preview.unscored"]
+    }
+    let paceLabel=pace.map { $0 >= 3 ? "有效":"待改进"} ?? "未评分"
+    return ["rule_version":"expression-scoring@1.0.0","profile":"sales_reference","language":"zh","note":"隔离合成参考评分",
+            "axes":["pace":axis(pace,paceLabel,"合成建议：按内容类型调整语速。"),
+                    "pause":axis(pause,pause == nil ? "分析中":"参考","合成建议：把停顿放到意群边界。"),
+                    "filler":axis(filler,"参考","合成建议：用短停顿代替口头禅。"),
+                    "pitch":axis(pitch,pitch == nil ? "分析中":"参考","合成建议：在关键词上做自然强调。"),
+                    "duration":axis(duration,"不适用","销售场景默认不套用面试单题时长。")]]
+  }
+  private static func ready(id:String,day:Int,pace:Double,pause:Double,pitch:Double?,pvq:Double?,share:Double=50,filler:Double=1,scores:[String:Any])->[String:Any] {
+    var payload:[String:Any]=base(id:id,day:day,pace:pace,share:share,filler:filler)
+    payload["acoustic_status"]="ready"
+    payload["articulation_rate"]=pace
+    payload["language"]="zh"
+    payload["pause_count"]=pause
+    payload["pause_rate"]=pause
+    payload["pause_mean_seconds"]=0.5
+    payload["boundary_pause_median_s"]=0.55
+    payload["boundary_pause_samples"]=4
+    payload["non_boundary_pause_ratio"]=0.04
+    payload["long_pause_rate"]=0.5
+    payload["acoustic_ms"]=60000
+    payload["voiced_ms"]=40000
+    payload["volume_range_db"]=8.2
+    if let pitch {payload["pitch_range_st"]=pitch}
+    if let pvq {payload["pvq"]=pvq}
+    payload["expression_scores"]=scores
+    return payload
+  }
+  private static func running(id:String,day:Int,pace:Double,scores:[String:Any])->[String:Any] {
+    var payload=base(id:id,day:day,pace:pace,share:50,filler:1)
+    payload["acoustic_status"]="running"
+    payload["acoustic_job_id"]="job-"+id
+    payload["language"]="zh"
+    payload["expression_scores"]=scores
+    return payload
+  }
+  private static func base(id:String,day:Int,pace:Double,share:Double,filler:Double)->[String:Any] {
+    ["id":id,"title":"合成场次 \(id)","date":String(format:"2026-10-%02dT10:00:00Z",day),"scenario":"sales","self_ms":60000,"total_ms":120000,"pace":pace,"share":share,"filler_rate":filler,"coverage":100]
+  }
+}
+#endif
 struct MergedMaterialList:View {
   let items:[LibraryItem];let title:String
   var body:some View {ScrollView {VStack(alignment:.leading,spacing:12) {if items.isEmpty {Text("还没有素材。历史内容同步后会显示在这里。").companionFont(14)};ForEach(items) {item in NavigationLink {LibraryFAQDetail(item:item)} label:{CompanionMemoryCard {Text(item.title).companionFont(16,weight:.semibold);Text(item.item_type=="faq" ? "问答":item.material_kind=="story" ? "故事":item.material_kind=="experience" ? "经历":"表达").companionFont(11).foregroundStyle(Warm.purple);Text(item.text).companionFont(13).lineLimit(3);Text(item.status=="archived" ? "已归档":item.label).companionFont(12).foregroundStyle(RecordingFormat.secondary)}}.buttonStyle(.plain)}}.padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)}.companionReport(title)}
 }
 struct MergedDeliveryPage:View {
   let metrics:LibraryMetrics;let scenario:String
+  @EnvironmentObject private var store:Store
   @State private var selected="语速"
-  private let axes=["语速","停顿","口头禅","起伏","说话占比"]
-  private var recent:[LibrarySessionMetric] {Array(metrics.sessions.filter {$0.scenario==scenario}.suffix(3))}
-  private var value:Double? {
-    let ms=recent.reduce(0){$0+$1.self_ms},total=recent.reduce(0){$0+$1.total_ms}
-    guard ms>0 else{return nil}
-    if selected=="语速" {return recent.reduce(0){$0+$1.pace*$1.self_ms}/ms}
-    if selected=="口头禅" {return recent.reduce(0){$0+$1.filler_rate*$1.self_ms}/ms}
-    if selected=="说话占比" {return total>0 ? ms*100/total:nil}
-    return nil
-  }
+  @State private var showBaseline=false
+  @State private var refreshed:LibraryMetrics?
+  @State private var issue:String?
+  @State private var lastFingerprint=""
+  private let axes=DeliveryRadarScale.axes
+  private var current:LibraryMetrics {refreshed ?? metrics}
+  private var radar:DeliveryRadarSnapshot {DeliveryRadarAggregation.snapshot(sessions:current.sessions,scenario:scenario)}
+  private var recent:[LibrarySessionMetric] {radar.recentRows}
+  private var acoustics:LibraryAcousticSummary {LibraryAcousticSummary(rows:recent)}
+  private var selectedPoint:DeliveryRadarAxisPoint? {radar.recent?.point(selected)}
   var body:some View {ScrollView {VStack(alignment:.leading,spacing:16) {
     Text("表达").companionFont(27,weight:.bold)
-    CompanionMemoryCard {Image(systemName:"waveform.path").font(.system(size:40)).foregroundStyle(Warm.purple).frame(maxWidth:.infinity).padding(.vertical,12);Text("五个维度，一起了解表达习惯").companionFont(17,weight:.semibold);Text("真实指标按本人有效句段计算，不换算雷达分数。").companionFont(13)}
-    LazyVGrid(columns:[GridItem(.adaptive(minimum:95))],spacing:8) {ForEach(axes,id:\.self) {axis in Button {selected=axis} label:{Text(axis).companionFont(13).frame(maxWidth:.infinity,minHeight:44).background(selected==axis ? Warm.lavender:Warm.white,in:RoundedRectangle(cornerRadius:10))}.buttonStyle(.plain).accessibilityAddTraits(selected==axis ? .isSelected:[])}}
-    CompanionMemoryCard {Text(selected).companionFont(17,weight:.semibold);if let value {Text(String(format:"%.1f",value)+(selected=="说话占比" ? "%":selected=="语速" ? " 字词/分钟":" 次/分钟")).companionFont(25,weight:.semibold)} else {Text(["停顿","起伏"].contains(selected) ? "暂无可靠测量":"认领本人录音后显示").companionFont(14)};Text(metrics.note).companionFont(12).foregroundStyle(RecordingFormat.secondary)}
-    NavigationLink("查看逐场记录与趋势") {LibraryMetricsPage(metrics:metrics,scenario:scenario)}.frame(minHeight:44)
-  }.padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)}.companionReport("表达")}
+    DeliveryRadarCard(snapshot:radar,selected:$selected,showBaseline:$showBaseline)
+    LazyVGrid(columns:[GridItem(.adaptive(minimum:95))],spacing:8) {
+      ForEach(axes,id:\.self) {axis in
+        Button {selected=axis} label:{
+          Text(axis).companionFont(13).frame(maxWidth:.infinity,minHeight:44)
+            .background(selected==axis ? Warm.lavender:Warm.white,in:RoundedRectangle(cornerRadius:10))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("delivery-axis-button-"+axis)
+        .accessibilityAddTraits(selected==axis ? .isSelected:[])
+      }
+    }
+    CompanionMemoryCard {
+      Text(selected).companionFont(17,weight:.semibold)
+      if case .scored(let score)=selectedPoint?.status {
+        Text("参考 \(score) 分 · \(selectedPoint?.status.message ?? "")")
+          .companionFont(25,weight:.semibold)
+          .foregroundStyle(DeliveryRadarScale.colorName(score))
+          .accessibilityIdentifier("delivery-axis-value")
+      } else {
+        Text(detailPlaceholder).companionFont(14).accessibilityIdentifier("delivery-axis-placeholder")
+      }
+      if let detail=selectedPoint?.detail {
+        if let target=detail.target {Text("目标："+target).companionFont(13)}
+        if let explanation=detail.explanation {Text(explanation).companionFont(13)}
+        if let suggestion=detail.suggestion {Text("改进建议："+suggestion).companionFont(13).foregroundStyle(Warm.purple)}
+        Text("证据等级 \(detail.evidence_grade ?? "—") · 本次测量：\(qualityText(detail.measurement_quality))")
+          .companionFont(11).foregroundStyle(RecordingFormat.secondary)
+        if let count=selectedPoint?.coverage,count>0 {Text("有效 \(count)/\(recent.count) 场；原始值与说明来自该分数的代表场次。").companionFont(12)}
+        if let source=detail.sources?.first,let id=source.session_id {
+          NavigationLink("查看依据录音与原文") {CompanionRecordingPage(id:id)}.frame(minHeight:44)
+        }
+      }
+      rawMetricLines
+      if ["停顿","起伏"].contains(selected) {
+        Text("最近 \(recent.count) 场，\(acoustics.ready.count) 场有有效音频分析").companionFont(12)
+        ForEach(recent.filter {$0.acoustic_status != "ready"}) {row in
+          Text(row.title+" · "+row.acousticMessage).companionFont(12)
+          if let job=row.acoustic_job_id,["failed","interrupted","cancelled"].contains(row.acoustic_status ?? "") {
+            Button("重试这场音频分析") {Task {await retry(job)}}.frame(minHeight:44)
+          }
+        }
+      }
+      if selected != "时长控制" {
+        Text("说话占比（原始指标，不参与评分）："+shareText).companionFont(12).foregroundStyle(RecordingFormat.secondary)
+      }
+      Text(current.note).companionFont(12).foregroundStyle(RecordingFormat.secondary)
+    }
+    if let issue {Text("刷新未成功，仍显示上次结果。"+issue).companionFont(12).foregroundStyle(.red).accessibilityIdentifier("delivery-refresh-issue")}
+    NavigationLink("查看逐场记录与趋势") {LibraryMetricsPage(metrics:current,scenario:scenario)}.frame(minHeight:44).accessibilityIdentifier("delivery-session-trend")
+  }.padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)}.companionReport("表达")
+    .refreshable {await refresh()}
+    .task {
+      lastFingerprint=radar.fingerprint
+      guard store.remote else {return}
+      while !Task.isCancelled {
+        await refresh()
+        do {try await Task.sleep(for:.seconds(5))} catch {break}
+      }
+    }
+  }
+  private var shareText:String {
+    let selfMS=recent.reduce(0){$0+$1.self_ms},total=recent.reduce(0){$0+$1.total_ms}
+    guard selfMS > 0,total > 0 else {return "暂无"}
+    return String(format:"%.1f%%",selfMS*100/total)
+  }
+  private func qualityText(_ value:String?)->String {
+    switch value {case "ready":return "已完成";case "limited":return "仅供参考";case "insufficient":return "数据不足";case "uncalibrated":return "待校准";case "inapplicable":return "不适用";default:return "待分析"}
+  }
+  @ViewBuilder private var rawMetricLines:some View {
+    let raw=selectedPoint?.detail?.raw
+    switch selected {
+    case "语速":
+      if let v=raw?.value {Text(String(format:"原始 %@ %.1f %@",raw?.metric == "articulation_rate" ? "发音速率":"语速",v,raw?.unit ?? "字词/分钟")).companionFont(13)}
+      else if let pace=DeliveryRadarAggregation.weightedPace(recent) {Text(String(format:"原始整体语速 %.1f 字词/分钟",pace)).companionFont(13)}
+      Text("语速来自转写估计；评分优先使用剔除静音的发音速率。").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+    case "口头禅":
+      if let rate=raw?.rate_per_min {Text(String(format:"原始 %.1f 次/分钟",rate)).companionFont(13)}
+      if let pct=raw?.percent {Text(String(format:"占比 %.1f%%",pct)).companionFont(13)}
+      Text("口头禅可能受转写省略影响；有实义的“然后/就是”不简单扣分。").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+    case "停顿":
+      if let rate=acoustics.pauseRate {Text(String(format:"%.1f 次/分钟",rate)).companionFont(13)}
+      if let mean=acoustics.meanPause {Text(String(format:"平均每次 %.2f 秒",mean)).companionFont(13)}
+      if let median=raw?.boundary_median_s ?? recent.compactMap(\.boundary_pause_median_s).first {
+        Text(String(format:"边界停顿中位 %.2f 秒",median)).companionFont(13)
+      }
+    case "起伏":
+      if let pvq=raw?.pvq ?? recent.compactMap(\.pvq).first {Text(String(format:"参考 PVQ %.1f",pvq)).companionFont(13)}
+      if let st=raw?.pitch_range_st ?? acoustics.weighted(\.pitch_range_st) {Text(String(format:"%.1f 半音",st)).companionFont(13)}
+      if let volume=acoustics.weighted(\.volume_range_db) {Text(String(format:"音量变化 %.1f dB",volume)).companionFont(13)}
+      Text("半音跨度用于观察音调变化；起伏评分待量纲校准后提供。").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+    case "时长控制":
+      if let actual=raw?.actual_ms,let target=raw?.target_ms {
+        Text(String(format:"实际 %.0f 秒 / 目标 %.0f 秒",actual/1000,target/1000)).companionFont(13)
+      }
+    default:EmptyView()
+    }
+  }
+  private var detailPlaceholder:String {
+    if recent.isEmpty {return "认领本人录音后显示"}
+    if let point=selectedPoint {
+      switch point.status {
+      case .analyzing:return "正在分析原音频"
+      case .unscored(let reason):return reason
+      case .empty:return "暂无可靠测量"
+      case .scored:break
+      }
+    }
+    return recent.first(where:{$0.acoustic_status != "ready"})?.acousticMessage ?? "暂无可靠测量"
+  }
+  private func refresh() async {
+    guard store.remote else {return}
+    let connection=store.api
+    do {
+      let data:LibraryMetrics=try await connection.call("/v1/library/metrics")
+      guard DeviceRecordingMap.identity(connection)==DeviceRecordingMap.identity(store.api) else {return}
+      let next=DeliveryRadarAggregation.snapshot(sessions:data.sessions,scenario:scenario)
+      if next.fingerprint != lastFingerprint {
+        lastFingerprint=next.fingerprint
+        if !next.canCompare {showBaseline=false}
+      }
+      refreshed=data;issue=nil
+    } catch {if !Task.isCancelled {issue=error.localizedDescription}}
+  }
+  private func retry(_ job:String) async {
+    do {_ = try await store.api.raw("/v1/business-jobs/"+job+"/retry",method:"POST");await refresh()}
+    catch {issue=error.localizedDescription}
+  }
 }
 struct MergedLibraryFAQ:View {
   let items:[LibraryItem];let grouping:LibraryQuestionGrouping?;let scenario:String;var upload:()->Void
@@ -174,8 +440,20 @@ struct MergedLibraryFAQ:View {
   private func link(_ group:LibraryQuestionGroup)->some View {NavigationLink {MergedFAQGroupPage(group:group,items:rows(group))} label:{CompanionFAQCard {Text(group.question).companionFont(14,weight:.semibold);Text(group.occurrences>0 ? "被问 \(group.occurrences) 次 · \(group.recording_count) 场沟通":"历史问法 · 次数待核对").companionFont(11);Text(latest(group)?.label ?? "待整理").companionFont(11).foregroundStyle(Warm.purple)}}.buttonStyle(.plain).accessibilityIdentifier("memory-question-"+group.id)}
 }
 struct MergedFAQGroupPage:View {
-  let group:LibraryQuestionGroup;let items:[LibraryItem]
-  var body:some View {ScrollView {VStack(alignment:.leading,spacing:14) {Text(group.question).companionFont(25,weight:.bold);Text("相似问法放在一起，每次回答与资料依据分别保留。").companionFont(13);ForEach(Array((group.legacy_counts ?? []).enumerated()),id:\.offset) {_,count in Text("旧题库计数：\(count) 次，尚未核对来源录音").companionFont(12)};ForEach(items) {item in NavigationLink {LibraryFAQDetail(item:item)} label:{CompanionFAQCard {Text(item.original_question ?? item.title).companionFont(16,weight:.semibold);Text(item.text).companionFont(14);Text("查看与修改这次应对 →").companionFont(12).foregroundStyle(Warm.purple)}}.buttonStyle(.plain).accessibilityIdentifier("library-group-item-"+item.id)};if !(group.legacy_group_ids ?? []).isEmpty {Text("已保留旧问题组的对应关系").companionFont(12).foregroundStyle(RecordingFormat.secondary)};if !(group.prior_canonical_group_ids ?? []).isEmpty {Text("已保留合并前 FAQ 组的对应关系").companionFont(12).foregroundStyle(RecordingFormat.secondary)}}.padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)}.companionReport("FAQ")}
+  let group:LibraryQuestionGroup;@State var items:[LibraryItem]
+  @EnvironmentObject private var store:Store
+  @State private var error:String?
+  var body:some View {ScrollView {VStack(alignment:.leading,spacing:14) {Text(group.question).companionFont(25,weight:.bold);Text("相似问法放在一起，每次回答与资料依据分别保留。").companionFont(13);if let error {Text(error).companionFont(12).foregroundStyle(.red);Button("重新读取") {Task {await refresh()}}};ForEach(Array((group.legacy_counts ?? []).enumerated()),id:\.offset) {_,count in Text("旧题库计数：\(count) 次，尚未核对来源录音").companionFont(12)};ForEach(items) {item in NavigationLink {LibraryFAQDetail(item:item)} label:{CompanionFAQCard {Text(item.original_question ?? item.title).companionFont(16,weight:.semibold);Text(item.text).companionFont(14);Text("查看与修改这次应对 →").companionFont(12).foregroundStyle(Warm.purple)}}.buttonStyle(.plain).accessibilityIdentifier("library-group-item-"+item.id)};if !(group.legacy_group_ids ?? []).isEmpty {Text("已保留旧问题组的对应关系").companionFont(12).foregroundStyle(RecordingFormat.secondary)};if !(group.prior_canonical_group_ids ?? []).isEmpty {Text("已保留合并前 FAQ 组的对应关系").companionFont(12).foregroundStyle(RecordingFormat.secondary)}}.padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)}.companionReport("FAQ").task {await refresh()}}
+  private func refresh() async {
+    #if DEBUG
+    if Store.isolatedTestRun {return}
+    #endif
+    do {
+      let value:LibrarySnapshot=try await store.api.call("/v1/library")
+      items=value.items.filter {group.item_ids.contains($0.id) && ($0.status ?? "active")=="active"}
+      error=nil
+    } catch {if !Task.isCancelled {self.error=error.localizedDescription}}
+  }
 }
 struct LibraryMetricValues:View {
   let value:LibraryAggregate
@@ -186,18 +464,34 @@ struct LibraryMetricValues:View {
   }}
   private func metric(_ title:String,_ value:Double?,_ unit:String)->some View {HStack {Text(title);Spacer();Text(value.map {String(format:"%.1f",$0)+" "+unit} ?? "暂无数据").monospacedDigit()}.companionFont(14)}
 }
+struct LibraryAcousticValues:View {
+  let rows:[LibrarySessionMetric]
+  private var summary:LibraryAcousticSummary {LibraryAcousticSummary(rows:rows)}
+  var body:some View {VStack(alignment:.leading,spacing:8) {
+    Text("停顿 · "+(summary.pauseRate.map {String(format:"%.1f 次/分钟",$0)} ?? "待分析")).companionFont(14)
+    Text("音高起伏 · "+(summary.weighted(\.pitch_range_st).map {String(format:"%.1f 半音",$0)} ?? "待分析")).companionFont(14)
+    Text("音频分析覆盖 \(summary.ready.count)/\(rows.count) 场").companionFont(12).foregroundStyle(RecordingFormat.secondary)
+  }}
+}
 struct LibraryMetricsPage:View {
   let metrics:LibraryMetrics
   @State private var axis="语速"
   @State private var scenario:String
   init(metrics:LibraryMetrics,scenario:String="sales") {self.metrics=metrics;_scenario=State(initialValue:scenario)}
   private var visible:LibraryMetrics {
-    let rows=metrics.sessions.filter {$0.scenario==scenario}
+    let radar=DeliveryRadarAggregation.snapshot(sessions:metrics.sessions,scenario:scenario)
+    let rows=radar.ordered
     func aggregate(_ group:[LibrarySessionMetric])->LibraryAggregate {
-      let ms=group.reduce(0) {$0+$1.self_ms},total=group.reduce(0) {$0+$1.total_ms}
-      return LibraryAggregate(count:group.count,self_ms:ms,pace:ms>0 ? group.reduce(0) {$0+$1.pace*$1.self_ms}/ms:nil,share:total>0 ? ms*100/total:nil,filler_rate:ms>0 ? group.reduce(0) {$0+$1.filler_rate*$1.self_ms}/ms:nil,from:group.first?.date,to:group.last?.date)
+      LibraryAggregate(count:group.count,self_ms:group.reduce(0) {$0+$1.self_ms},
+                       pace:DeliveryRadarAggregation.weighted(group,\.pace),
+                       share:DeliveryRadarAggregation.speakingShare(group),
+                       filler_rate:DeliveryRadarAggregation.weighted(group,\.filler_rate),
+                       from:group.first?.date,to:group.last?.date)
     }
-    return LibraryMetrics(sessions:rows,recent:aggregate(Array(rows.suffix(3))),baseline:rows.count>=6 ? aggregate(Array(rows.prefix(3))):nil,note:metrics.note)
+    return LibraryMetrics(sessions:rows,recent:aggregate(radar.recentRows),baseline:radar.baselineRows.map(aggregate),note:metrics.note)
+  }
+  private func chartValue(_ row:LibrarySessionMetric)->Double? {
+    switch axis {case "语速":return row.pace;case "占比":return row.share;case "停顿":return row.pause_rate;case "起伏":return row.pitch_range_st;default:return row.filler_rate}
   }
   var body:some View {ScrollView {VStack(alignment:.leading,spacing:20) {
     Text("表达与趋势").companionFont(25,weight:.bold)
@@ -205,19 +499,21 @@ struct LibraryMetricsPage:View {
     if visible.sessions.isEmpty {Text("先完成一场录音并认领本人。无需凑满多场，就能查看单场数据。")}
     else {
       Text(visible.sessions.count>=3 ? "最近三场":"近期 \(visible.sessions.count) 场").companionFont(17,weight:.semibold)
-      CompanionPanel {LibraryMetricValues(value:visible.recent);Text("本人有效句段 \(Int(visible.recent.self_ms/60000)) 分钟").companionFont(12)}
-      if let baseline=visible.baseline {Text("最早三场 · 起点").companionFont(17,weight:.semibold);CompanionPanel {LibraryMetricValues(value:baseline);Text("\(ProductDate.display(baseline.from)) — \(ProductDate.display(baseline.to))").companionFont(12)}}
+      CompanionPanel {LibraryMetricValues(value:visible.recent);LibraryAcousticValues(rows:Array(visible.sessions.suffix(3)));Text("本人有效句段 \(Int(visible.recent.self_ms/60000)) 分钟").companionFont(12)}
+      if let baseline=visible.baseline {Text("最早三场 · 起点").companionFont(17,weight:.semibold);CompanionPanel {LibraryMetricValues(value:baseline);LibraryAcousticValues(rows:Array(visible.sessions.prefix(3)));Text("\(ProductDate.display(baseline.from)) — \(ProductDate.display(baseline.to))").companionFont(12)}}
       else {Text(visible.sessions.count<3 ? "满三场后查看近期趋势，满六场后与起点对比。":"再积累 \(max(0,6-visible.sessions.count)) 场，即可与最早三场对比。").companionFont(13).foregroundStyle(RecordingFormat.secondary)}
       if visible.sessions.count>=3 {
-        Picker("趋势指标",selection:$axis) {Text("语速").tag("语速");Text("说话占比").tag("占比");Text("口头禅").tag("口头禅")}.pickerStyle(.segmented)
+        Picker("趋势指标",selection:$axis) {Text("语速").tag("语速");Text("说话占比").tag("占比");Text("口头禅").tag("口头禅");Text("停顿（次/分钟）").tag("停顿");Text("起伏（半音）").tag("起伏")}.pickerStyle(.menu)
         Chart(Array(visible.sessions.enumerated()),id:\.element.id) {index,r in
-          LineMark(x:.value("场次",index+1),y:.value(axis,axis == "语速" ? r.pace:axis == "占比" ? r.share:r.filler_rate)).foregroundStyle(Warm.purple)
-          PointMark(x:.value("场次",index+1),y:.value(axis,axis == "语速" ? r.pace:axis == "占比" ? r.share:r.filler_rate)).foregroundStyle(Warm.purple)
+          if let y=chartValue(r) {
+            if !["停顿","起伏"].contains(axis) {LineMark(x:.value("场次",index+1),y:.value(axis,y)).foregroundStyle(Warm.purple)}
+            PointMark(x:.value("场次",index+1),y:.value(axis,y)).foregroundStyle(Warm.purple)
+          }
         }.frame(height:170).accessibilityLabel("真实沟通的"+axis+"趋势，逐场数值见下方记录")
       }
       Text("逐场记录").companionFont(17,weight:.semibold)
       ForEach(visible.sessions.reversed()) {r in
-        NavigationLink {CompanionRecordingPage(id:r.id)} label: {VStack(alignment:.leading,spacing:8) {Text(ProductDate.display(r.date)).companionFont(14,weight:.semibold);Text("语速 \(r.pace,specifier:"%.1f") · 占比 \(r.share,specifier:"%.1f")% · 口头禅 \(r.filler_rate,specifier:"%.1f")/分钟").companionFont(12);Text("说话人认领覆盖 \(r.coverage,specifier:"%.0f")% · 查看原文 →").companionFont(12).foregroundStyle(Warm.purple);Divider()}.frame(maxWidth:.infinity,alignment:.leading).contentShape(Rectangle())}.buttonStyle(.plain)
+        NavigationLink {CompanionRecordingPage(id:r.id)} label: {VStack(alignment:.leading,spacing:8) {Text(ProductDate.display(r.date)).companionFont(14,weight:.semibold);Text("语速 \(r.pace,specifier:"%.1f") · 占比 \(r.share,specifier:"%.1f")% · 口头禅 \(r.filler_rate,specifier:"%.1f")/分钟").companionFont(12);LibraryAcousticValues(rows:[r]);Text(r.acousticMessage).companionFont(12);Text("说话人认领覆盖 \(r.coverage,specifier:"%.0f")% · 查看原文 →").companionFont(12).foregroundStyle(Warm.purple);Divider()}.frame(maxWidth:.infinity,alignment:.leading).contentShape(Rectangle())}.buttonStyle(.plain)
       }
     }
     Text(visible.note).companionFont(12).foregroundStyle(RecordingFormat.secondary)
@@ -298,19 +594,19 @@ struct LibraryFAQDetail:View {
     if let error {Text(error).foregroundStyle(.red).companionFont(13)}
   }.frame(maxWidth:.infinity,alignment:.leading).padding(18).frame(maxWidth:700).frame(maxWidth:.infinity)}.companionReport(item.item_type == "faq" ? "FAQ":"表达素材")
     .task {await refresh()}
-    .sheet(isPresented:$editing) {NavigationStack {Form {TextEditor(text:$draft).frame(minHeight:180).accessibilityLabel("FAQ 说法");TextField("适用时间（可选，如双十一活动）",text:$period);Picker("主题",selection:$selectedTopic) {ForEach(item.topics,id:\.self) {Text($0).tag($0)}};Toggle("设置适用期限",isOn:$hasExpiry);if hasExpiry {DatePicker("适用至",selection:$expiry,displayedComponents:.date).accessibilityIdentifier("faq-expiry-picker")};Button("保存说法") {Task {await update(["text":draft,"period":period,"topic":selectedTopic,"valid_until":hasExpiry ? dateOnly(expiry):""]);if error==nil {editing=false}}}.disabled(busy || draft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty);if let error {Text(error).foregroundStyle(.red)}}.navigationTitle("更新说法").toolbar {Button("取消") {editing=false}}}}
+    .sheet(isPresented:$editing) {NavigationStack {Form {TextEditor(text:$draft).frame(minHeight:180).accessibilityLabel("FAQ 说法");TextField("适用时间（可选，如双十一活动）",text:$period);Picker("主题",selection:$selectedTopic) {ForEach(item.topics,id:\.self) {Text($0).tag($0)}};Toggle("设置适用期限",isOn:$hasExpiry);if hasExpiry {DatePicker("适用至",selection:$expiry,displayedComponents:.date).accessibilityIdentifier("faq-expiry-picker")};Button("保存说法") {Task {await update(["text":draft,"period":period,"topic":selectedTopic,"valid_until":hasExpiry ? dateOnly(expiry):""]);if error==nil {editing=false}}}.disabled(busy || draft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty);if let error {Text(error).foregroundStyle(.red);Button("重新读取当前版本（保留输入）") {Task {await refresh()}}.disabled(busy)}}.navigationTitle("更新说法").toolbar {Button("取消") {editing=false}}}}
     .sheet(isPresented:$linking) {NavigationStack {List(documents.filter {$0.parsed_id != nil}) {d in Button(d.title) {Task {do {item=try await store.api.call("/v1/library/items/"+item.id+"/document",method:"POST",body:["document_id":d.parsed_id!,"expected_version":item.version]);linking=false} catch {self.error=error.localizedDescription}}}}.navigationTitle("关联背景资料").toolbar {Button("关闭") {linking=false}}}}
   }
   private func dateOnly(_ value:Date)->String {let f=DateFormatter();f.locale=Locale(identifier:"en_US_POSIX");f.dateFormat="yyyy-MM-dd";return f.string(from:value)}
   private func beginEditing(_ text:String) {draft=text;period=item.period ?? "";selectedTopic=item.topic;hasExpiry = !(item.valid_until ?? "").isEmpty;expiry=ProductDate.parse(item.valid_until ?? "") ?? Date();if hasExpiry {expiry=Calendar.current.date(byAdding:.second,value:-1,to:expiry) ?? expiry};editing=true}
-  private func restoreVersion(_ v:LibraryVersion) async {var patch:[String:Any]=["text":v.text];if let period=v.period {patch["period"]=period};if let until=v.valid_until {patch["valid_until"]=until};await update(patch)}
+  private func restoreVersion(_ v:LibraryVersion) async {await update(v.restorationPatch)}
   private func refresh() async {
     #if DEBUG
     if Store.isolatedTestRun {return}
     #endif
-    do {item=try await store.api.call("/v1/library/items/"+item.id)} catch {self.error=error.localizedDescription}
+    do {item=try await store.api.call("/v1/library/items/"+item.id);error=nil} catch {self.error=error.localizedDescription}
   }
-  private func update(_ patch:[String:Any]) async {busy=true;defer {busy=false};do {var body=patch;body["expected_version"]=item.version;item=try await store.api.call("/v1/library/items/"+item.id,method:"PATCH",body:body);error=nil} catch {self.error=error.localizedDescription}}
+  private func update(_ patch:[String:Any]) async {guard !busy else {return};busy=true;defer {busy=false};do {var body=patch;body["expected_version"]=item.version;item=try await store.api.call("/v1/library/items/"+item.id,method:"PATCH",body:body);error=nil} catch {self.error=error.localizedDescription}}
 }
 struct LibraryMockPage:View {
   @EnvironmentObject var store:Store
@@ -462,5 +758,5 @@ struct LibraryLinkedDocument:View {
   let id:String
   @State private var doc:LibraryDocument?
   @State private var error:String?
-  var body:some View {Group {if let doc {LibraryDocumentDetail(document:doc,onChange:{})} else if let error {Text(error).padding()} else {ProgressView("正在读取资料")}}.task {do {let value:LibrarySnapshot=try await store.api.call("/v1/library");doc=value.documents.first {$0.id==id};if doc==nil {error="这份依据已更新或移除，可在背景资料查看当前版本。"}} catch {self.error=error.localizedDescription}}}
+  var body:some View {Group {if let doc {VStack(spacing:0) {if doc.id != id {Text("这份依据已更新，以下为当前版本；历史原文件可在版本记录中查看。").companionFont(13).padding()};LibraryDocumentDetail(document:doc,onChange:{})}} else if let error {Text(error).padding()} else {ProgressView("正在读取资料")}}.task {do {let value:LibrarySnapshot=try await store.api.call("/v1/library");doc=value.documents.first {$0.id==id || $0.versions.contains(id)};if doc==nil {error="这份依据已更新或移除，可在背景资料查看当前版本。"}} catch {self.error=error.localizedDescription}}}
 }
